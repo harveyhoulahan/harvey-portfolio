@@ -1,7 +1,7 @@
 "use client"
 
-import React, { CSSProperties, forwardRef, useRef, useMemo } from "react"
-import { motion, useAnimationFrame, useMotionValue, useTransform } from "framer-motion"
+import React, { CSSProperties, forwardRef, useRef } from "react"
+import { useAnimationFrame } from "framer-motion"
 import { useMousePositionRef } from "@/hooks/use-mouse-position-ref"
 
 // Helper type that makes all properties of CSSProperties accept number | string
@@ -41,13 +41,6 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
     const letterRefs = useRef<(HTMLSpanElement | null)[]>([])
     const mousePositionRef = useMousePositionRef(containerRef)
     
-    // Create motion values for letter proximities using useMemo to avoid hook violations
-    const letterCount = label.replace(/\s/g, "").length
-    const letterProximities = useMemo(
-      () => Array.from({ length: letterCount }, () => useMotionValue(0)),
-      [letterCount]
-    )
-
     const calculateDistance = (
       x1: number,
       y1: number,
@@ -71,11 +64,50 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
       }
     }
 
+    const interpolateValue = (from: any, to: any, progress: number): any => {
+      // Handle transform values
+      if (typeof from === 'string' && typeof to === 'string') {
+        // Parse scale values
+        const scaleMatch1 = from.match(/scale\(([\d.]+)\)/)
+        const scaleMatch2 = to.match(/scale\(([\d.]+)\)/)
+        if (scaleMatch1 && scaleMatch2) {
+          const fromScale = parseFloat(scaleMatch1[1])
+          const toScale = parseFloat(scaleMatch2[1])
+          const interpolated = fromScale + (toScale - fromScale) * progress
+          return `scale(${interpolated})`
+        }
+        return progress > 0.5 ? to : from
+      }
+      
+      // Handle color values (both hex and rgba)
+      if (typeof from === 'string' && from.startsWith('#')) {
+        const fromRgb = parseInt(from.slice(1), 16)
+        const toRgb = typeof to === 'string' && to.startsWith('#') ? parseInt(to.slice(1), 16) : fromRgb
+        const r1 = (fromRgb >> 16) & 255
+        const g1 = (fromRgb >> 8) & 255
+        const b1 = fromRgb & 255
+        const r2 = (toRgb >> 16) & 255
+        const g2 = (toRgb >> 8) & 255
+        const b2 = toRgb & 255
+        const r = Math.round(r1 + (r2 - r1) * progress)
+        const g = Math.round(g1 + (g2 - g1) * progress)
+        const b = Math.round(b1 + (b2 - b1) * progress)
+        return `rgba(${r}, ${g}, ${b}, 1)`
+      }
+      
+      // Handle numeric values
+      if (typeof from === 'number' && typeof to === 'number') {
+        return from + (to - from) * progress
+      }
+      
+      return from
+    }
+
     useAnimationFrame(() => {
       if (!containerRef.current) return
       const containerRect = containerRef.current.getBoundingClientRect()
 
-      letterRefs.current.forEach((letterRef, index) => {
+      letterRefs.current.forEach((letterRef) => {
         if (!letterRef) return
 
         const rect = letterRef.getBoundingClientRect()
@@ -90,21 +122,16 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
         )
 
         const proximity = calculateFalloff(distance)
-        letterProximities[index].set(proximity)
+        
+        // Apply styles directly to DOM
+        Object.entries(styles).forEach(([key, value]) => {
+          if (value) {
+            const interpolated = interpolateValue(value.from, value.to, proximity)
+            letterRef.style[key as any] = interpolated
+          }
+        })
       })
     })
-
-    // Pre-compute all transforms to avoid calling hooks in callbacks
-    const transformedStylesByLetter = useMemo(() => {
-      return letterProximities.map((proximity) => {
-        const transformedStyles: Record<string, any> = {}
-        Object.entries(styles).forEach(([key, value]) => {
-          // eslint-disable-next-line react-hooks/rules-of-hooks
-          transformedStyles[key] = useTransform(proximity, [0, 1], [value.from, value.to])
-        })
-        return transformedStyles
-      })
-    }, [letterProximities, styles])
 
     const words = label.split(" ")
     let letterIndex = 0
@@ -120,20 +147,18 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
           <span key={wordIndex} className="inline-block whitespace-nowrap">
             {word.split("").map((letter) => {
               const currentLetterIndex = letterIndex++
-              const transformedStyles = transformedStylesByLetter[currentLetterIndex]
 
               return (
-                <motion.span
+                <span
                   key={currentLetterIndex}
                   ref={(el: HTMLSpanElement | null) => {
                     letterRefs.current[currentLetterIndex] = el
                   }}
                   className="inline-block"
                   aria-hidden="true"
-                  style={transformedStyles}
                 >
                   {letter}
-                </motion.span>
+                </span>
               )
             })}
             {wordIndex < words.length - 1 && (
