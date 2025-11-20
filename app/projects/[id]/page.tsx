@@ -23,11 +23,7 @@ export default function ProjectDetailPage({ params }: { params: { id: string } }
       
       {/* Hero Section */}
       <div className="relative h-[50vh] min-h-[400px] overflow-hidden z-10">
-        <div 
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${project.image})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-br from-neutral-950 via-neutral-900 to-black" />
         
         {/* Flowing red overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-red-500/10 via-transparent to-red-900/10" />
