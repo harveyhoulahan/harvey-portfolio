@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rural IoT Mesh Network</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+        .nav {
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .poc-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(139, 92, 246, 0.2);
+            border: 1px solid #8b5cf6;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        .hero {
+            text-align: center;
+            padding: 100px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 800px;
+            margin: 0 auto 40px;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            border-radius: 30px;
+            text-decoration: none;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s;
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+        }
+        .features {
+            padding: 80px 50px;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #8b5cf6;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #8b5cf6;
+        }
+        .feature-card p {
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.6;
+        }
+        .architecture {
+            padding: 60px 50px;
+            background: rgba(139, 92, 246, 0.05);
+            max-width: 1200px;
+            margin: 0 auto;
+            border-radius: 20px;
+        }
+        .architecture h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: #8b5cf6;
+        }
+        .arch-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .arch-item {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .arch-label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 8px;
+        }
+        .arch-value {
+            font-size: 1.2rem;
+            color: #8b5cf6;
+            font-weight: 600;
+        }
+        .stats {
+            padding: 60px 50px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 60px auto;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #8b5cf6, #6366f1);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label {
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 10px;
+        }
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.4);
+            border-top: 1px solid rgba(139, 92, 246, 0.1);
+            margin-top: 80px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="logo">
+            Rural IoT Network
+            <span class="poc-badge">PROTOTYPE</span>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>IoT Connectivity for<br>Remote Agriculture</h1>
+        <p>LoRaWAN mesh network enabling livestock and soil monitoring across vast agricultural regions with no cellular coverage.</p>
+        <a href="#" class="cta-button">View Technical Specs</a>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <div class="feature-icon">📡</div>
+            <h3>LoRaWAN Protocol</h3>
+            <p>Low-power wide-area network with custom routing protocol optimized for agricultural scale. Range up to 10km in rural areas.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">☀️</div>
+            <h3>Solar Powered Nodes</h3>
+            <p>Self-sufficient sensor nodes with solar panels and battery backup. Designed for 3+ year deployment without maintenance.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🌡️</div>
+            <h3>Multi-Sensor Support</h3>
+            <p>Monitor soil moisture, temperature, humidity, and livestock GPS location. Extensible architecture for additional sensors.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📱</div>
+            <h3>Flutter Mobile App</h3>
+            <p>Real-time monitoring dashboard with automated alerts. View all sensor data and network health from your phone.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>Ultra Low Power</h3>
+            <p>Custom power management achieves 3+ year battery life on single charge. Critical for remote deployment.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🔧</div>
+            <h3>Mesh Reliability</h3>
+            <p>Self-healing network automatically routes around failed nodes. Redundant paths ensure 99%+ uptime.</p>
+        </div>
+    </div>
+
+    <div class="architecture">
+        <h2>System Architecture</h2>
+        <div class="arch-stack">
+            <div class="arch-item">
+                <div class="arch-label">Hardware</div>
+                <div class="arch-value">Arduino / ESP32</div>
+            </div>
+            <div class="arch-item">
+                <div class="arch-label">Protocol</div>
+                <div class="arch-value">LoRaWAN</div>
+            </div>
+            <div class="arch-item">
+                <div class="arch-label">Backend</div>
+                <div class="arch-value">Node.js + MQTT</div>
+            </div>
+            <div class="arch-item">
+                <div class="arch-label">Database</div>
+                <div class="arch-value">InfluxDB</div>
+            </div>
+            <div class="arch-item">
+                <div class="arch-label">Visualization</div>
+                <div class="arch-value">Grafana</div>
+            </div>
+            <div class="arch-item">
+                <div class="arch-label">Mobile</div>
+                <div class="arch-value">Flutter</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-number">10km</div>
+            <div class="stat-label">Max Range</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">3+yr</div>
+            <div class="stat-label">Battery Life</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">99%</div>
+            <div class="stat-label">Network Uptime</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">2023</div>
+            <div class="stat-label">Prototype Year</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2023 Rural IoT Network. Connecting agriculture through low-power wireless technology.</p>
+        <p style="margin-top: 10px; font-size: 0.9rem;">Proof-of-Concept Deployment</p>
+    </div>
+</body>
+</html>

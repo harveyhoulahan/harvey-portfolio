@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FibreTrace - Supply Chain Transparency</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0c1445 0%, #082f49 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+        .nav {
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(6, 182, 212, 0.2);
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .enterprise-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(6, 182, 212, 0.2);
+            border: 1px solid #06b6d4;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        .hero {
+            text-align: center;
+            padding: 100px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 800px;
+            margin: 0 auto 40px;
+        }
+        .trust-badge {
+            display: inline-block;
+            padding: 12px 24px;
+            background: rgba(6, 182, 212, 0.1);
+            border: 2px solid #06b6d4;
+            border-radius: 10px;
+            color: #06b6d4;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            border-radius: 30px;
+            text-decoration: none;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s;
+            margin-right: 15px;
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+        }
+        .cta-secondary {
+            background: transparent;
+            border: 2px solid #06b6d4;
+        }
+        .features {
+            padding: 80px 50px;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #06b6d4;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #06b6d4;
+        }
+        .feature-card p {
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.6;
+        }
+        .stats {
+            padding: 60px 50px;
+            background: rgba(6, 182, 212, 0.05);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            border-radius: 20px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #06b6d4, #0891b2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label {
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 10px;
+        }
+        .clients {
+            padding: 60px 50px;
+            text-align: center;
+        }
+        .clients h2 {
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: #06b6d4;
+        }
+        .client-logos {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            flex-wrap: wrap;
+            opacity: 0.6;
+        }
+        .client-logo {
+            font-size: 1.2rem;
+            padding: 15px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            border-radius: 10px;
+        }
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.4);
+            border-top: 1px solid rgba(6, 182, 212, 0.1);
+            margin-top: 80px;
+        }
+    </style>
+</head>
+<body>
+    <nav class="nav">
+        <div class="logo">
+            FibreTrace
+            <span class="enterprise-badge">ENTERPRISE</span>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>End-to-End Supply Chain<br>Transparency</h1>
+        <p>Blockchain-powered product tracking for the textile industry. Combat counterfeit goods and ensure ethical sourcing.</p>
+        <div class="trust-badge">🔒 Powered by Hyperledger Fabric</div>
+        <br>
+        <a href="#" class="cta-button">Request Demo</a>
+        <a href="#" class="cta-button cta-secondary">View Case Studies</a>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <div class="feature-icon">🔗</div>
+            <h3>Blockchain Tracking</h3>
+            <p>Immutable record of product journey from raw materials to final garments. Built on Hyperledger Fabric for enterprise security.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>ML Authentication</h3>
+            <p>Core ML-powered QR code verification reduces counterfeit incidents by 78% for luxury brands. On-device processing for instant results.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🌍</div>
+            <h3>Global Coverage</h3>
+            <p>Track 50M+ items across 12 countries. Real-time visibility across hundreds of suppliers and manufacturing facilities.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">⚡</div>
+            <h3>High Performance</h3>
+            <p>Process 2M+ daily transactions with sub-second response times. Enterprise-grade reliability and scalability.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📱</div>
+            <h3>Native iOS App</h3>
+            <p>Built with Swift/SwiftUI for seamless user experience. Offline-first architecture ensures continuous operation.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Real-Time Reporting</h3>
+            <p>Comprehensive dashboards and analytics. Validate sustainability claims with verifiable data.</p>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-number">50M+</div>
+            <div class="stat-label">Items Tracked</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">12</div>
+            <div class="stat-label">Countries</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">2M+</div>
+            <div class="stat-label">Daily Transactions</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">78%</div>
+            <div class="stat-label">Counterfeit Reduction</div>
+        </div>
+    </div>
+
+    <div class="clients">
+        <h2>Trusted by Leading Fashion Brands</h2>
+        <div class="client-logos">
+            <div class="client-logo">Luxury Brand A</div>
+            <div class="client-logo">Fashion House B</div>
+            <div class="client-logo">Textile Corp C</div>
+            <div class="client-logo">Sustainable Label D</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2024 FibreTrace. Securing supply chains with blockchain technology.</p>
+        <p style="margin-top: 10px; font-size: 0.9rem;">Visit: <a href="https://fibretrace.io" style="color: #06b6d4; text-decoration: none;">fibretrace.io</a></p>
+    </div>
+</body>
+</html>

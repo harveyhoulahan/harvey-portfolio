@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgrIQ - Smart Livestock Intelligence</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #052e16 0%, #14532d 100%);
+            color: white;
+            overflow-x: hidden;
+        }
+        .wip-banner {
+            background: linear-gradient(90deg, #f59e0b, #d97706);
+            text-align: center;
+            padding: 12px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+        .nav {
+            padding: 20px 50px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+        }
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .wip-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+            color: #fbbf24;
+        }
+        .hero {
+            text-align: center;
+            padding: 100px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .hero h1 {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            font-size: 1.5rem;
+            color: rgba(255, 255, 255, 0.7);
+            max-width: 800px;
+            margin: 0 auto 40px;
+        }
+        .research-note {
+            display: inline-block;
+            padding: 12px 24px;
+            background: rgba(245, 158, 11, 0.1);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            color: #fbbf24;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            border-radius: 30px;
+            text-decoration: none;
+            color: white;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s;
+        }
+        .cta-button:hover {
+            transform: scale(1.05);
+        }
+        .features {
+            padding: 80px 50px;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        .feature-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            padding: 30px;
+            transition: transform 0.3s, border-color 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            border-color: #22c55e;
+        }
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #22c55e;
+        }
+        .feature-card p {
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.6;
+        }
+        .wip-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background: rgba(245, 158, 11, 0.2);
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            color: #fbbf24;
+            margin-left: 8px;
+        }
+        .stats {
+            padding: 60px 50px;
+            background: rgba(34, 197, 94, 0.05);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            border-radius: 20px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #22c55e, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stat-label {
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 10px;
+        }
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: rgba(255, 255, 255, 0.4);
+            border-top: 1px solid rgba(34, 197, 94, 0.1);
+            margin-top: 80px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wip-banner">
+        🚧 RESEARCH & DEVELOPMENT - Pre-Commercial Testing Phase
+    </div>
+
+    <nav class="nav">
+        <div class="logo">
+            AgrIQ
+            <span class="wip-badge">R&D</span>
+        </div>
+    </nav>
+
+    <div class="hero">
+        <h1>Next-Gen Livestock<br>Intelligence</h1>
+        <p>ML-powered smart ear tags for ultra-early pregnancy detection and comprehensive health monitoring across multiple species.</p>
+        <div class="research-note">⚠️ Currently in Research Phase - Commercial Testing Planned for 2025</div>
+        <br>
+        <a href="#" class="cta-button">Request Research Access</a>
+    </div>
+
+    <div class="features">
+        <div class="feature-card">
+            <div class="feature-icon">🤰</div>
+            <h3>Pregnancy Prediction <span class="wip-tag">RESEARCH</span></h3>
+            <p>Targeting 90%+ accuracy from day 7 post-conception using biosensor data and time-series ML models. Revolutionary early detection.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Health Indexing <span class="wip-tag">PROTOTYPE</span></h3>
+            <p>Real-time health monitoring through continuous vital sign tracking and behavioral pattern analysis. Predictive health scoring.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🐄</div>
+            <h3>Multi-Species Support</h3>
+            <p>Dedicated ML pipelines for cattle, sheep, and goats. Species-specific models ensure maximum accuracy.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📡</div>
+            <h3>Smart Ear Tags <span class="wip-tag">PROTOTYPE</span></h3>
+            <p>IoT hardware prototypes with biosensors for continuous monitoring. Edge ML processing for real-time insights.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🔔</div>
+            <h3>Early Disease Detection</h3>
+            <p>Behavioral pattern analysis identifies anomalies before symptoms appear. Reduce vet costs and improve outcomes.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">📱</div>
+            <h3>Farm Management <span class="wip-tag">CONCEPT</span></h3>
+            <p>Mobile and web dashboard concepts for comprehensive farm operations. Automation research to reduce manual checks.</p>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-number">90%+</div>
+            <div class="stat-label">Target Accuracy (Day 7)</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">3</div>
+            <div class="stat-label">Species Supported</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">Continuous Monitoring</div>
+        </div>
+        <div class="stat">
+            <div class="stat-number">2025</div>
+            <div class="stat-label">Commercial Testing</div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>&copy; 2025 AgrIQ. Pioneering livestock intelligence through machine learning.</p>
+        <p style="margin-top: 10px; font-size: 0.9rem;">Research & Development Phase - Not Yet Available Commercially</p>
+    </div>
+</body>
+</html>

@@ -31,7 +31,7 @@ export default function Projects() {
         <div className="flex flex-col justify-between min-h-[85vh] px-8 md:px-16 lg:px-24 py-16">
           <div className="uppercase leading-[0.85] gap-2 flex-1 flex flex-col justify-center">
             <TextCursorProximity
-              label="HARVEY'S"
+              label="THE"
               className="text-6xl will-change-transform sm:text-8xl md:text-9xl lg:text-[12rem] font-black tracking-tighter block"
               styles={{
                 transform: {
