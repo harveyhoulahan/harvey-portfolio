@@ -1,6 +1,6 @@
 "use client"
 
-import React, { CSSProperties, forwardRef, useRef } from "react"
+import React, { CSSProperties, forwardRef, useRef, useMemo } from "react"
 import { motion, useAnimationFrame, useMotionValue, useTransform } from "framer-motion"
 import { useMousePositionRef } from "@/hooks/use-mouse-position-ref"
 
@@ -41,11 +41,11 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
     const letterRefs = useRef<(HTMLSpanElement | null)[]>([])
     const mousePositionRef = useMousePositionRef(containerRef)
     
-    // Create a motion value for each letter's proximity
-    const letterProximities = useRef(
-      Array(label.replace(/\s/g, "").length)
-        .fill(0)
-        .map(() => useMotionValue(0))
+    // Create motion values for letter proximities using useMemo to avoid hook violations
+    const letterCount = label.replace(/\s/g, "").length
+    const letterProximities = useMemo(
+      () => Array.from({ length: letterCount }, () => useMotionValue(0)),
+      [letterCount]
     )
 
     const calculateDistance = (
@@ -90,7 +90,7 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
         )
 
         const proximity = calculateFalloff(distance)
-        letterProximities.current[index].set(proximity)
+        letterProximities[index].set(proximity)
       })
     })
 
@@ -108,7 +108,7 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
           <span key={wordIndex} className="inline-block whitespace-nowrap">
             {word.split("").map((letter) => {
               const currentLetterIndex = letterIndex++
-              const proximity = letterProximities.current[currentLetterIndex]
+              const proximity = letterProximities[currentLetterIndex]
               
               // Create transformed values for each style property
               const transformedStyles = Object.entries(styles).reduce((acc, [key, value]) => {

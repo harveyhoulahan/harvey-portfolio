@@ -118,9 +118,9 @@ export default function Hero() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="space-y-2 font-mono text-xs text-blue-400/60">
                   <div>const engineer = &#123;</div>
-                  <div className="pl-4">focus: "Applied AI",</div>
-                  <div className="pl-4">stack: ["Python", "Swift", "TypeScript"],</div>
-                  <div className="pl-4">location: "NYC"</div>
+                  <div className="pl-4">focus: &quot;Applied AI&quot;,</div>
+                  <div className="pl-4">stack: [&quot;Python&quot;, &quot;Swift&quot;, &quot;TypeScript&quot;],</div>
+                  <div className="pl-4">location: &quot;NYC&quot;</div>
                   <div>&#125;;</div>
                 </div>
               </div>

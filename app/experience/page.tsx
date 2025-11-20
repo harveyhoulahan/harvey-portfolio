@@ -83,7 +83,7 @@ export default function Experience() {
             <p className="text-red-400 font-medium mb-1">Software Engineering Intern</p>
             <p className="text-neutral-500 text-sm mb-4">Melbourne, Australia • On-site</p>
             <p className="text-neutral-300 text-sm md:text-base mb-4">
-              Developed advanced analytics and forecasting systems for Australia's national electricity grid, supporting critical infrastructure managing 200+ GW of generation capacity and serving 20M+ customers across the National Electricity Market.
+              Developed advanced analytics and forecasting systems for Australia&apos;s national electricity grid, supporting critical infrastructure managing 200+ GW of generation capacity and serving 20M+ customers across the National Electricity Market.
             </p>
           </div>
           <div className="space-y-2 text-sm text-neutral-400">
@@ -101,7 +101,7 @@ export default function Experience() {
             </div>
             <div className="flex gap-2 items-start">
               <span className="text-red-400 mt-1">▸</span>
-              <span>Integrated renewable energy forecasting to support Australia's clean energy transition goals</span>
+              <span>Integrated renewable energy forecasting to support Australia&apos;s clean energy transition goals</span>
             </div>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default function Experience() {
           <div className="mb-6">
             <h3 className="text-2xl font-bold text-white mb-2">Pathway to Global Tech</h3>
             <p className="text-neutral-300 text-sm md:text-base mb-4">
-              Grew up in northern NSW's cotton belt. Spent time around farms, saw how agriculture and textiles actually work. Started med school, switched to computer science. Now building ML systems for fashion, energy, and agriculture — industries I understand from the ground up.
+              Grew up in northern NSW&apos;s cotton belt. Spent time around farms, saw how agriculture and textiles actually work. Started med school, switched to computer science. Now building ML systems for fashion, energy, and agriculture — industries I understand from the ground up.
             </p>
           </div>
           <div className="space-y-2 text-sm text-neutral-400">
