@@ -94,6 +94,18 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
       })
     })
 
+    // Pre-compute all transforms to avoid calling hooks in callbacks
+    const transformedStylesByLetter = useMemo(() => {
+      return letterProximities.map((proximity) => {
+        const transformedStyles: Record<string, any> = {}
+        Object.entries(styles).forEach(([key, value]) => {
+          // eslint-disable-next-line react-hooks/rules-of-hooks
+          transformedStyles[key] = useTransform(proximity, [0, 1], [value.from, value.to])
+        })
+        return transformedStyles
+      })
+    }, [letterProximities, styles])
+
     const words = label.split(" ")
     let letterIndex = 0
 
@@ -108,13 +120,7 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
           <span key={wordIndex} className="inline-block whitespace-nowrap">
             {word.split("").map((letter) => {
               const currentLetterIndex = letterIndex++
-              const proximity = letterProximities[currentLetterIndex]
-              
-              // Create transformed values for each style property
-              const transformedStyles = Object.entries(styles).reduce((acc, [key, value]) => {
-                acc[key] = useTransform(proximity, [0, 1], [value.from, value.to])
-                return acc
-              }, {} as Record<string, any>)
+              const transformedStyles = transformedStylesByLetter[currentLetterIndex]
 
               return (
                 <motion.span
