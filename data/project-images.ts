@@ -5,18 +5,6 @@
 
 export const projectImages = [
   {
-    alt: "Modaics - Fashion Marketplace & AI Styling",
-    title: "Modaics",
-    project: "modaics",
-    gradient: "from-pink-500 to-purple-500",
-  },
-  {
-    alt: "AgrIQ - Smart Livestock Intelligence [WIP]",
-    title: "AgrIQ [WIP]",
-    project: "agriq",
-    gradient: "from-green-500 to-emerald-500",
-  },
-  {
     alt: "FibreTrace - Blockchain Supply Chain",
     title: "FibreTrace",
     project: "blockchain-trace",
@@ -27,6 +15,18 @@ export const projectImages = [
     title: "Friday & Step One",
     project: "friday-stepone",
     gradient: "from-orange-500 to-red-500",
+  },
+  {
+    alt: "Modaics - Fashion Marketplace & AI Styling",
+    title: "Modaics",
+    project: "modaics",
+    gradient: "from-pink-500 to-purple-500",
+  },
+  {
+    alt: "AgrIQ - Smart Livestock Intelligence [WIP]",
+    title: "AgrIQ [WIP]",
+    project: "agriq",
+    gradient: "from-green-500 to-emerald-500",
   },
 ];
 

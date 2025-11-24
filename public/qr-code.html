@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Code - Harvey Houlahan Portfolio</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #fff;
+            font-size: 2rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 30px;
+            font-size: 0.9rem;
+        }
+
+        #qr-code {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            display: inline-block;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .url {
+            color: #667eea;
+            font-weight: 600;
+            margin: 20px 0;
+            font-size: 1.1rem;
+            word-break: break-all;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px 5px;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .download-btn:active {
+            transform: translateY(0);
+        }
+
+        .info {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            margin-top: 20px;
+            line-height: 1.6;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .container {
+                background: white;
+                border: none;
+                box-shadow: none;
+            }
+            .download-btn, .info, .subtitle {
+                display: none;
+            }
+            h1 {
+                color: #000;
+                -webkit-text-fill-color: #000;
+            }
+            .url {
+                color: #000;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Harvey Houlahan</h1>
+        <p class="subtitle">ML Engineer • Portfolio QR Code</p>
+        
+        <div id="qr-code"></div>
+        
+        <p class="url">hjhportfolio.com</p>
+        
+        <button class="download-btn" onclick="downloadQR()">Download PNG</button>
+        <button class="download-btn" onclick="downloadSVG()">Download SVG</button>
+        <button class="download-btn" onclick="window.print()">Print</button>
+        
+        <p class="info">
+            Scan this QR code to view my portfolio.<br>
+            Perfect for business cards, resumes, or presentations.
+        </p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        const portfolioURL = 'https://hjhportfolio.com';
+        
+        // Generate QR Code
+        QRCode.toCanvas(portfolioURL, {
+            errorCorrectionLevel: 'H',
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#1a1a2e',
+                light: '#ffffff'
+            }
+        }, function (error, canvas) {
+            if (error) {
+                console.error(error);
+                return;
+            }
+            document.getElementById('qr-code').appendChild(canvas);
+        });
+
+        // Download as PNG
+        function downloadQR() {
+            const canvas = document.querySelector('#qr-code canvas');
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.download = 'harvey-portfolio-qr-code.png';
+            a.href = url;
+            a.click();
+        }
+
+        // Download as SVG
+        function downloadSVG() {
+            QRCode.toString(portfolioURL, {
+                errorCorrectionLevel: 'H',
+                type: 'svg',
+                width: 300,
+                margin: 2,
+                color: {
+                    dark: '#1a1a2e',
+                    light: '#ffffff'
+                }
+            }, function (error, svg) {
+                if (error) {
+                    console.error(error);
+                    return;
+                }
+                const blob = new Blob([svg], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.download = 'harvey-portfolio-qr-code.svg';
+                a.href = url;
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        }
+    </script>
+</body>
+</html>
