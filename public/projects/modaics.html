@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modaics - AI-Powered Fashion Platform</title>
+    <title>Modaics - AI-Powered Fashion Platform | Digital Wardrobe & Sustainable Marketplace</title>
+    <meta name="description" content="AI-powered styling, sustainable fashion discovery, and peer-to-peer marketplace. Join the waitlist for the future of fashion technology.">
+    <script src="https://cdn.jsdelivr.net/npm/framer-motion@11/dist/framer-motion.js"></script>
     <style>
         * {
             margin: 0;
@@ -41,6 +43,11 @@
             border-radius: 20px;
             font-size: 0.8rem;
             margin-left: 10px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
         }
         .hero {
             text-align: center;
@@ -55,6 +62,39 @@
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+            animation: slideUp 0.8s ease-out;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .shimmer {
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                transparent 40%, 
+                rgba(236, 72, 153, 0.4) 50%, 
+                transparent 60%, 
+                transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite linear;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+        .glow-on-hover {
+            transition: all 0.3s ease;
+        }
+        .glow-on-hover:hover {
+            box-shadow: 0 0 30px rgba(236, 72, 153, 0.5);
         }
         .hero p {
             font-size: 1.5rem;
@@ -71,10 +111,26 @@
             color: white;
             font-weight: 600;
             font-size: 1.1rem;
-            transition: transform 0.3s;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        .cta-button:hover::before {
+            left: 100%;
         }
         .cta-button:hover {
             transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(236, 72, 153, 0.4);
         }
         .features {
             padding: 80px 50px;
@@ -89,11 +145,14 @@
             border: 1px solid rgba(236, 72, 153, 0.2);
             border-radius: 20px;
             padding: 30px;
-            transition: transform 0.3s, border-color 0.3s;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
         }
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-8px);
             border-color: #ec4899;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 15px 40px rgba(236, 72, 153, 0.25);
         }
         .feature-icon {
             font-size: 3rem;
@@ -151,39 +210,33 @@
     </nav>
 
     <div class="hero">
-        <h1>Your Digital Wardrobe,<br>Reimagined</h1>
+        <h1 class="shimmer">Your Digital Wardrobe,<br>Reimagined</h1>
         <p>AI-powered styling, sustainable fashion discovery, and peer-to-peer marketplace. All in one platform.</p>
-        <a href="#" class="cta-button">Join the Waitlist</a>
+        <a href="mailto:harvey@modaics.com?subject=Waitlist%20Interest" class="cta-button">Join the Waitlist</a>
     </div>
 
     <div class="features">
         <div class="feature-card">
-            <div class="feature-icon">🤖</div>
             <h3>AI Styling Assistant</h3>
             <p>Get personalized outfit recommendations powered by computer vision and natural language processing. Your personal stylist, 24/7.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">👕</div>
             <h3>Digital Wardrobe</h3>
             <p>Digitize your entire wardrobe with automatic categorization. Never forget what you own, mix and match virtually.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">🌱</div>
             <h3>Sustainable Marketplace</h3>
             <p>Buy, sell, and trade fashion items with peers. Make sustainable choices while discovering unique pieces.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">📱</div>
             <h3>Mobile First</h3>
             <p>Native iOS app built with React Native and Swift. Seamless experience from wardrobe scan to outfit creation.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">✨</div>
             <h3>Trend Discovery</h3>
             <p>Community-driven curation keeps you ahead of trends. See what's working for others with similar style.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">🎓</div>
             <h3>RMIT Accelerated</h3>
             <p>Graduated from RMIT Activator program with industry validation and mentorship from fashion tech leaders.</p>
         </div>

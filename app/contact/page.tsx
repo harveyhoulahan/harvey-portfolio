@@ -96,7 +96,7 @@ export default function Contact() {
               </div>
 
               <a
-                href="https://linkedin.com"
+                href="https://www.linkedin.com/in/harveyhoulahan"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-4 text-neutral-300 hover:text-white transition-colors group"
@@ -106,7 +106,7 @@ export default function Contact() {
                 </div>
                 <div>
                   <p className="text-sm text-neutral-500">LinkedIn</p>
-                  <p className="font-medium"></p>
+                  <p className="font-medium">Harvey Houlahan</p>
                 </div>
               </a>
             </div>
@@ -118,7 +118,7 @@ export default function Contact() {
               <div>
                 <h4 className="font-semibold mb-2 text-white">Work Authorization</h4>
                 <p className="text-sm text-neutral-300">
-                  E-3 Visa
+                  Australian citizen with E-3 visa eligibility for U.S. employment
                 </p>
               </div>
             </div>

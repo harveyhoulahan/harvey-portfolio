@@ -5,46 +5,28 @@
 
 export const projectImages = [
   {
-    icon: "👗",
     alt: "Modaics - Fashion Marketplace & AI Styling",
     title: "Modaics",
     project: "modaics",
     gradient: "from-pink-500 to-purple-500",
   },
   {
-    icon: "🐄",
     alt: "AgrIQ - Smart Livestock Intelligence [WIP]",
     title: "AgrIQ [WIP]",
     project: "agriq",
     gradient: "from-green-500 to-emerald-500",
   },
   {
-    icon: "🔗",
     alt: "FibreTrace - Blockchain Supply Chain",
     title: "FibreTrace",
     project: "blockchain-trace",
     gradient: "from-blue-500 to-cyan-500",
   },
   {
-    icon: "🚀",
     alt: "Production ML - Friday Tech & Step One",
     title: "Friday & Step One",
     project: "friday-stepone",
     gradient: "from-orange-500 to-red-500",
-  },
-  {
-    icon: "🌾",
-    alt: "Neural Cotton Yield Predictor",
-    title: "Cotton ML",
-    project: "neural-cotton",
-    gradient: "from-yellow-500 to-green-500",
-  },
-  {
-    icon: "📡",
-    alt: "Rural IoT Mesh Network",
-    title: "IoT Mesh",
-    project: "mesh-network",
-    gradient: "from-purple-500 to-indigo-500",
   },
 ];
 

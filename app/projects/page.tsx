@@ -15,9 +15,12 @@ export default function Projects() {
   const heroRef = useRef<HTMLDivElement>(null);
 
   const handleImageClick = (index: number) => {
-    // Navigate to project detail page
+    // Navigate to project launch page
     const projectId = projectImages[index].project;
-    window.location.href = `/projects/${projectId}`;
+    const project = projectsData.find(p => p.id === projectId);
+    if (project?.link) {
+      window.location.href = project.link;
+    }
   };
 
   return (
@@ -83,7 +86,7 @@ export default function Projects() {
               }}
             >
               {[...projectsData, ...projectsData, ...projectsData].map((project, index) => (
-                <Link key={`${project.id}-${index}`} href={`/projects/${project.id}`}>
+                <Link key={`${project.id}-${index}`} href={project.link || `/projects/${project.id}`}>
                   <motion.div
                     className="group cursor-pointer flex-shrink-0"
                     whileHover={{ scale: 1.05 }}
@@ -155,7 +158,7 @@ export default function Projects() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {projectsData.map((project, index) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
+            <Link key={project.id} href={project.link || `/projects/${project.id}`}>
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}

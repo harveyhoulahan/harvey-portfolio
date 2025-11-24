@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FibreTrace - Supply Chain Transparency</title>
+    <title>FibreTrace - Supply Chain Transparency | Blockchain Product Tracking</title>
+    <meta name="description" content="Enterprise blockchain-powered product tracking for the textile industry. Combat counterfeit goods and ensure ethical sourcing.">
     <style>
         * {
             margin: 0;
@@ -55,6 +56,33 @@
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
+            animation: slideUp 0.8s ease-out;
+        }
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .shimmer {
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                transparent 40%, 
+                rgba(6, 182, 212, 0.6) 50%, 
+                transparent 60%, 
+                transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 3s infinite linear;
+            -webkit-background-clip: text;
+            background-clip: text;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
         }
         .hero p {
             font-size: 1.5rem;
@@ -81,11 +109,27 @@
             color: white;
             font-weight: 600;
             font-size: 1.1rem;
-            transition: transform 0.3s;
+            transition: all 0.3s ease;
             margin-right: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            transition: left 0.5s;
+        }
+        .cta-button:hover::before {
+            left: 100%;
         }
         .cta-button:hover {
             transform: scale(1.05);
+            box-shadow: 0 10px 40px rgba(6, 182, 212, 0.4);
         }
         .cta-secondary {
             background: transparent;
@@ -104,11 +148,14 @@
             border: 1px solid rgba(6, 182, 212, 0.2);
             border-radius: 20px;
             padding: 30px;
-            transition: transform 0.3s, border-color 0.3s;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
         }
         .feature-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-8px);
             border-color: #06b6d4;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 15px 40px rgba(6, 182, 212, 0.25);
         }
         .feature-icon {
             font-size: 3rem;
@@ -189,42 +236,36 @@
     </nav>
 
     <div class="hero">
-        <h1>End-to-End Supply Chain<br>Transparency</h1>
+        <h1 class="shimmer">End-to-End Supply Chain<br>Transparency</h1>
         <p>Blockchain-powered product tracking for the textile industry. Combat counterfeit goods and ensure ethical sourcing.</p>
-        <div class="trust-badge">🔒 Powered by Hyperledger Fabric</div>
+        <div class="trust-badge">Powered by Hyperledger Fabric</div>
         <br>
-        <a href="#" class="cta-button">Request Demo</a>
-        <a href="#" class="cta-button cta-secondary">View Case Studies</a>
+        <a href="https://fibretrace.io" target="_blank" class="cta-button">Visit FibreTrace.io</a>
+        <a href="https://fibretrace.io/case-studies" target="_blank" class="cta-button cta-secondary">View Case Studies</a>
     </div>
 
     <div class="features">
         <div class="feature-card">
-            <div class="feature-icon">🔗</div>
             <h3>Blockchain Tracking</h3>
             <p>Immutable record of product journey from raw materials to final garments. Built on Hyperledger Fabric for enterprise security.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">🤖</div>
             <h3>ML Authentication</h3>
             <p>Core ML-powered QR code verification reduces counterfeit incidents by 78% for luxury brands. On-device processing for instant results.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">🌍</div>
             <h3>Global Coverage</h3>
             <p>Track 50M+ items across 12 countries. Real-time visibility across hundreds of suppliers and manufacturing facilities.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">⚡</div>
             <h3>High Performance</h3>
             <p>Process 2M+ daily transactions with sub-second response times. Enterprise-grade reliability and scalability.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">📱</div>
             <h3>Native iOS App</h3>
             <p>Built with Swift/SwiftUI for seamless user experience. Offline-first architecture ensures continuous operation.</p>
         </div>
         <div class="feature-card">
-            <div class="feature-icon">📊</div>
             <h3>Real-Time Reporting</h3>
             <p>Comprehensive dashboards and analytics. Validate sustainability claims with verifiable data.</p>
         </div>
