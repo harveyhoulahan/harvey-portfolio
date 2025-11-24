@@ -13,17 +13,40 @@ export default function Contact() {
     message: "",
   });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setStatus("sending");
+    setErrorMessage("");
 
-    // Simulate form submission (replace with actual implementation)
-    setTimeout(() => {
-      setStatus("sent");
-      setFormData({ name: "", email: "", message: "" });
-      setTimeout(() => setStatus("idle"), 3000);
-    }, 1000);
+    try {
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setStatus("sent");
+        setFormData({ name: "", email: "", message: "" });
+        setTimeout(() => setStatus("idle"), 5000);
+      } else {
+        setStatus("error");
+        setErrorMessage(data.error || data.details || 'Unknown error');
+        console.error('API error:', data);
+        setTimeout(() => setStatus("idle"), 5000);
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      setStatus("error");
+      setErrorMessage('Network error - please try again');
+      setTimeout(() => setStatus("idle"), 5000);
+    }
   };
 
   const handleChange = (
@@ -193,6 +216,12 @@ export default function Contact() {
             {status === "sent" && (
               <p className="text-green-400 text-sm text-center">
                 Thanks! I&apos;ll get back to you soon.
+              </p>
+            )}
+            
+            {status === "error" && (
+              <p className="text-red-400 text-sm text-center">
+                {errorMessage || 'Failed to send message. Please try again or email me directly.'}
               </p>
             )}
           </form>
