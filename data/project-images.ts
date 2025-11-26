@@ -11,10 +11,16 @@ export const projectImages = [
     gradient: "from-blue-500 to-cyan-500",
   },
   {
-    alt: "Production ML - Friday Tech & Step One",
-    title: "Friday & Step One",
-    project: "friday-stepone",
+    alt: "Friday Technologies - ML/AI Platform",
+    title: "Friday Technologies",
+    project: "friday-tech",
     gradient: "from-orange-500 to-red-500",
+  },
+  {
+    alt: "Step One Clothing - E-commerce ML",
+    title: "Step One",
+    project: "stepone",
+    gradient: "from-blue-500 to-indigo-500",
   },
   {
     alt: "Modaics - Fashion Marketplace & AI Styling",
