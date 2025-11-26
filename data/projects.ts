@@ -52,7 +52,7 @@ export const projectsData: Project[] = [
       "End-to-end ML pipeline: data → training → deployment → monitoring",
     ],
     tags: ["Python", "ML/AI", "NLP", "Semantic Search", "AWS", "TensorFlow", "Vector Embeddings", "Production Systems"],
-    link: "https://friday.com.au",
+    link: "https://fridaytechnologies.com.au",
     github: "",
     category: "AI/ML • E-commerce",
     featured: true,
