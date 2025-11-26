@@ -87,7 +87,13 @@ export default function ProfessionalHeroWithShaders() {
           <div className="mb-8 max-w-lg animate-fade-in-up" style={{ animationDelay: '0.55s' }}>
             <p className="text-xs font-mono text-neutral-500 mb-2">INTERESTS</p>
             <p className="text-neutral-400 text-sm">
-              Blockchain Engineering • Distributed Systems • Applied Cryptography
+              Applied ML • Recommender Systems • Agentic AI • Supply-chain & Climate Tech
+            </p>
+          </div>
+
+          <div className="mb-8 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+            <p className="text-sm text-neutral-500">
+              Built production systems for <span className="text-neutral-300">FibreTrace</span>, <span className="text-neutral-300">Friday Technologies</span>, <span className="text-neutral-300">Step One</span>, and <span className="text-neutral-300">AEMO</span> — details below.
             </p>
           </div>
 
