@@ -79,7 +79,7 @@ export default function Contact() {
           containerRef={headerRef}
         />
         <p className="text-xl text-neutral-400 max-w-3xl mt-6">
-          Let&apos;s build something.
+          Currently based in NYC and open to full-time roles with E-3 visa sponsorship. Let&apos;s build something.
         </p>
       </div>
 

@@ -19,13 +19,13 @@ export const projectsData: Project[] = [
   {
     id: 'blockchain-trace',
     title: "FibreTrace - Supply Chain Transparency",
-    description: "iOS application leveraging blockchain for end-to-end supply chain transparency in the textile industry. Tracks 50M+ items across 12 countries with ML-based product authentication.",
-    longDescription: "FibreTrace is an enterprise iOS application that brings unprecedented transparency to the global textile supply chain using blockchain technology. The app enables brands and consumers to trace products from raw materials to final garments, combating counterfeit goods and ensuring ethical sourcing. Built with Swift/SwiftUI and integrating Hyperledger Fabric for blockchain operations, the system processes 2M+ daily transactions while maintaining sub-second response times. The application features ML-powered QR code authentication using Core ML for on-device verification, reducing counterfeit incidents by 78% for luxury fashion brands. Real-time tracking provides visibility across 12 countries and hundreds of suppliers, creating an immutable record of product journey. The platform serves major fashion brands seeking to validate sustainability claims and combat supply chain fraud.",
+    description: "iOS application leveraging blockchain for end-to-end supply chain transparency in the textile industry. Tracks millions of items across 12 countries with ML-based product authentication.",
+    longDescription: "FibreTrace is an enterprise iOS application that brings unprecedented transparency to the global textile supply chain using blockchain technology. The app enables brands and consumers to trace products from raw materials to final garments, combating counterfeit goods and ensuring ethical sourcing. Built with Swift/SwiftUI and integrating Hyperledger Fabric for blockchain operations, the system processes high-volume daily transactions while maintaining sub-second response times. The application features ML-powered QR code authentication using Core ML for on-device verification, reducing counterfeit incidents by 78% for luxury fashion brands. Real-time tracking provides visibility across 12 countries and hundreds of suppliers, creating an immutable record of product journey. The platform serves major fashion brands seeking to validate sustainability claims and combat supply chain fraud.",
     features: [
       "Blockchain-based product tracking (Hyperledger Fabric)",
       "ML-powered QR authentication with Core ML",
-      "Tracks 50M+ items across 12 countries",
-      "2M+ daily transaction processing",
+      "Tracks millions of items across 12 countries",
+      "High-volume daily transaction processing",
       "78% reduction in counterfeit goods for luxury brands",
       "Real-time supply chain visibility and reporting",
       "Swift/SwiftUI native iOS implementation",

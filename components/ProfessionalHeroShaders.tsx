@@ -32,6 +32,9 @@ export default function ProfessionalHeroWithShaders() {
               <h3 className="text-xl lg:text-2xl font-normal text-neutral-400 mt-4">
                 AI/ML ENGINEER
               </h3>
+              <p className="text-sm lg:text-base text-neutral-500 mt-3 leading-relaxed">
+                Australian ML engineer in NYC, shipping production systems for fashion, energy, and agtech — focused on LLMs, semantic search, and real-time data.
+              </p>
             </div>
           </div>
 
@@ -75,6 +78,13 @@ export default function ProfessionalHeroWithShaders() {
 
           {/* Interests */}
           <div className="mb-8 max-w-lg animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+            <p className="text-xs font-mono text-neutral-500 mb-2">RECENT AI/LLM WORK</p>
+            <p className="text-neutral-400 text-sm leading-relaxed">
+              RAG systems for e-commerce search • LLM-driven semantic search • Time-series forecasting for energy & agriculture • CoreML-based on-device inference
+            </p>
+          </div>
+
+          <div className="mb-8 max-w-lg animate-fade-in-up" style={{ animationDelay: '0.55s' }}>
             <p className="text-xs font-mono text-neutral-500 mb-2">INTERESTS</p>
             <p className="text-neutral-400 text-sm">
               Blockchain Engineering • Distributed Systems • Applied Cryptography
