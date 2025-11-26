@@ -73,6 +73,14 @@ export default function ProfessionalHeroWithShaders() {
             </p>
           </div>
 
+          {/* Interests */}
+          <div className="mb-8 max-w-lg animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
+            <p className="text-xs font-mono text-neutral-500 mb-2">INTERESTS</p>
+            <p className="text-neutral-400 text-sm">
+              Blockchain Engineering • Distributed Systems • Applied Cryptography
+            </p>
+          </div>
+
           {/* CTA Buttons */}
           <div className="flex flex-wrap gap-4 mb-8 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
             <Link

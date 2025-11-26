@@ -58,7 +58,7 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
           containerRef={headerRef}
         />
         <p className="text-neutral-400 text-sm md:text-base max-w-sm mt-6">
-          Australian ML engineer in NYC. Building production systems for e-commerce, energy, and agriculture.
+          Australian ML engineer in NYC. Building production systems for e-commerce, energy, and agriculture. Exploring blockchain engineering.
         </p>
       </div>
 
