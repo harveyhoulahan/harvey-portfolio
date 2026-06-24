@@ -1,128 +1,211 @@
-export interface Project {
-  id: string;
-  title: string;
-  description: string;
-  longDescription: string;
-  features: string[];
-  tags: string[];
-  link: string;
-  github: string;
-  category: string;
-  featured: boolean;
-  year: number;
-  wip?: boolean;
-  icon?: string; // Emoji or icon identifier
-  color?: string; // Theme color for the project
+export interface CaseImage {
+  src: string;
+  alt: string;
+  caption?: string;
 }
 
-export const projectsData: Project[] = [
+export interface CaseStudy {
+  id: string;
+  company: string;
+  role: string;
+  period: string;
+  summary: string; // one-line framing
+  problem: string;
+  approach: string[];
+  outcome: string[];
+  stack: string[];
+  images?: CaseImage[];
+  link?: string;
+}
+
+// Case studies, ordered by relevance to the geospatial / climate niche.
+// Structure is deliberate: Problem → Approach → Outcome.
+export const caseStudies: CaseStudy[] = [
   {
-    id: 'blockchain-trace',
-    title: "FibreTrace - Supply Chain Transparency",
-    description: "iOS application leveraging blockchain for end-to-end supply chain transparency in the textile industry. Tracks millions of items across 12 countries with ML-based product authentication.",
-    longDescription: "FibreTrace is an enterprise iOS application that brings unprecedented transparency to the global textile supply chain using blockchain technology. The app enables brands and consumers to trace products from raw materials to final garments, combating counterfeit goods and ensuring ethical sourcing. Built with Swift/SwiftUI and integrating Hyperledger Fabric for blockchain operations, the system processes high-volume daily transactions while maintaining sub-second response times. The application features ML-powered QR code authentication using Core ML for on-device verification, reducing counterfeit incidents by 78% for luxury fashion brands. Real-time tracking provides visibility across 12 countries and hundreds of suppliers, creating an immutable record of product journey. The platform serves major fashion brands seeking to validate sustainability claims and combat supply chain fraud.",
-    features: [
-      "Blockchain-based product tracking (Hyperledger Fabric)",
-      "ML-powered QR authentication with Core ML",
-      "Tracks millions of items across 12 countries",
-      "High-volume daily transaction processing",
-      "78% reduction in counterfeit goods for luxury brands",
-      "Real-time supply chain visibility and reporting",
-      "Swift/SwiftUI native iOS implementation",
+    id: "arbormeta",
+    company: "ArborMeta",
+    role: "Machine Learning Engineer",
+    period: "Byron Bay, NSW · 2025 – present",
+    summary:
+      "The mapping platform that turns ecological field data into something government can act on.",
+    problem:
+      "Carbon and ecology data was scattered across field surveys and raw LiDAR. None of it sat in one place a policymaker could actually look at.",
+    approach: [
+      "A map viewer that renders live survey data over satellite imagery",
+      "A tiling pipeline that keeps huge datasets fast at any zoom level",
+      "A backend over PostGIS for everything spatial",
+      "Parsers that pull field surveys straight into the platform",
     ],
-    tags: ["Swift", "SwiftUI", "Blockchain", "Hyperledger Fabric", "Core ML", "iOS", "Supply Chain", "PostgreSQL"],
-    link: "https://fibretrace.io",
-    github: "",
-    category: "Blockchain • Mobile",
-    featured: true,
-    year: 2024,
-    color: "from-blue-500 to-cyan-500",
+    outcome: [
+      "Used to advise federal and state government on carbon credit rules",
+      "Field data from four countries, readable in one live interface",
+    ],
+    stack: [
+      "FastAPI",
+      "PostGIS",
+      "MapLibre GL JS",
+      "PMTiles",
+      "ALS / LiDAR",
+      "Docker",
+      "React",
+    ],
+    images: [
+      {
+        src: "/images/projects/arbormeta/canopy-carbon.jpg",
+        alt: "Canopy-height heatmap comparing two LiDAR captures with carbon estimates",
+        caption: "Canopy growth and above-ground carbon between two LiDAR captures",
+      },
+      {
+        src: "/images/projects/arbormeta/fire-spread.jpg",
+        alt: "Fire-spread map with active fire points and wind vectors over satellite imagery",
+        caption: "Live fire-spread and ember mapping",
+      },
+      {
+        src: "/images/projects/arbormeta/pipeline-provenance.jpg",
+        alt: "Processing pipeline view with provenance timeline and canopy model comparison",
+        caption: "Processing pipeline with live data provenance",
+      },
+      {
+        src: "/images/projects/arbormeta/als-coverage.jpg",
+        alt: "Continental-scale map of LiDAR survey coverage parcels",
+        caption: "Continental-scale survey coverage",
+      },
+      {
+        src: "/images/projects/arbormeta/fire-wind-density.jpg",
+        alt: "Australia-wide fire and wind density visualisation",
+        caption: "Australia-wide fire and wind density",
+      },
+    ],
   },
   {
-    id: 'friday-tech',
-    title: "Friday Technologies - ML/AI Platform",
-    description: "Production machine learning systems for e-commerce. Semantic search infrastructure, recommendation engines, and NLP pipelines serving millions of customers.",
-    longDescription: "Architecting production-grade ML systems for Friday Technologies, an Australian e-commerce platform. Work spans semantic search infrastructure using vector embeddings and sentence transformers for intelligent product discovery. Built real-time recommendation system utilizing collaborative filtering and content-based approaches for personalized customer experiences. Developed NLP pipelines for customer service automation using language models, reducing response times significantly. Systems deployed on AWS with auto-scaling infrastructure handling peak traffic during sales events. Responsible for end-to-end ML lifecycle including data pipelines, model training, deployment, and monitoring.",
-    features: [
-      "Semantic search with vector embeddings and transformers",
-      "Real-time recommendation system with collaborative filtering",
-      "NLP-powered customer service automation",
-      "Auto-scaling AWS infrastructure for production workloads",
-      "Content-based and collaborative filtering approaches",
-      "End-to-end ML pipeline: data → training → deployment → monitoring",
+    id: "step-one",
+    company: "Step One Clothing",
+    role: "Software Engineer (Contract)",
+    period: "Sydney · 2025 – present",
+    summary:
+      "Making a large, growing catalogue easy to navigate.",
+    problem:
+      "As the store grew, shoppers struggled to find the right product quickly.",
+    approach: [
+      "Natural-language product search",
+      "A new mega-menu the merchandising team can edit themselves",
+      "Accessible navigation with analytics built in",
     ],
-    tags: ["Python", "ML/AI", "NLP", "Semantic Search", "AWS", "TensorFlow", "Vector Embeddings", "Production Systems"],
-    link: "https://fridaytechnologies.com.au",
-    github: "",
-    category: "AI/ML • E-commerce",
-    featured: true,
-    year: 2025,
-    color: "from-orange-500 to-red-500",
+    outcome: [
+      "Easier product discovery at scale",
+      "Content changes ship without engineering",
+      "Kept on as the lead front-end contractor",
+    ],
+    stack: ["Shopify Liquid", "JavaScript", "NLP Search", "Analytics"],
+    images: [
+      {
+        src: "/images/projects/step-one/ai-search.jpg",
+        alt: "AI search overlay where a shopper types 'best undies for pants suit' and gets a matched product recommendation",
+        caption: "Natural-language search — describe a need, get a matched product",
+      },
+      {
+        src: "/images/projects/step-one/mega-menu.jpg",
+        alt: "Expanded Step One mega-menu with product categories and editorial tiles",
+        caption: "Schema-driven mega-menu the merchandising team edits themselves",
+      },
+      {
+        src: "/images/projects/step-one/main-nav.jpg",
+        alt: "Step One storefront homepage with the primary navigation bar",
+        caption: "Accessible primary navigation across the storefront",
+      },
+    ],
   },
   {
-    id: 'stepone',
-    title: "Step One Clothing - E-commerce ML",
-    description: "Building machine learning systems for fashion e-commerce. Product recommendations, search optimization, and customer personalization at scale.",
-    longDescription: "Developing production ML systems for Step One Clothing, a leading Australian fashion brand. Implementing semantic product search to improve discovery and conversion rates. Building personalized recommendation engines that adapt to customer preferences and browsing behavior. Creating NLP-based customer support automation to handle common inquiries at scale. Architecting scalable infrastructure on AWS with auto-scaling capabilities to handle traffic spikes. Responsible for the complete ML workflow from data collection and preprocessing through model deployment and performance monitoring in production.",
-    features: [
-      "Semantic product search with vector similarity",
-      "Personalized product recommendations at scale",
-      "Customer behavior analysis and segmentation",
-      "NLP-based support automation",
-      "AWS cloud infrastructure with auto-scaling",
-      "A/B testing framework for ML model improvements",
+    id: "fibretrace",
+    company: "FibreTrace",
+    role: "iOS Engineer",
+    period: "Remote · 2025",
+    summary:
+      "A product passport that proves where a garment's fibre actually came from.",
+    problem:
+      "Brands needed shoppers to scan a product, see its origin, and trust the result.",
+    approach: [
+      "Native iOS app in SwiftUI",
+      "A QR / NFC scan opens a signed, tamper-proof passport",
+      "Works offline",
+      "On-device ML flags fake tags and broken chains of custody",
     ],
-    tags: ["Python", "Machine Learning", "AWS", "NLP", "Recommendations", "E-commerce", "PyTorch", "Production ML"],
-    link: "https://stepone.life",
-    github: "",
-    category: "AI/ML • Fashion",
-    featured: true,
-    year: 2025,
-    color: "from-blue-500 to-indigo-500",
+    outcome: [
+      "Passport loads in under three seconds",
+      "Secured CEO buy-in",
+      "Launched a pilot with a partner brand",
+    ],
+    stack: ["Swift", "SwiftUI", "Core ML", "NFC", "Offline-first"],
+    images: [
+      {
+        src: "/images/projects/fibretrace/traceability-globe.jpg",
+        alt: "FibreTrace platform showing a material's journey across the supply chain on a globe, from fibre to consumer with process provenance",
+        caption: "Trace a material at every stage — fibre to consumer, with provenance",
+      },
+      {
+        src: "/images/projects/fibretrace/infrastructure.jpg",
+        alt: "Embed, Verify, Share — the three-step infrastructure behind fibre integrity",
+        caption: "Embed, verify, share — how fibre integrity is proven end to end",
+      },
+      {
+        src: "/images/projects/fibretrace/fibre-hub.jpg",
+        alt: "FibreTrace Fibre Hub: a searchable, filterable directory of verified suppliers",
+        caption: "A searchable network of FibreTrace-verified suppliers",
+      },
+    ],
+  },
+];
+
+export interface Paper {
+  title: string;
+  context: string;
+  summary: string;
+  links: { label: string; href: string; external?: boolean }[];
+}
+
+// Research, write-ups and technical reports.
+export const papers: Paper[] = [
+  {
+    title: "Adapting frontier LLM-pretraining techniques under fixed compute",
+    context: "Maincode — Mainrun assessment · 2026",
+    summary:
+      "A 33% validation-loss reduction (1.75 → 1.18) on a ~40M-parameter GPT-style transformer, reasoning from first principles to stack Muon optimisation, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations and value-residual connections; adapted to a fixed 7-epoch budget.",
+    links: [
+      { label: "Read the report (PDF)", href: "/papers/mainrun-report.pdf" },
+    ],
   },
   {
-    id: 'modaics',
-    title: "Modaics",
-    description: "Digital wardrobe and fashion marketplace platform. Launched through RMIT Activator accelerator program, exploring AI-powered styling recommendations and sustainable fashion discovery.",
-    longDescription: "Modaics is a digital fashion platform developed through the Royal Melbourne Institute of Technology (RMIT) Activator accelerator program. The platform combines computer vision, natural language processing, and collaborative filtering to create a marketplace and personal styling experience. Features include wardrobe digitization, AI-powered outfit suggestions, and peer-to-peer fashion trading. Built with a mobile-first approach, the platform bridges sustainable fashion practices with modern e-commerce. Successfully completed the RMIT Activator program, receiving mentorship and validation from industry leaders in fashion tech.",
-    features: [
-      "AI-powered styling recommendations using computer vision and NLP",
-      "Digital wardrobe management with automated item categorization",
-      "Peer-to-peer marketplace for sustainable fashion trading",
-      "Community-driven curation and trend discovery",
-      "iOS app in active development (React Native + Swift)",
-      "Graduated from RMIT Activator accelerator program",
+    title: "Web-page navigation as a stochastic process",
+    context: "Monash FIT3139 — Computational Modelling & Simulation",
+    summary:
+      "Extends Google's PageRank beyond linear algebra: Gillespie stochastic simulation, chain-binomial Markov analysis solved by eigendecomposition, and simulated-annealing parameter fitting via Metropolis–Hastings; recovering true teleportation parameter from realistic navigation data.",
+    links: [
+      {
+        label: "GitHub",
+        href: "https://github.com/harveyhoulahan/Web-Page-Navigation-Model-with-AI-ML-Extensions",
+        external: true,
+      },
     ],
-    tags: ["iOS", "Swift", "React Native", "AI/ML", "Computer Vision", "NLP", "Product Design", "E-commerce"],
-    link: "/projects/modaics.html",
-    github: "",
-    category: "AI/ML • Fashion Tech",
-    featured: true,
-    year: 2024,
-    color: "from-pink-500 to-purple-500",
   },
+];
+
+export interface PersonalProject {
+  name: string;
+  blurb: string;
+  tags: string[];
+  year?: string;
+  status?: string;
+  links?: { label: string; href: string; external?: boolean }[];
+}
+
+// Things built outside of client work.
+export const personalProjects: PersonalProject[] = [
   {
-    id: 'agriq',
-    title: "AgrIQ - Smart Livestock Intelligence",
-    description: "Next-generation livestock health monitoring platform using ML-powered smart ear tags. Research focused on pregnancy prediction and health indexing across multiple species. [WORK IN PROGRESS]",
-    longDescription: "AgrIQ explores a new approach to livestock management, combining IoT hardware (smart ear tags) with machine learning for agricultural operations. The research focuses on ultra-early pregnancy detection using biosensor data and time-series ML models, targeting 90%+ accuracy from 7 days post-conception. Beyond pregnancy detection, the platform explores comprehensive health monitoring through continuous vital sign tracking, behavioral pattern analysis, and predictive health indexing. The multi-species data model supports cattle, sheep, and goats with species-specific ML pipelines. Designed for potential large-scale automation of livestock operations. Currently in research and development phase with plans for commercial testing.",
-    features: [
-      "WORK IN PROGRESS - Research and development phase",
-      "Pregnancy prediction research targeting 90%+ accuracy from day 7",
-      "Real-time health indexing and anomaly detection prototypes",
-      "Multi-species support (cattle, sheep, goats) with dedicated ML models",
-      "IoT smart ear tag prototypes with biosensors",
-      "Behavioral pattern analysis for early disease detection",
-      "Automation research aiming to reduce manual checks",
-      "Mobile + web dashboard concepts for farm management",
-    ],
-    tags: ["Machine Learning", "IoT", "Computer Vision", "Python", "Edge ML", "Agriculture", "Data Science", "Time Series"],
-    link: "/projects/agriq.html",
-    github: "",
-    category: "AI/ML • AgTech",
-    featured: true,
-    year: 2025,
-    wip: true,
-    color: "from-green-500 to-emerald-500",
+    name: "Modaics",
+    blurb:
+      "Digital wardrobe and sustainable-fashion marketplace with AI-powered styling. Built through the RMIT Activator accelerator program.",
+    tags: ["Computer Vision", "NLP", "React Native", "Swift"],
+    year: "2024",
+    links: [{ label: "Overview", href: "/projects/modaics.html", external: true }],
   },
 ];

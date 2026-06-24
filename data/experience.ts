@@ -1,46 +1,70 @@
-export const experienceData = [
+// Concise career timeline. Honest, no inflation — drawn from the CV.
+export interface TimelineEntry {
+  org: string;
+  role: string;
+  period: string;
+  location: string;
+  notes: string[];
+}
+
+export const experienceData: TimelineEntry[] = [
   {
-    company: "Friday Technologies",
-    role: "AI/Backend Engineer",
-    period: "2025 – Present",
-    location: "Remote",
-    achievements: [
-      "Built CoreML, VisionOS, and generative-AI prototypes recognized by Apple.",
-      "Designed cloud-native ML infrastructure for real-time diagnostics.",
-      "Created LLM-backed tooling, semantic workflows, and evaluation loops.",
+    org: "ArborMeta",
+    role: "Machine Learning Engineer",
+    period: "2025 – present",
+    location: "Byron Bay, NSW",
+    notes: [
+      "Geospatial web applications in React, MapLibre GL JS and PostgreSQL/PostGIS visualising ecological survey and carbon-farming data across Australia.",
+      "High-performance spatial pipelines: multi-LOD PMTiles generation, Fulcrum field-survey parsing, ecological transect analysis.",
+      "Research into carbon sequestration measurement & verification, producing outputs that consult federal and state government on accreditation pathways.",
     ],
   },
   {
-    company: "Step One Clothing",
-    role: "Software Engineer",
-    period: "2025 – Present",
-    location: "Remote",
-    achievements: [
-      "Built NLP semantic search for product discovery.",
-      "Designed navigation experiences using analytics + editorial pipelines.",
-      "Built Shopify CMS features with Liquid.",
+    org: "Step One Clothing",
+    role: "Software Engineer (Contract)",
+    period: "2025 – present",
+    location: "Sydney",
+    notes: [
+      "AI-powered natural-language product search; built the premium Shopify mega-menu end-to-end with schema-driven controls.",
+      "Retained as primary front-end contractor for ongoing feature development across the Shopify stack.",
     ],
   },
   {
-    company: "FibreTrace",
+    org: "FibreTrace",
     role: "iOS Engineer",
-    period: "2024 – Present",
+    period: "2025",
     location: "Remote",
-    achievements: [
-      "SwiftUI product-passport app for fibre-level verification.",
-      "QR/NFC scanning, secure deep links, offline caching, role-based UI.",
-      "Predictive analytics + anomaly detection for chain-of-custody.",
+    notes: [
+      "Native SwiftUI product-passport app for world-first fibre-level verification: QR/NFC scan, signed deep links, offline-first caching.",
+      "On-device ML for tag-spoofing and chain-of-custody anomaly detection; <3s time-to-passport, partner-brand pilot launched.",
     ],
   },
   {
-    company: "AEMO (Australian Energy Market Operator)",
+    org: "Australian Energy Market Operator (AEMO)",
     role: "Software Engineering Intern",
     period: "2023, 2024",
-    location: "Melbourne, Australia",
-    achievements: [
-      "Built ingestion pipelines for terabyte-scale NEM/MMS datasets.",
-      "C/Python parsers reducing compute time by 35%.",
-      "C# microservices integrating SQL/MMS schemas & APIs.",
+    location: "Melbourne",
+    notes: [
+      "Python analytics over terabyte-scale NEM/MMS datasets with real-time dashboards used by operations.",
+      "High-throughput C parsers for market/telemetry files; C# micro-services integrating MMS schemas and SQL stores.",
+    ],
+  },
+  {
+    org: "Monash University",
+    role: "B.S. Advanced Computer Science (AI/ML)",
+    period: "2023 – 2025",
+    location: "Melbourne",
+    notes: [
+      "Concentrations in Artificial Intelligence / Machine Learning and Advanced Algorithms & Data Structures. High Distinction GPA.",
+    ],
+  },
+  {
+    org: "James Cook University",
+    role: "Medicine (MBBS) — deferred after 6 months",
+    period: "2022",
+    location: "Townsville",
+    notes: [
+      "Left a medical degree to build geospatial tools full-time — the decision that set this whole path in motion.",
     ],
   },
 ];

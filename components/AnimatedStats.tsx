@@ -1,47 +1,46 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 
-interface Stat {
+export interface Stat {
   value: number;
   label: string;
   suffix?: string;
   prefix?: string;
+  // When set, this string is shown verbatim instead of a counting number.
+  display?: string;
 }
 
-interface AnimatedStatsProps {
-  stats: Stat[];
-}
-
-export default function AnimatedStats({ stats }: AnimatedStatsProps) {
+export default function AnimatedStats({ stats }: { stats: Stat[] }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true });
+  const isInView = useInView(ref, { once: true, margin: "-10%" });
 
   return (
-    <div ref={ref} className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+    <div ref={ref} className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-hairline bg-hairline lg:grid-cols-4">
       {stats.map((stat, index) => (
         <motion.div
-          key={index}
-          initial={{ opacity: 0, y: 20 }}
+          key={stat.label}
+          initial={{ opacity: 0, y: 16 }}
           animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ delay: index * 0.1, duration: 0.5 }}
-          className="relative group"
+          transition={{ delay: index * 0.08, duration: 0.5 }}
+          className="bg-surface p-6"
         >
-          <div className="bg-neutral-900/50 backdrop-blur-sm border border-red-900/30 rounded-lg p-6 hover:border-red-500/50 transition-all duration-300">
-            <div className="text-center">
-              <CountUpNumber
-                end={stat.value}
-                prefix={stat.prefix}
-                suffix={stat.suffix}
-                isInView={isInView}
-              />
-              <p className="text-sm text-neutral-400 mt-2">{stat.label}</p>
+          {stat.display ? (
+            <div className="font-display text-4xl text-sage md:text-5xl">
+              {stat.display}
             </div>
-          </div>
-          
-          {/* Decorative glow on hover */}
-          <div className="absolute inset-0 bg-red-500/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity blur-xl -z-10" />
+          ) : (
+            <CountUpNumber
+              end={stat.value}
+              prefix={stat.prefix}
+              suffix={stat.suffix}
+              isInView={isInView}
+            />
+          )}
+          <p className="mt-2 font-mono text-xs uppercase tracking-[0.1em] text-ink/55">
+            {stat.label}
+          </p>
         </motion.div>
       ))}
     </div>
@@ -59,13 +58,18 @@ function CountUpNumber({
   suffix?: string;
   isInView: boolean;
 }) {
-  const [count, setCount] = useState(0);
+  const reduceMotion = useReducedMotion();
+  const [count, setCount] = useState(reduceMotion ? end : 0);
 
   useEffect(() => {
     if (!isInView) return;
+    if (reduceMotion) {
+      setCount(end);
+      return;
+    }
 
-    const duration = 2000; // 2 seconds
-    const steps = 60;
+    const duration = 1600;
+    const steps = 50;
     const increment = end / steps;
     let current = 0;
     const timer = setInterval(() => {
@@ -79,10 +83,10 @@ function CountUpNumber({
     }, duration / steps);
 
     return () => clearInterval(timer);
-  }, [end, isInView]);
+  }, [end, isInView, reduceMotion]);
 
   return (
-    <div className="text-4xl font-bold text-red-400">
+    <div className="font-display text-4xl text-sage md:text-5xl">
       {prefix}
       {count.toLocaleString()}
       {suffix}

@@ -2,97 +2,72 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
-import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { Menu, X } from "lucide-react";
 
 const navItems = [
-  { name: "Home", path: "/" },
   { name: "About", path: "/about" },
-  { name: "Experience", path: "/experience" },
-  { name: "Projects", path: "/projects" },
+  { name: "Work", path: "/projects" },
   { name: "Skills", path: "/skills" },
+  { name: "Playground", path: "/playground" },
+  { name: "Experience", path: "/experience" },
   { name: "Contact", path: "/contact" },
 ];
 
 export default function Navbar() {
   const pathname = usePathname();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-md bg-black/70 border-b border-red-900/20">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link href="/" className="text-xl font-bold tracking-tight group">
-            <span className="bg-gradient-to-r from-red-500 to-red-400 bg-clip-text text-transparent group-hover:from-red-400 group-hover:to-red-300 transition-all">
-              HJH
-            </span>
-          </Link>
+    <header className="sticky top-0 z-50 border-b border-hairline bg-concrete/90 backdrop-blur-[2px]">
+      <nav className="col-shell flex h-16 max-w-work items-center justify-between">
+        <Link href="/" className="font-display text-lg tracking-tight">
+          Harvey Houlahan
+        </Link>
 
-          {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
-            {navItems.map((item) => (
+        <div className="hidden items-center gap-8 md:flex">
+          {navItems.map((item) => {
+            const active = pathname === item.path;
+            return (
               <Link
                 key={item.path}
                 href={item.path}
-                className="relative group"
-              >
-                <span
-                  className={`text-sm font-medium transition-colors ${
-                    pathname === item.path
-                      ? "text-red-400"
-                      : "text-neutral-300 hover:text-white"
-                  }`}
-                >
-                  {item.name}
-                </span>
-                {pathname === item.path && (
-                  <motion.div
-                    layoutId="navbar-indicator"
-                    className="absolute -bottom-[1.45rem] left-0 right-0 h-0.5 bg-gradient-to-r from-red-600 to-red-400"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-              </Link>
-            ))}
-          </div>
-
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden text-neutral-300 hover:text-white"
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-
-        {/* Mobile Navigation */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="md:hidden py-4 border-t border-red-900/20"
-          >
-            {navItems.map((item) => (
-              <Link
-                key={item.path}
-                href={item.path}
-                onClick={() => setMobileMenuOpen(false)}
-                className={`block py-3 text-sm font-medium ${
-                  pathname === item.path
-                    ? "text-red-400"
-                    : "text-neutral-300 hover:text-white"
+                className={`font-mono text-xs uppercase tracking-[0.12em] transition-colors ${
+                  active ? "text-sage" : "text-ink/60 hover:text-ink"
                 }`}
               >
                 {item.name}
+                {active && <span className="ml-2 text-sage">/</span>}
               </Link>
-            ))}
-          </motion.div>
-        )}
-      </div>
-    </nav>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={() => setOpen(!open)}
+          className="text-ink md:hidden"
+          aria-label="Toggle menu"
+        >
+          {open ? <X size={22} /> : <Menu size={22} />}
+        </button>
+      </nav>
+
+      {open && (
+        <div className="border-t border-hairline px-6 py-3 md:hidden">
+          {navItems.map((item) => (
+            <Link
+              key={item.path}
+              href={item.path}
+              onClick={() => setOpen(false)}
+              className={`block py-2.5 font-mono text-xs uppercase tracking-[0.12em] ${
+                pathname === item.path ? "text-sage" : "text-ink/70"
+              }`}
+            >
+              {item.name}
+            </Link>
+          ))}
+        </div>
+      )}
+    </header>
   );
 }
