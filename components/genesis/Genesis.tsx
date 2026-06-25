@@ -14,16 +14,136 @@
  */
 
 import { type CSSProperties, useEffect, useRef, useState } from "react";
-import { SIM_WGSL, LIFE_WGSL, DECAY_WGSL, RENDER_WGSL } from "@/lib/genesis/sim-shaders";
+import {
+  SIM_WGSL, LIFE_WGSL, ADVECT_WGSL, DECAY_WGSL, RENDER_WGSL,
+  PARTICLE_FORCE_WGSL, PARTICLE_RENDER_WGSL,
+} from "@/lib/genesis/sim-shaders";
 import { buildKernel, seedSoup, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
+import { initParticles, randomMatrix, PARTICLE_DEFAULTS } from "@/lib/genesis/particle-life";
+import { loadVision, embedText, embedCanvas, embedPixels, cosine, resonance, type VisionStatus } from "@/lib/genesis/vision";
+import { CMAES } from "@/lib/genesis/cmaes";
 
-const N = 192; // grid resolution (NxN)
+const N = 192; // grid resolution (NxN) for the field substrates
 const P = DEFAULT_PARAMS;
 const SUBSTEPS = 1; // Lenia steps per animation frame
 const LIFE_EVERY = 5; // Game-of-Life advances every Nth frame (legible pace)
 
+// "Living Lenia" reacting variables (validated headlessly; see docs/GENESIS_LIVELINESS.md)
+const MU_AMP = 0.006;    // metabolism: how much μ breathes
+const SIG_AMP = 0.0008;  // metabolism: how much σ breathes
+const META_OMEGA = 0.02; // breathing rate
+const ENERGY_RATE = 0.0065; // stochastic-birth probability per cell/step
+const DRIFT = 0.26;      // self-propulsion speed (cells/step)
+const SWIRL = 0.18;      // rotational flow amplitude
+const THETA_JITTER = 0.04; // heading random-walk per step
+
+const PL = PARTICLE_DEFAULTS;
+const PN = 1800; // particle count
+const POINT_SIZE = 0.0055; // particle radius in NDC-x units
+const NOISE_AMP = 1.4;   // particle brownian jitter
+const CURSOR_STRENGTH = 2.6; // pointer attraction strength
+const MATRIX_DRIFT_RATE = 0.015; // per-update random walk of the attraction matrix
+const MATRIX_DRIFT_EVERY = 16;   // frames between matrix nudges
+
 type Status = "loading" | "ready" | "nogpu" | "error";
-type Substrate = "lenia" | "life";
+type Substrate = "lenia" | "life" | "particle";
+
+/* ---- live, shareable parameters ------------------------------------------ */
+type Params = {
+  // Lenia (base values; metabolism makes mu/sigma breathe around these)
+  mu: number; sigma: number; energy: number; drift: number; swirl: number;
+  kR: number; kSigma: number; // kernel scale (creature size) + ring width (shape)
+  // Particle Life
+  rMax: number; friction: number; forceFactor: number; noise: number; cursor: number; matDrift: number;
+  // Game of Life
+  lifeEvery: number;
+};
+
+const KR_MAX = 22; // largest kernel radius the buffer is sized for
+
+const DEFAULTS: Params = {
+  mu: P.mu, sigma: P.sigma, energy: ENERGY_RATE, drift: DRIFT, swirl: SWIRL,
+  kR: P.R, kSigma: P.kSigma,
+  rMax: PL.rMax, friction: PL.friction, forceFactor: PL.forceFactor,
+  noise: NOISE_AMP, cursor: CURSOR_STRENGTH, matDrift: MATRIX_DRIFT_RATE,
+  lifeEvery: LIFE_EVERY,
+};
+
+const PARAM_KEYS = Object.keys(DEFAULTS) as (keyof Params)[];
+
+/** Parse "#s=lenia&mu=0.15&..." into a substrate + partial params (for permalinks). */
+function parseHash(): { substrate?: Substrate; params: Partial<Params> } {
+  const out: { substrate?: Substrate; params: Partial<Params> } = { params: {} };
+  if (typeof window === "undefined") return out;
+  const sp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const s = sp.get("s");
+  if (s === "lenia" || s === "life" || s === "particle") out.substrate = s;
+  for (const k of PARAM_KEYS) {
+    const v = sp.get(k);
+    if (v != null && Number.isFinite(+v)) out.params[k] = +v;
+  }
+  return out;
+}
+
+function buildHash(substrate: Substrate, params: Params): string {
+  const sp = new URLSearchParams();
+  sp.set("s", substrate);
+  for (const k of PARAM_KEYS) sp.set(k, String(+params[k].toPrecision(4)));
+  return "#" + sp.toString();
+}
+
+/** Named starting points. Lenia/particle presets also re-seed for a clean read. */
+const LENIA_PRESETS: Record<string, Partial<Params>> = {
+  Coral:    { mu: 0.15, sigma: 0.017, energy: 0.004, drift: 0.10, swirl: 0.08 },
+  Wanderer: { mu: 0.15, sigma: 0.017, energy: 0.007, drift: 0.42, swirl: 0.30 },
+  Pulsing:  { mu: 0.16, sigma: 0.019, energy: 0.013, drift: 0.20, swirl: 0.22 },
+};
+const PARTICLE_PRESETS: Record<string, Partial<Params>> = {
+  Cells:   { rMax: 0.10, friction: 0.84, forceFactor: 4.0, noise: 0.8 },
+  Chasers: { rMax: 0.14, friction: 0.70, forceFactor: 7.0, noise: 1.2 },
+  Swarm:   { rMax: 0.17, friction: 0.60, forceFactor: 6.0, noise: 1.8 },
+};
+
+// slider definitions per substrate: [param, label, min, max, step]
+type SliderDef = [keyof Params, string, number, number, number];
+const SLIDERS: Record<Substrate, SliderDef[]> = {
+  lenia: [
+    ["mu", "μ · growth centre", 0.10, 0.25, 0.001],
+    ["sigma", "σ · growth width", 0.005, 0.040, 0.0005],
+    ["kR", "scale · R", 6, KR_MAX, 1],
+    ["kSigma", "ring width", 0.04, 0.30, 0.005],
+    ["energy", "energy · births", 0, 0.02, 0.0005],
+    ["drift", "drift · motion", 0, 0.6, 0.01],
+    ["swirl", "swirl · turbulence", 0, 0.5, 0.01],
+  ],
+  particle: [
+    ["rMax", "range", 0.05, 0.25, 0.005],
+    ["friction", "friction", 0.40, 0.95, 0.01],
+    ["forceFactor", "force", 1, 12, 0.5],
+    ["noise", "jitter", 0, 4, 0.1],
+    ["cursor", "cursor pull", -4, 6, 0.2],
+    ["matDrift", "physics drift", 0, 0.06, 0.002],
+  ],
+  life: [
+    ["lifeEvery", "step interval (frames)", 1, 20, 1],
+  ],
+};
+const PRESETS: Partial<Record<Substrate, Record<string, Partial<Params>>>> = {
+  lenia: LENIA_PRESETS,
+  particle: PARTICLE_PRESETS,
+};
+
+// Particle search also tunes these sliders (alongside the attraction matrix), so a
+// summon visibly updates the controls — not just the hidden matrix.
+// hidden creatures, summoned by typing their names (M6 easter eggs)
+const EGG_MAINRUN: Partial<Params> = { mu: 0.14, sigma: 0.015, kR: 16, kSigma: 0.12, energy: 0.003, drift: 0.46, swirl: 0.36 };
+const EGG_CATCHMENT: Partial<Params> = { rMax: 0.16, friction: 0.70, forceFactor: 6.0, noise: 1.0 };
+
+const P_SEARCH_KEYS: (keyof Params)[] = ["rMax", "friction", "forceFactor"];
+const boundsOf = (sub: Substrate, key: keyof Params): [number, number] => {
+  const d = SLIDERS[sub].find((s) => s[0] === key);
+  return d ? [d[2], d[3]] : [0, 1];
+};
 
 /** Random binary field for seeding Conway's Game of Life. */
 function seedLifeField(n: number, density = 0.32): Float32Array {
@@ -44,6 +164,26 @@ export default function Genesis() {
   const [err, setErr] = useState<string>("");
   const [paused, setPaused] = useState(false);
   const [substrate, setSubstrate] = useState<Substrate>("lenia");
+  const [params, setParams] = useState<Params>(DEFAULTS);
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
+
+  // M4 — foundation-model scoring ("summon")
+  const [prompt, setPrompt] = useState("");
+  const [visionStatus, setVisionStatus] = useState<VisionStatus>("idle");
+  const [visionMsg, setVisionMsg] = useState("");
+  const [score, setScore] = useState<number | null>(null);
+  const textEmbedRef = useRef<Float32Array | null>(null);
+  const scoreTimer = useRef<number | null>(null);
+  const scoringRef = useRef(false);
+
+  // M5 — evolutionary search
+  const [searching, setSearching] = useState(false);
+  const [searchInfo, setSearchInfo] = useState("");
+  const [egg, setEgg] = useState("");
+  const runSearchRef = useRef<((mode: "prompt" | "open") => void) | null>(null);
+  const searchCancelRef = useRef(false);
+  const searchActiveRef = useRef(false);
 
   // control hooks the render loop reads without re-subscribing
   const pausedRef = useRef(false);
@@ -51,10 +191,101 @@ export default function Genesis() {
   const resetRef = useRef(false);
   const substrateRef = useRef<Substrate>("lenia");
   const switchRef = useRef(false); // substrate changed -> reseed
+  const mouseRef = useRef<{ x: number; y: number; active: boolean }>({ x: -1, y: -1, active: false });
+  const paramsRef = useRef<Params>(DEFAULTS);
+  const didInit = useRef(false);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
   useEffect(() => {
     if (substrateRef.current !== substrate) { substrateRef.current = substrate; switchRef.current = true; }
   }, [substrate]);
+  // apply permalink once on mount (after hydration, so SSR markup matches)
+  useEffect(() => {
+    const h = parseHash();
+    if (h.substrate) setSubstrate(h.substrate);
+    if (Object.keys(h.params).length) {
+      const merged = { ...DEFAULTS, ...h.params };
+      paramsRef.current = merged;
+      setParams(merged);
+    }
+    didInit.current = true;
+  }, []);
+  // keep the live ref in sync + mirror state into the URL hash (shareable)
+  useEffect(() => {
+    paramsRef.current = params;
+    if (!didInit.current) return;
+    try { window.history.replaceState(null, "", buildHash(substrate, params)); } catch { /* noop */ }
+  }, [params, substrate]);
+
+  // setters that update both the React state (UI) and the live ref (render loop)
+  const setParam = (k: keyof Params, v: number) => {
+    paramsRef.current = { ...paramsRef.current, [k]: v };
+    setParams((p) => ({ ...p, [k]: v }));
+  };
+  const applyPreset = (obj: Partial<Params>) => {
+    paramsRef.current = { ...paramsRef.current, ...obj };
+    setParams((p) => ({ ...p, ...obj }));
+    resetRef.current = true; // reseed so the preset reads cleanly
+  };
+  const copyLink = () => {
+    try {
+      navigator.clipboard?.writeText(window.location.href);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch { /* noop */ }
+  };
+
+  // M4: load CLIP (lazy), embed the prompt, then score each frame's resonance
+  // live resonance meter (paused while a search drives the GPU itself)
+  const startMeter = () => {
+    if (scoreTimer.current) window.clearInterval(scoreTimer.current);
+    scoreTimer.current = window.setInterval(async () => {
+      if (searchActiveRef.current) return;
+      const cvs = canvasRef.current;
+      const te = textEmbedRef.current;
+      if (!cvs || !te || scoringRef.current) return;
+      scoringRef.current = true;
+      try { const ie = await embedCanvas(cvs); setScore(cosine(ie, te)); }
+      catch { /* skip bad frame */ }
+      finally { scoringRef.current = false; }
+    }, 700);
+  };
+  // Summon = load CLIP, embed the prompt, then evolve the substrate to match it
+  const startSummon = async () => {
+    const text = prompt.trim();
+    if (!text || searching) return;
+    try {
+      setVisionStatus("loading"); setVisionMsg("loading vision model…");
+      await loadVision((label, frac) => setVisionMsg(`fetching ${label.split("/").pop()} · ${Math.round(frac * 100)}%`));
+      setVisionMsg("embedding prompt…");
+      textEmbedRef.current = await embedText(text);
+      setVisionStatus("ready"); setVisionMsg("");
+      startMeter();
+      runSearchRef.current?.("prompt"); // conjure: breed the substrate toward the words
+    } catch (e: any) {
+      setVisionStatus("error");
+      setVisionMsg(e?.message ? String(e.message).slice(0, 120) : "couldn’t load the model");
+    }
+  };
+  useEffect(() => () => { if (scoreTimer.current) window.clearInterval(scoreTimer.current); }, []);
+
+  // M6 — easter eggs: type a name to summon a hidden creature
+  useEffect(() => {
+    let buf = "";
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
+      buf = (buf + e.key.toLowerCase()).slice(-16);
+      const fire = (label: string, fn: () => void) => { fn(); setEgg(label); window.setTimeout(() => setEgg(""), 2400); buf = ""; };
+      if (buf.endsWith("conway")) fire("⬛ conway — game of life", () => setSubstrate("life"));
+      else if (buf.endsWith("swarm")) fire("✦ swarm — particle life", () => setSubstrate("particle"));
+      else if (buf.endsWith("lenia")) fire("◍ lenia", () => setSubstrate("lenia"));
+      else if (buf.endsWith("mainrun")) fire("↯ mainrun", () => { setSubstrate("lenia"); applyPreset(EGG_MAINRUN); });
+      else if (buf.endsWith("catchment")) fire("≈ catchment", () => { setSubstrate("particle"); applyPreset(EGG_CATCHMENT); });
+      else if (buf.endsWith("surprise")) fire("✦ surprise me", () => runSearchRef.current?.("open"));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -85,11 +316,13 @@ export default function Genesis() {
 
         // size the backing store to the displayed size (DPR-capped) so the
         // field renders smooth + full-resolution rather than blocky.
+        let pUniWrite: (() => void) | null = null;
         const resize = () => {
           const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
           const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
           const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
           if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+          pUniWrite?.(); // particle uniform carries aspect ratio
         };
         resize();
         ctx.configure({ device, format, alphaMode: "opaque" });
@@ -106,31 +339,89 @@ export default function Genesis() {
           return b;
         };
 
-        const kernel = buildKernel(P.R, P.kSigma);
-        const kw = 2 * P.R + 1;
         const soup = seedSoup(N);
         const bufs = [mkBuf(soup, ST), mkBuf(new Float32Array(N * N), ST)];
         const histBuf = mkBuf(new Float32Array(N * N), ST); // motion-trail memory
-        const kernBuf = mkBuf(kernel, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        const uni = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        // kernel buffer sized for the largest radius; rebuilt live when R/ring change
+        const kernBuf = device.createBuffer({
+          size: (2 * KR_MAX + 1) * (2 * KR_MAX + 1) * 4,
+          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
+        });
+        let curR = Math.round(paramsRef.current.kR);
+        let curKSig = paramsRef.current.kSigma;
+        device.queue.writeBuffer(kernBuf, 0, buildKernel(curR, curKSig));
+        const uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         device.queue.writeBuffer(uni, 0, new Float32Array([
-          N, P.R, P.dt, P.mu,        // p0
-          P.sigma, kw, 0, 0,          // p1
+          N, curR, P.dt, P.mu,        // p0
+          P.sigma, 2 * curR + 1, 0, 0, // p1
+          0, 0, 0, 0,                  // p2 (t, energy, seed, drift)
+          0, 0, 0, 0,                  // p3 (theta, swirl, _, _)
         ]));
+        // per-frame living state: μ/σ breathe, heading θ wanders, energy feeds Lenia
+        let theta = Math.random() * Math.PI * 2;
+        let tFlow = 0;
+        const writeFieldUniform = (frame: number) => {
+          const lenia = substrateRef.current === "lenia";
+          const pr = paramsRef.current;
+          const R = Math.round(pr.kR);
+          if (R !== curR || pr.kSigma !== curKSig) {
+            device.queue.writeBuffer(kernBuf, 0, buildKernel(R, pr.kSigma));
+            curR = R; curKSig = pr.kSigma;
+          }
+          const mu = pr.mu + (lenia ? MU_AMP * Math.sin(META_OMEGA * frame) : 0);
+          const sig = pr.sigma + (lenia ? SIG_AMP * Math.sin(META_OMEGA * frame * 1.3 + 1) : 0);
+          theta += (Math.random() * 2 - 1) * THETA_JITTER;
+          tFlow += P.dt;
+          device.queue.writeBuffer(uni, 0, new Float32Array([
+            N, R, P.dt, mu,
+            sig, 2 * R + 1, 0, 0,
+            tFlow, lenia ? pr.energy : 0, frame, lenia ? pr.drift : 0,
+            theta, lenia ? pr.swirl : 0, 0, 0,
+          ]));
+        };
+
+        /* ---- Particle Life buffers ------------------------------------- */
+        const pstate = initParticles(PN, PL.K);
+        const posBufs = [mkBuf(pstate.pos, ST), mkBuf(new Float32Array(2 * PN), ST)];
+        const velBufs = [mkBuf(pstate.vel, ST), mkBuf(new Float32Array(2 * PN), ST)];
+        const typeBuf = device.createBuffer({ size: PN * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+        new Uint32Array(typeBuf.getMappedRange()).set(pstate.type); typeBuf.unmap();
+        let curMat = randomMatrix(PL.K); // the live attraction matrix (slowly drifts)
+        const matBuf = mkBuf(curMat, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
+        const pBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        let pseed = 0;
+        pUniWrite = () => {
+          const aspect = canvas.width / Math.max(1, canvas.height);
+          const m = mouseRef.current;
+          const cx = m.active ? m.x : -1;
+          const cy = m.active ? m.y : -1;
+          const pr = paramsRef.current;
+          device.queue.writeBuffer(pBuf, 0, new Float32Array([
+            PN, PL.K, pr.rMax, PL.beta,                       // a
+            PL.dt, pr.friction, pr.forceFactor, pr.noise,     // b
+            aspect, POINT_SIZE, cx, cy,                       // c
+            pr.cursor, pseed, 0, 0,                           // d
+          ]));
+        };
+        pUniWrite();
 
         /* ---- pipelines -------------------------------------------------- */
         const simMod = device.createShaderModule({ code: SIM_WGSL });
         const lifeMod = device.createShaderModule({ code: LIFE_WGSL });
+        const advMod = device.createShaderModule({ code: ADVECT_WGSL });
         const decMod = device.createShaderModule({ code: DECAY_WGSL });
         const renMod = device.createShaderModule({ code: RENDER_WGSL });
+        const pForceMod = device.createShaderModule({ code: PARTICLE_FORCE_WGSL });
+        const pRenderMod = device.createShaderModule({ code: PARTICLE_RENDER_WGSL });
         // surface shader-compile errors early (blind-dev safety net)
-        for (const m of [simMod, lifeMod, decMod, renMod]) {
+        for (const m of [simMod, lifeMod, advMod, decMod, renMod, pForceMod, pRenderMod]) {
           const ci = await (m.getCompilationInfo?.() ?? Promise.resolve({ messages: [] }));
           const e = (ci.messages ?? []).filter((x: any) => x.type === "error");
           if (e.length) throw new Error(e.map((x: any) => x.message).join(" | "));
         }
         const simPipe = device.createComputePipeline({ layout: "auto", compute: { module: simMod, entryPoint: "main" } });
         const lifePipe = device.createComputePipeline({ layout: "auto", compute: { module: lifeMod, entryPoint: "main" } });
+        const advPipe = device.createComputePipeline({ layout: "auto", compute: { module: advMod, entryPoint: "main" } });
         const decPipe = device.createComputePipeline({ layout: "auto", compute: { module: decMod, entryPoint: "main" } });
         const renPipe = device.createRenderPipeline({
           layout: "auto",
@@ -138,9 +429,23 @@ export default function Genesis() {
           fragment: { module: renMod, entryPoint: "fs", targets: [{ format }] },
           primitive: { topology: "triangle-list" },
         });
+        const pForcePipe = device.createComputePipeline({ layout: "auto", compute: { module: pForceMod, entryPoint: "main" } });
+        const pRenderPipe = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module: pRenderMod, entryPoint: "vs" },
+          fragment: { module: pRenderMod, entryPoint: "fs", targets: [{
+            format,
+            blend: {
+              color: { srcFactor: "one", dstFactor: "one", operation: "add" },
+              alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
+            },
+          }] },
+          primitive: { topology: "triangle-list" },
+        });
 
         const cl = simPipe.getBindGroupLayout(0);
         const ll = lifePipe.getBindGroupLayout(0);
+        const al = advPipe.getBindGroupLayout(0);
         const dl = decPipe.getBindGroupLayout(0);
         const rl = renPipe.getBindGroupLayout(0);
         // Lenia compute bind groups: src -> dst (+ ring kernel)
@@ -166,6 +471,19 @@ export default function Genesis() {
             { binding: 2, resource: { buffer: bufs[1] } },
           ]}),
           device.createBindGroup({ layout: ll, entries: [
+            { binding: 0, resource: { buffer: uni } },
+            { binding: 1, resource: { buffer: bufs[1] } },
+            { binding: 2, resource: { buffer: bufs[0] } },
+          ]}),
+        ];
+        // advection bind groups: src -> dst (semi-Lagrangian flow)
+        const abg = [
+          device.createBindGroup({ layout: al, entries: [
+            { binding: 0, resource: { buffer: uni } },
+            { binding: 1, resource: { buffer: bufs[0] } },
+            { binding: 2, resource: { buffer: bufs[1] } },
+          ]}),
+          device.createBindGroup({ layout: al, entries: [
             { binding: 0, resource: { buffer: uni } },
             { binding: 1, resource: { buffer: bufs[1] } },
             { binding: 2, resource: { buffer: bufs[0] } },
@@ -198,8 +516,45 @@ export default function Genesis() {
           ]}),
         ];
 
+        // Particle Life bind groups (compute ping-pong + render)
+        const pfl = pForcePipe.getBindGroupLayout(0);
+        const prl = pRenderPipe.getBindGroupLayout(0);
+        const pcbg = [
+          device.createBindGroup({ layout: pfl, entries: [
+            { binding: 0, resource: { buffer: pBuf } },
+            { binding: 1, resource: { buffer: posBufs[0] } },
+            { binding: 2, resource: { buffer: velBufs[0] } },
+            { binding: 3, resource: { buffer: posBufs[1] } },
+            { binding: 4, resource: { buffer: velBufs[1] } },
+            { binding: 5, resource: { buffer: typeBuf } },
+            { binding: 6, resource: { buffer: matBuf } },
+          ]}),
+          device.createBindGroup({ layout: pfl, entries: [
+            { binding: 0, resource: { buffer: pBuf } },
+            { binding: 1, resource: { buffer: posBufs[1] } },
+            { binding: 2, resource: { buffer: velBufs[1] } },
+            { binding: 3, resource: { buffer: posBufs[0] } },
+            { binding: 4, resource: { buffer: velBufs[0] } },
+            { binding: 5, resource: { buffer: typeBuf } },
+            { binding: 6, resource: { buffer: matBuf } },
+          ]}),
+        ];
+        const prbg = [
+          device.createBindGroup({ layout: prl, entries: [
+            { binding: 0, resource: { buffer: pBuf } },
+            { binding: 1, resource: { buffer: posBufs[0] } },
+            { binding: 2, resource: { buffer: typeBuf } },
+          ]}),
+          device.createBindGroup({ layout: prl, entries: [
+            { binding: 0, resource: { buffer: pBuf } },
+            { binding: 1, resource: { buffer: posBufs[1] } },
+            { binding: 2, resource: { buffer: typeBuf } },
+          ]}),
+        ];
+
         const groups = Math.ceil(N / 8);
         let cur = 0; // index of buffer holding the latest state
+        let pcur = 0; // index of particle buffers holding the latest state
 
         const stepOnce = () => {
           const life = substrateRef.current === "life";
@@ -211,6 +566,27 @@ export default function Genesis() {
           pass.end();
           device.queue.submit([enc.finish()]);
           cur = 1 - cur;
+        };
+
+        const advectOnce = () => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginComputePass();
+          pass.setPipeline(advPipe);
+          pass.setBindGroup(0, abg[cur]); // src=cur, dst=1-cur
+          pass.dispatchWorkgroups(groups, groups);
+          pass.end();
+          device.queue.submit([enc.finish()]);
+          cur = 1 - cur;
+        };
+
+        const driftMatrix = () => {
+          const rate = paramsRef.current.matDrift;
+          for (let i = 0; i < curMat.length; i++) {
+            let v = curMat[i] + (Math.random() * 2 - 1) * rate;
+            v = v < -1 ? -1 : v > 1 ? 1 : v;
+            curMat[i] = v;
+          }
+          device.queue.writeBuffer(matBuf, 0, curMat);
         };
 
         const decayOnce = () => {
@@ -239,8 +615,187 @@ export default function Genesis() {
           device.queue.submit([enc.finish()]);
         };
 
+        const particleStepGPU = () => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginComputePass();
+          pass.setPipeline(pForcePipe);
+          pass.setBindGroup(0, pcbg[pcur]); // in=pcur, out=1-pcur
+          pass.dispatchWorkgroups(Math.ceil(PN / 64));
+          pass.end();
+          device.queue.submit([enc.finish()]);
+          pcur = 1 - pcur;
+        };
+
+        const particleRender = () => {
+          const enc = device.createCommandEncoder();
+          const view = ctx.getCurrentTexture().createView();
+          const pass = enc.beginRenderPass({
+            colorAttachments: [{
+              view, loadOp: "clear", storeOp: "store",
+              clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 },
+            }],
+          });
+          pass.setPipeline(pRenderPipe);
+          pass.setBindGroup(0, prbg[pcur]); // pcur holds latest positions
+          pass.draw(6, PN); // 6 verts/quad × PN instances
+          pass.end();
+          device.queue.submit([enc.finish()]);
+        };
+
+        const resetParticles = () => {
+          const st = initParticles(PN, PL.K);
+          device.queue.writeBuffer(posBufs[pcur], 0, st.pos);
+          device.queue.writeBuffer(velBufs[pcur], 0, st.vel);
+          device.queue.writeBuffer(typeBuf, 0, st.type);
+          curMat = randomMatrix(PL.K); // new physics
+          device.queue.writeBuffer(matBuf, 0, curMat);
+        };
+
+        /* ---- M5: CMA-ES search — breed parameters that maximize CLIP resonance --- */
+        // Offscreen capture: render a candidate into our own texture and read the
+        // pixels back directly — robust, unlike snapshotting the live canvas mid-search.
+        const CAP = 224;
+        const capBPR = Math.ceil((CAP * 4) / 256) * 256; // bytesPerRow must be 256-aligned
+        const capTex = device.createTexture({
+          size: [CAP, CAP], format,
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
+        });
+        const capView = capTex.createView();
+        const capRead = device.createBuffer({ size: capBPR * CAP, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        const bgra = format.startsWith("bgra");
+        const captureEmbed = async (kind: "field" | "particle") => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginRenderPass({
+            colorAttachments: [{ view: capView, loadOp: "clear", storeOp: "store", clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 } }],
+          });
+          if (kind === "field") { pass.setPipeline(renPipe); pass.setBindGroup(0, rbg[cur]); pass.draw(3); }
+          else { pass.setPipeline(pRenderPipe); pass.setBindGroup(0, prbg[pcur]); pass.draw(6, PN); }
+          pass.end();
+          enc.copyTextureToBuffer({ texture: capTex }, { buffer: capRead, bytesPerRow: capBPR, rowsPerImage: CAP }, [CAP, CAP, 1]);
+          device.queue.submit([enc.finish()]);
+          await capRead.mapAsync(GPUMapMode.READ);
+          const src = new Uint8Array(capRead.getMappedRange());
+          const rgba = new Uint8ClampedArray(CAP * CAP * 4);
+          for (let y = 0; y < CAP; y++) for (let x = 0; x < CAP; x++) {
+            const si = y * capBPR + x * 4, di = (y * CAP + x) * 4;
+            if (bgra) { rgba[di] = src[si + 2]; rgba[di + 1] = src[si + 1]; rgba[di + 2] = src[si]; }
+            else { rgba[di] = src[si]; rgba[di + 1] = src[si + 1]; rgba[di + 2] = src[si + 2]; }
+            rgba[di + 3] = 255;
+          }
+          capRead.unmap();
+          return embedPixels(rgba, CAP, CAP);
+        };
+        const developLenia = (steps: number, f0: number) => {
+          for (let i = 0; i < steps; i++) { writeFieldUniform(f0 + i); stepOnce(); advectOnce(); }
+          decayOnce();
+        };
+        const developParticle = (steps: number) => {
+          for (let i = 0; i < steps; i++) { pUniWrite?.(); particleStepGPU(); }
+        };
+        const applyCandidate = (sub: Substrate, vec: number[]) => {
+          if (sub === "lenia") {
+            const pr = { ...paramsRef.current };
+            SLIDERS.lenia.forEach(([key, , min, max], i) => { pr[key] = min + vec[i] * (max - min); });
+            paramsRef.current = pr;
+            device.queue.writeBuffer(bufs[cur], 0, seedSoup(N));
+            device.queue.writeBuffer(histBuf, 0, new Float32Array(N * N));
+          } else {
+            const K2 = PL.K * PL.K;
+            const m = new Float32Array(K2);
+            for (let i = 0; i < K2; i++) m[i] = -1 + vec[i] * 2;
+            curMat = m;
+            device.queue.writeBuffer(matBuf, 0, curMat);
+            const pr = { ...paramsRef.current };
+            P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); pr[key] = mn + vec[K2 + i] * (mx - mn); });
+            paramsRef.current = pr;
+            const st = initParticles(PN, PL.K);
+            device.queue.writeBuffer(posBufs[pcur], 0, st.pos);
+            device.queue.writeBuffer(velBufs[pcur], 0, st.vel);
+            device.queue.writeBuffer(typeBuf, 0, st.type);
+          }
+        };
+        const evalCandidate = async (sub: Substrate, mode: "prompt" | "open", vec: number[]) => {
+          const kind = sub === "lenia" ? "field" : "particle";
+          applyCandidate(sub, vec);
+          if (sub === "lenia") { developLenia(95, 0); renderFrame(); } else { developParticle(150); particleRender(); }
+          const a = await captureEmbed(kind);
+          if (mode === "prompt") return cosine(a, textEmbedRef.current!);
+          if (sub === "lenia") { developLenia(60, 80); renderFrame(); } else { developParticle(90); particleRender(); }
+          const b = await captureEmbed(kind);
+          return 1 - cosine(a, b); // open-ended: reward restless, ever-changing life
+        };
+
+        const runSearch = async (mode: "prompt" | "open") => {
+          if (searchActiveRef.current) return;
+          const sub = substrateRef.current;
+          if (sub === "life") { setSearchInfo("Search runs on Lenia & Particles."); return; }
+          if (mode === "prompt" && !textEmbedRef.current) { setSearchInfo("Summon a prompt first."); return; }
+          if (mode === "open" && !textEmbedRef.current) {
+            try { setVisionStatus("loading"); setVisionMsg("loading vision model…"); await loadVision(); setVisionStatus("ready"); setVisionMsg(""); }
+            catch (e: any) { setVisionStatus("error"); setVisionMsg(e?.message ?? "model load failed"); return; }
+          }
+          searchActiveRef.current = true; searchCancelRef.current = false;
+          setSearching(true); mouseRef.current.active = false;
+
+          const K2 = PL.K * PL.K;
+          const mean0: number[] = [];
+          if (sub === "lenia") {
+            SLIDERS.lenia.forEach(([key, , min, max]) => {
+              mean0.push(Math.max(0, Math.min(1, (paramsRef.current[key] - min) / (max - min))));
+            });
+          } else {
+            for (let i = 0; i < K2; i++) mean0.push((curMat[i] + 1) / 2);
+            P_SEARCH_KEYS.forEach((key) => {
+              const [mn, mx] = boundsOf("particle", key);
+              mean0.push(Math.max(0, Math.min(1, (paramsRef.current[key] - mn) / (mx - mn))));
+            });
+          }
+
+          const es = new CMAES(mean0, 0.34);
+          const GENS = sub === "lenia" ? 14 : 10;
+          let bestScore = -Infinity; let bestVec: number[] | null = null;
+          try {
+            for (let g = 0; g < GENS && !searchCancelRef.current; g++) {
+              const pop = es.ask();
+              const fit: number[] = [];
+              for (let k = 0; k < pop.length; k++) {
+                if (searchCancelRef.current) break;
+                const s = await evalCandidate(sub, mode, pop[k]);
+                fit.push(-s); // CMA-ES minimizes
+                if (s > bestScore) { bestScore = s; bestVec = pop[k].slice(); }
+                setScore(s);
+                setSearchInfo(`gen ${g + 1}/${GENS} · ${k + 1}/${pop.length} · best ${bestScore.toFixed(3)}`);
+              }
+              if (fit.length === pop.length) es.tell(fit);
+            }
+            if (bestVec) {
+              applyCandidate(sub, bestVec);
+              // reflect the winning controls in the sliders + permalink
+              const np = { ...paramsRef.current };
+              if (sub === "lenia") {
+                SLIDERS.lenia.forEach(([key, , min, max], i) => { np[key] = +(min + bestVec![i] * (max - min)).toPrecision(4); });
+              } else {
+                const K2 = PL.K * PL.K;
+                P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); np[key] = +(mn + bestVec![K2 + i] * (mx - mn)).toPrecision(4); });
+              }
+              setParams(np);
+            }
+          } finally {
+            searchActiveRef.current = false;
+            setSearching(false);
+            setSearchInfo(`${searchCancelRef.current ? "stopped" : "done"} · best ${bestScore.toFixed(3)}`);
+          }
+        };
+        runSearchRef.current = runSearch;
+
         /* ---- click-to-seed: read back current state, stamp a soft blob --- */
         const applySeed = async (gx: number, gy: number) => {
+          if (substrateRef.current === "particle") {
+            // a click conjures a new set of physics → new emergent species
+            curMat = randomMatrix(PL.K);
+            device.queue.writeBuffer(matBuf, 0, curMat);
+            return;
+          }
           const bytes = N * N * 4;
           const staging = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
           const enc = device.createCommandEncoder();
@@ -264,10 +819,11 @@ export default function Genesis() {
                 // Game of Life: scatter live cells so a click sparks activity
                 if (Math.random() < 0.55) mirror[idx] = 1;
               } else {
-                // Lenia: a smooth bump nucleates a viable, persistent creature
+                // Lenia: OVERWRITE a clean smooth disc — clears the lattice around
+                // the cursor and plants a fresh, distinct creature that blooms.
                 const f = 1 - d / rad;
                 const bump = f * f * (3 - 2 * f); // smoothstep falloff
-                mirror[idx] = Math.min(1, mirror[idx] + bump * 0.95);
+                mirror[idx] = bump * 0.95;
               }
             }
           }
@@ -275,6 +831,7 @@ export default function Genesis() {
         };
 
         const doReset = () => {
+          if (substrateRef.current === "particle") { resetParticles(); return; }
           const seed = substrateRef.current === "life" ? seedLifeField(N) : seedSoup(N);
           device.queue.writeBuffer(bufs[cur], 0, seed);
           device.queue.writeBuffer(histBuf, 0, new Float32Array(N * N));
@@ -293,15 +850,30 @@ export default function Genesis() {
         let frame = 0;
         const loop = async () => {
           if (disposed) return;
+          if (searchActiveRef.current) { raf = requestAnimationFrame(loop); return; } // search drives the GPU
           frame++;
           if (switchRef.current) { switchRef.current = false; doReset(); }
           if (resetRef.current) { resetRef.current = false; doReset(); }
           if (seedRef.current) { const s = seedRef.current; seedRef.current = null; await applySeed(s.x, s.y); }
+
+          if (substrateRef.current === "particle") {
+            pseed = frame;
+            pUniWrite?.(); // refresh cursor + frame seed
+            if (!pausedRef.current) {
+              if (frame % MATRIX_DRIFT_EVERY === 0) driftMatrix(); // physics slowly evolves
+              particleStepGPU();
+            }
+            particleRender();
+            raf = requestAnimationFrame(loop);
+            return;
+          }
+
+          writeFieldUniform(frame); // metabolism + energy + flow heading
           if (!pausedRef.current) {
             const life = substrateRef.current === "life";
             // Game of Life steps slowly so generations are legible; Lenia every frame
-            if (!life) { for (let i = 0; i < SUBSTEPS; i++) stepOnce(); }
-            else if (frame % LIFE_EVERY === 0) { stepOnce(); }
+            if (!life) { for (let i = 0; i < SUBSTEPS; i++) stepOnce(); advectOnce(); }
+            else if (frame % Math.max(1, Math.round(paramsRef.current.lifeEvery)) === 0) { stepOnce(); }
           }
           decayOnce();
           renderFrame();
@@ -320,12 +892,25 @@ export default function Genesis() {
       const gy = Math.floor(((ev.clientY - r.top) / r.height) * N);
       if (gx >= 0 && gx < N && gy >= 0 && gy < N) seedRef.current = { x: gx, y: gy };
     };
+    const onMove = (ev: PointerEvent) => {
+      const r = canvas.getBoundingClientRect();
+      mouseRef.current = {
+        x: (ev.clientX - r.left) / r.width,
+        y: (ev.clientY - r.top) / r.height,
+        active: true,
+      };
+    };
+    const onLeave = () => { mouseRef.current.active = false; };
     canvas.addEventListener("pointerdown", onPointer);
+    canvas.addEventListener("pointermove", onMove);
+    canvas.addEventListener("pointerleave", onLeave);
 
     return () => {
       disposed = true;
       cancelAnimationFrame(raf);
       canvas.removeEventListener("pointerdown", onPointer);
+      canvas.removeEventListener("pointermove", onMove);
+      canvas.removeEventListener("pointerleave", onLeave);
       try { roRef?.disconnect?.(); } catch { /* noop */ }
       try { device?.destroy?.(); } catch { /* noop */ }
     };
@@ -341,6 +926,7 @@ export default function Genesis() {
   };
 
   return (
+    <>
     <div style={wrap}>
       <canvas ref={canvasRef} style={cvs} />
 
@@ -360,20 +946,113 @@ export default function Genesis() {
           An artificial-life lab
         </h1>
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
-          A continuous cellular automaton <span style={{ color: SAND }}>(Lenia)</span> evolving live on your GPU.
-          Click anywhere to seed new life.
+          {substrate === "lenia" && (<>A continuous cellular automaton <span style={{ color: SAND }}>(Lenia)</span> evolving live on your GPU. Click anywhere to seed a new creature.</>)}
+          {substrate === "life" && (<>Conway&rsquo;s <span style={{ color: SAND }}>Game of Life</span> on the GPU. Click to spark live cells.</>)}
+          {substrate === "particle" && (<><span style={{ color: SAND }}>Particle Life</span> — {PN.toLocaleString()} agents, {PL.K} species, an attraction matrix that slowly evolves. Move your cursor to herd them; click to conjure new physics.</>)}
         </p>
       </div>
 
-      {/* controls */}
+      {/* M4 — summon (CLIP scoring) */}
       {status === "ready" && (
-        <div style={{ position: "absolute", bottom: 24, left: 24, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={summonCard}>
+          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
+            Summon · CLIP
+          </div>
+          <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(247,245,240,0.62)", margin: "5px 0 9px" }}>
+            Describe a lifeform — an in-browser vision model scores how much the simulation resembles it.
+          </p>
+          <div style={{ display: "flex", gap: 6 }}>
+            <input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") startSummon(); }}
+              placeholder="a glowing jellyfish"
+              style={textInput}
+            />
+            <button
+              style={btn}
+              onClick={startSummon}
+              disabled={visionStatus === "loading" || searching}
+            >
+              {visionStatus === "loading" ? "…" : "Summon"}
+            </button>
+          </div>
+          {visionMsg && (
+            <div style={{ fontSize: 11, marginTop: 7, color: visionStatus === "error" ? "#D08763" : "rgba(247,245,240,0.55)" }}>
+              {visionMsg}
+            </div>
+          )}
+          {visionStatus === "ready" && score != null && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.7)", marginBottom: 4 }}>
+                <span>resonance</span><span style={{ color: SAND }}>{score.toFixed(3)}</span>
+              </div>
+              <div style={meterTrack}><div style={{ ...meterFill, width: `${resonance(score) * 100}%` }} /></div>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 6, marginTop: 11 }}>
+            {searching ? (
+              <button style={btn} onClick={() => { searchCancelRef.current = true; }}>Stop</button>
+            ) : (
+              <button style={btn} onClick={() => runSearchRef.current?.("open")}>Open-ended ↯</button>
+            )}
+          </div>
+          {searchInfo && (
+            <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 6 }}>{searchInfo}</div>
+          )}
+          <div style={{ fontSize: 10.5, color: "rgba(247,245,240,0.42)", marginTop: 9, lineHeight: 1.45 }}>
+            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> breeds the substrate (CMA-ES) toward your words; <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life. Results are abstract — <b style={{ color: SAND, fontWeight: 600 }}>Particles</b> resemble creatures &amp; swarms best.
+          </div>
+        </div>
+      )}
+
+      {/* control panel */}
+      {status === "ready" && (
+        <div style={panelWrap(panelOpen)}>
+          <div style={panelHead}>
+            <span style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
+              Controls
+            </span>
+            <button style={collapseBtn} onClick={() => setPanelOpen((o) => !o)} aria-label="Toggle controls">
+              {panelOpen ? "–" : "+"}
+            </button>
+          </div>
+
           <div style={seg}>
             <button onClick={() => setSubstrate("lenia")} style={segBtn(substrate === "lenia")}>Lenia</button>
-            <button onClick={() => setSubstrate("life")} style={segBtn(substrate === "life")}>Game of Life</button>
+            <button onClick={() => setSubstrate("particle")} style={segBtn(substrate === "particle")}>Particles</button>
+            <button onClick={() => setSubstrate("life")} style={segBtn(substrate === "life")}>Life</button>
           </div>
-          <button onClick={() => setPaused((p) => !p)} style={btn}>{paused ? "Play" : "Pause"}</button>
-          <button onClick={() => { resetRef.current = true; }} style={btn}>Reset</button>
+
+          {panelOpen && (
+            <>
+              <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
+                {SLIDERS[substrate].map(([key, label, min, max, step]) => (
+                  <Slider key={key} label={label} min={min} max={max} step={step}
+                    value={params[key]} onChange={(v) => setParam(key, v)} />
+                ))}
+              </div>
+
+              {PRESETS[substrate] && (
+                <div style={{ marginTop: 12 }}>
+                  <div style={presetLabel}>Presets</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+                    {Object.entries(PRESETS[substrate]!).map(([name, obj]) => (
+                      <button key={name} style={chip} onClick={() => applyPreset(obj)}>{name}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 6, marginTop: 13 }}>
+                <button onClick={() => setPaused((p) => !p)} style={btn}>{paused ? "Play" : "Pause"}</button>
+                <button onClick={() => { resetRef.current = true; }} style={btn}>
+                  {substrate === "particle" ? "New world" : "Reset"}
+                </button>
+                <button onClick={copyLink} style={btn}>{copied ? "Copied ✓" : "Copy link"}</button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -386,6 +1065,100 @@ export default function Genesis() {
         </Center>
       )}
       {status === "error" && <Center>Couldn’t start the simulation: {err}</Center>}
+
+      {egg && (
+        <div style={{
+          position: "absolute", bottom: 28, left: "50%", transform: "translateX(-50%)",
+          background: "rgba(20,20,18,0.78)", color: SAND, border: "1px solid rgba(196,168,130,0.4)",
+          borderRadius: 999, padding: "8px 18px", fontSize: 13, letterSpacing: 0.5,
+          fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
+          backdropFilter: "blur(8px)", pointerEvents: "none",
+        }}>
+          {egg}
+        </div>
+      )}
+    </div>
+
+    <GenesisWriteup />
+    </>
+  );
+}
+
+/* ---- scroll-down research writeup (on-brand, concise) -------------------- */
+function GenesisWriteup() {
+  return (
+    <section className="bg-concrete text-ink">
+      <div className="mx-auto max-w-prose px-6 py-20 md:py-28">
+        <p className="mb-4 font-mono text-xs uppercase tracking-[0.22em] text-sage">
+          Genesis · Flagship II · How it works
+        </p>
+        <h2 className="mb-5 font-display text-3xl leading-tight md:text-[2.5rem]">
+          Summoning artificial life, live in the browser
+        </h2>
+        <p className="text-base leading-prose text-ink/80">
+          Genesis is a WebGPU laboratory where you describe a lifeform in plain English and a
+          foundation model plus an evolutionary search coax it out of a living simulation —
+          entirely on your own machine, no server. It is the generative, emergent counterpart to{" "}
+          <a href="/catchment" className="underline decoration-sand underline-offset-4 hover:text-sage">Catchment</a>,
+          which simulates physics with a trained neural surrogate.
+        </p>
+
+        <Block kicker="The substrates">
+          Three artificial-life systems run on the GPU, full-screen. <strong className="font-medium text-ink">Lenia</strong> is
+          a continuous cellular automaton — a smooth field grown by a ring-kernel convolution
+          into drifting, self-organizing creatures. <strong className="font-medium text-ink">Particle Life</strong> sets
+          ~1,800 agents of six species loose under an asymmetric attraction matrix; cells,
+          chasers and membranes assemble from 36 simple numbers. <strong className="font-medium text-ink">Conway’s
+          Game of Life</strong> rounds out the set.
+        </Block>
+
+        <Block kicker="Summon by prompt">
+          Type a description and an in-browser <strong className="font-medium text-ink">CLIP</strong> model
+          (running client-side on WebGPU) scores how much the simulation resembles your words —
+          a live “resonance” reading. A <strong className="font-medium text-ink">separable CMA-ES</strong> search
+          then breeds the substrate’s parameters to maximize that resonance, growing and judging
+          candidate worlds until the closest match takes the screen. An open-ended mode instead
+          hunts for restless, ever-changing life. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
+          <em> Artificial Life</em>, 2025), realized here as something you can drive.
+        </Block>
+
+        <Block kicker="Making it feel alive">
+          A plain cellular automaton freezes into a static lattice, so Genesis adds coupled
+          variables that break symmetry, inject energy and drift over time: a breathing
+          metabolism, sparse energy births, and an advection flow that lets creatures travel and
+          wander. Particle Life gains a slowly drifting rule-matrix, thermal jitter, and a cursor
+          field — hover and the swarm reacts to you. Every one of these is a live slider.
+        </Block>
+
+        <Block kicker="Built blind, verified offline">
+          Raw WebGPU throughout, dependency-light, with graceful fallbacks so the page never
+          hard-fails. The simulation rules and the optimizer each have a pure reference validated
+          headlessly — bounded dynamics, no NaNs, emergent clustering, confirmed convergence —
+          before being transcribed to GPU shaders.
+        </Block>
+
+        <Block kicker="Honest limits">
+          The substrates are abstract: CLIP nudges color, density, scale and arrangement toward a
+          prompt’s vibe, but Lenia speaks in rings and blobs, not insect anatomy. Particle Life
+          resembles creatures and swarms best. That gap — emergent media judged by a model trained
+          on natural images — is the interesting tension, and it is true of the original research too.
+        </Block>
+
+        <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">
+          Tip: type <span className="text-sage">conway</span>, <span className="text-sage">swarm</span>,{" "}
+          <span className="text-sage">mainrun</span>, <span className="text-sage">catchment</span> or{" "}
+          <span className="text-sage">surprise</span> anywhere on the page.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Block({ kicker, children }: { kicker: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-10">
+      <h3 className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-sage">{kicker}</h3>
+      <p className="text-base leading-prose text-ink/80">{children}</p>
     </div>
   );
 }
@@ -394,6 +1167,52 @@ const btn: CSSProperties = {
   background: "rgba(247,245,240,0.10)", color: "#F7F5F0",
   border: "1px solid rgba(247,245,240,0.25)", borderRadius: 8,
   padding: "8px 14px", fontSize: 13, cursor: "pointer", backdropFilter: "blur(6px)",
+};
+
+const summonCard: CSSProperties = {
+  position: "absolute", top: 22, right: 22, width: 290,
+  background: "linear-gradient(135deg, rgba(20,20,18,0.72), rgba(20,20,18,0.52))",
+  backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
+  padding: "14px 16px", boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+  fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
+};
+const textInput: CSSProperties = {
+  flex: 1, minWidth: 0, background: "rgba(247,245,240,0.06)", color: "#F7F5F0",
+  border: "1px solid rgba(247,245,240,0.22)", borderRadius: 8, padding: "8px 10px",
+  fontSize: 13, fontFamily: "inherit", outline: "none",
+};
+const meterTrack: CSSProperties = {
+  width: "100%", height: 6, borderRadius: 4, background: "rgba(247,245,240,0.12)", overflow: "hidden",
+};
+const meterFill: CSSProperties = {
+  height: "100%", background: "linear-gradient(90deg, #4A6741, #C4A882)", transition: "width 0.3s ease",
+};
+
+const panelWrap = (open: boolean): CSSProperties => ({
+  position: "absolute", bottom: 22, left: 22, width: open ? 270 : "auto",
+  background: "linear-gradient(135deg, rgba(20,20,18,0.72), rgba(20,20,18,0.52))",
+  backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
+  padding: open ? "13px 15px 15px" : "10px 12px",
+  boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+  fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
+});
+const panelHead: CSSProperties = {
+  display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10,
+};
+const collapseBtn: CSSProperties = {
+  width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center",
+  border: "1px solid rgba(247,245,240,0.25)", borderRadius: 6, background: "transparent",
+  color: "rgba(247,245,240,0.75)", fontSize: 15, lineHeight: 1, cursor: "pointer",
+};
+const presetLabel: CSSProperties = {
+  fontSize: 10, letterSpacing: 1.5, textTransform: "uppercase", color: "rgba(247,245,240,0.45)",
+};
+const chip: CSSProperties = {
+  background: "rgba(247,245,240,0.08)", color: "rgba(247,245,240,0.85)",
+  border: "1px solid rgba(247,245,240,0.2)", borderRadius: 7, padding: "5px 10px",
+  fontSize: 12, cursor: "pointer", fontFamily: "inherit",
 };
 
 const seg: CSSProperties = {
@@ -407,6 +1226,24 @@ const segBtn = (active: boolean): CSSProperties => ({
   border: "none", borderRadius: 8, padding: "7px 13px", fontSize: 13,
   fontWeight: active ? 600 : 400, cursor: "pointer", transition: "background 0.15s",
 });
+
+function Slider({ label, min, max, step, value, onChange }: {
+  label: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void;
+}) {
+  const fmt = Number.isInteger(value) ? String(value) : String(+value.toPrecision(3));
+  return (
+    <label style={{ display: "block" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.72)", marginBottom: 3 }}>
+        <span>{label}</span><span style={{ color: SAND }}>{fmt}</span>
+      </div>
+      <input
+        type="range" min={min} max={max} step={step} value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        style={{ width: "100%", accentColor: SAND, cursor: "pointer", height: 3 }}
+      />
+    </label>
+  );
+}
 
 function Center({ children }: { children: React.ReactNode }) {
   return (
