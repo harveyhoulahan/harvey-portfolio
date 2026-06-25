@@ -460,6 +460,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 `;
 
 // Final apply: neuralWater = relu(neuralWater + delta); ocean stays dry.
+// Cap water at 1.0 to prevent runaway accumulation from positive model bias.
 export const NEURAL_APPLY_WGSL = /* wgsl */ `
 struct PU { n: u32, _a: u32, _b: u32, _c: u32 };
 @group(0) @binding(0) var<uniform> pu: PU;
@@ -472,7 +473,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (i >= hw) { return; }
   var v = wat[i] + delta[i];
   if (ocean[i] != 0u) { v = 0.0; }
-  wat[i] = max(v, 0.0);
+  wat[i] = clamp(v, 0.0, 4.0);
 }
 `;
 

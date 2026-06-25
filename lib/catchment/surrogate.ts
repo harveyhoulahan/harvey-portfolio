@@ -148,6 +148,6 @@ export function surrogateStep(model: Surrogate, water: Float32Array, bedNorm: Fl
   }
   // final layer has out=1: residual add to water, ReLU clamp
   const next = new Float32Array(hw);
-  for (let i = 0; i < hw; i++) next[i] = Math.max(0, water[i] + cur[i]);
+  for (let i = 0; i < hw; i++) next[i] = Math.min(Math.max(0, water[i] + cur[i]), 4.0);
   return next;
 }

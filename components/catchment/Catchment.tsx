@@ -314,7 +314,13 @@ export default function Catchment() {
       const zeroBuf = (bytes: number) => device.createBuffer({ size: bytes, usage: SIM_ST });
 
       const bedInit = new Float32Array(total);
-      for (let i = 0; i < total; i++) bedInit[i] = dem.elev[i] * HSCALE;
+      for (let i = 0; i < total; i++) {
+        const r = Math.floor(i / n), c = i % n;
+        const dist = Math.min(Math.min(c, n - 1 - c), Math.min(r, n - 1 - r)) / (n - 1);
+        const t = Math.min(1, dist / 0.10);
+        const fade = t * t * (3 - 2 * t); // smoothstep: 0 at edges, 1 beyond 10% inward
+        bedInit[i] = dem.elev[i] * HSCALE * fade;
+      }
       const flags = new Uint32Array(total);
       for (let i = 0; i < total; i++) flags[i] = (dem.ocean[i] ? 1 : 0) | (dem.stream[i] ? 2 : 0);
       const oceanU = new Uint32Array(total);
@@ -582,6 +588,7 @@ export default function Catchment() {
       const target: Vec3 = [0, DEFAULT_VSCALE * 0.32, 0];
       const cam = { az: -0.85, el: 0.62, dist: 3.0 }, camT = { az: -0.85, el: 0.62, dist: 3.0 };
       let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0;
+      let lastInteractTime = performance.now();
       const pickU = { x: 0, z: 0, on: 0 };
       let lastMVP: Mat4 = new Float32Array(16);
 
@@ -715,6 +722,7 @@ export default function Catchment() {
       };
 
       const onDown = (e: PointerEvent) => {
+        lastInteractTime = performance.now();
         dragging = true; lastX = e.clientX; lastY = e.clientY; downX = e.clientX; downY = e.clientY;
         try { canvas.setPointerCapture?.(e.pointerId); } catch { /* Synthetic pointer events may not have an active capture target. */ }
         if (modeRef.current === "pour") setPour(e.clientX, e.clientY);
@@ -726,13 +734,14 @@ export default function Catchment() {
         } catch { /* Ignore synthetic events that were never captured. */ }
       };
       const onMove = (e: PointerEvent) => {
+        lastInteractTime = performance.now();
         if (!dragging) return;
         if (modeRef.current === "pour") { setPour(e.clientX, e.clientY); return; }
         camT.az -= (e.clientX - lastX) * 0.005;
         camT.el = Math.max(0.1, Math.min(1.45, camT.el + (e.clientY - lastY) * 0.005));
         lastX = e.clientX; lastY = e.clientY;
       };
-      const onWheel = (e: WheelEvent) => { e.preventDefault(); camT.dist = Math.max(1.7, Math.min(6, camT.dist * (1 + e.deltaY * 0.0012))); };
+      const onWheel = (e: WheelEvent) => { e.preventDefault(); lastInteractTime = performance.now(); camT.dist = Math.max(1.7, Math.min(6, camT.dist * (1 + e.deltaY * 0.0012))); };
       const onClick = (e: PointerEvent) => {
         if (modeRef.current === "pour") return;
         if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) return;
@@ -894,12 +903,16 @@ export default function Catchment() {
         bloomOK = true;
       } catch (e) { console.warn("[catchment] bloom unavailable:", e); bloomOK = false; }
 
+      // Auto-resync neural water to physics every ~3s to prevent long-term drift.
+      let neuralAutoResyncFrame = 0;
+      const NEURAL_RESYNC_EVERY = 180;
+
       // Real frame loop (uses indexBuf). Overrides the placeholder above.
       const realFrame = () => {
         if (disposed) return;
         const { w, h } = sizeCanvas(); ensureAttachments(w, h);
         if (resetRef.current) { doReset(); resetRef.current = false; }
-        if (!dragging && !reduced) camT.az += 0.0011;
+        if (!dragging && !reduced && (performance.now() - lastInteractTime > 7500)) camT.az += 0.0011;
         cam.az += (camT.az - cam.az) * 0.12; cam.el += (camT.el - cam.el) * 0.12; cam.dist += (camT.dist - cam.dist) * 0.12;
 
         const vs = exagRef.current;
@@ -960,8 +973,18 @@ export default function Catchment() {
         cp.setPipeline(P.normals); cp.setBindGroup(0, BG.normals); cp.dispatchWorkgroups(WG);
         cp.end();
 
-        // neural surrogate steps its own water state forward (own compute pass)
-        if (neuralOK && neuralOnRef.current && runNeural) runNeural(enc);
+        // neural surrogate steps its own water state forward — run SUBSTEPS times to
+        // match the physics step rate (physics also runs SUBSTEPS per frame).
+        // Auto-resync to physics every ~3s to prevent long-term drift accumulation.
+        if (neuralOK && neuralOnRef.current && runNeural) {
+          for (let ns = 0; ns < SUBSTEPS; ns++) runNeural(enc);
+          if (++neuralAutoResyncFrame >= NEURAL_RESYNC_EVERY) {
+            neuralReseedRef.current = true;
+            neuralAutoResyncFrame = 0;
+          }
+        } else {
+          neuralAutoResyncFrame = 0;
+        }
 
         const canvasView = ctx.getCurrentTexture().createView();
         const rp = enc.beginRenderPass({
