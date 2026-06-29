@@ -108,6 +108,32 @@ export function seedSoup(N: number, fill = 0.32, rng: () => number = Math.random
   return s;
 }
 
+/**
+ * Seed one of several random layouts (for visual variety): a lone cell, two
+ * opposing clusters (a "fight ring"), a trio, a scattered field, or full soup.
+ */
+export function seedScenario(N: number, rng: () => number = Math.random): Float32Array {
+  const s = new Float32Array(N * N);
+  const stamp = (cx: number, cy: number, rad: number, fill: number) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      if (Math.hypot(x - cx, y - cy) < rad && rng() < fill) s[y * N + x] = rng();
+    }
+  };
+  const kind = Math.floor(rng() * 5);
+  if (kind === 0) {
+    stamp(N * (0.35 + rng() * 0.3), N * (0.35 + rng() * 0.3), N * 0.09, 0.55); // lone cell
+  } else if (kind === 1) {
+    stamp(N * 0.3, N * 0.5, N * 0.12, 0.5); stamp(N * 0.7, N * 0.5, N * 0.12, 0.5); // duo / fight ring
+  } else if (kind === 2) {
+    stamp(N * 0.5, N * 0.28, N * 0.1, 0.5); stamp(N * 0.3, N * 0.72, N * 0.1, 0.5); stamp(N * 0.7, N * 0.72, N * 0.1, 0.5); // trio
+  } else if (kind === 3) {
+    for (let k = 0; k < 6; k++) stamp(rng() * N, rng() * N, N * 0.05, 0.6); // scatter
+  } else {
+    stamp(N / 2, N / 2, N * 0.22, 0.32); // soup
+  }
+  return s;
+}
+
 /** Total field mass — used by tests/novelty objectives to confirm life persists. */
 export function mass(state: Float32Array): number {
   let m = 0;

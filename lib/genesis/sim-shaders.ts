@@ -215,7 +215,11 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
   }
 
-  let nv = velIn[i] * fric + acc * dt;
+  var nv = velIn[i] * fric + acc * dt;
+  if (nv.x != nv.x || nv.y != nv.y) { nv = vec2<f32>(0.0, 0.0); } // NaN guard
+  let sp = length(nv);
+  let maxv = 2.5;                                  // speed cap → no blow-ups
+  if (sp > maxv) { nv = nv * (maxv / sp); }
   velOut[i] = nv;
   var np = pi + nv * dt;
   np = np - floor(np); // wrap to [0,1)
@@ -226,7 +230,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 // Particle render — one soft glowing disc per particle (instanced quads, additive).
 //   pu.c = (aspect, pointSize, _, _)
 export const PARTICLE_RENDER_WGSL = /* wgsl */ `
-struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32> };
+struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32> };
 @group(0) @binding(0) var<uniform> pu: PU;
 @group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
 @group(0) @binding(2) var<storage, read> typ: array<u32>;
@@ -237,15 +241,26 @@ struct VSOut {
   @location(1) col: vec3<f32>,
 };
 
+fn hsv2rgb(h: f32, s: f32, v: f32) -> vec3<f32> {
+  let i = floor(h * 6.0);
+  let f = h * 6.0 - i;
+  let p = v * (1.0 - s);
+  let q = v * (1.0 - f * s);
+  let t = v * (1.0 - (1.0 - f) * s);
+  let m = i32(i) % 6;
+  if (m == 0) { return vec3(v, t, p); }
+  if (m == 1) { return vec3(q, v, p); }
+  if (m == 2) { return vec3(p, v, t); }
+  if (m == 3) { return vec3(p, q, v); }
+  if (m == 4) { return vec3(t, p, v); }
+  return vec3(v, p, q);
+}
+
+// palette is part of the evolved genome: e = (hueBase, hueSpread, saturation, value)
 fn typeColor(t: u32) -> vec3<f32> {
-  switch t {
-    case 0u: { return vec3(0.290, 0.404, 0.255); } // sage
-    case 1u: { return vec3(0.800, 0.680, 0.500); } // sand
-    case 2u: { return vec3(0.960, 0.930, 0.880); } // cream
-    case 3u: { return vec3(0.830, 0.430, 0.300); } // terracotta
-    case 4u: { return vec3(0.300, 0.580, 0.540); } // teal
-    default: { return vec3(0.760, 0.620, 0.230); } // gold
-  }
+  let K = pu.a.y;
+  let h = fract(pu.e.x + (f32(t) / K) * pu.e.y);
+  return hsv2rgb(h, pu.e.z, pu.e.w);
 }
 
 @vertex
@@ -277,6 +292,182 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
 }
 `;
 
+// Two-channel Lenia with rivalry. Channels A and B each grow on the ring kernel with
+// their own (μ,σ) + a little energy self-sustain; each is eroded by the other's local
+// mass, so a rival colour that invades will clash at the front.
+//   fa=(N,R,dt,kw)  fb=(muA,sigA,muB,sigB)  fc=(killAB,killBA,energy,seed)
+export const FIGHT_WGSL = /* wgsl */ `
+struct FU { fa: vec4<f32>, fb: vec4<f32>, fc: vec4<f32>, fd: vec4<f32>, fe: vec4<f32> };
+@group(0) @binding(0) var<uniform> fu: FU;
+@group(0) @binding(1) var<storage, read> srcS: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read_write> dstS: array<vec2<f32>>;
+@group(0) @binding(3) var<storage, read> kern: array<f32>;
+
+fn fhash(p: vec3<f32>) -> f32 {
+  var p3 = fract(p * 0.1031);
+  p3 = p3 + dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let N = u32(fu.fa.x);
+  if (gid.x >= N || gid.y >= N) { return; }
+  let R = i32(fu.fa.y);
+  let dt = fu.fa.z;
+  let kw = i32(fu.fa.w);
+  let muA = fu.fb.x; let sigA = fu.fb.y; let muB = fu.fb.z; let sigB = fu.fb.w;
+  let killAB = fu.fc.x; let killBA = fu.fc.y; let energy = fu.fc.z; let seed = fu.fc.w;
+  let Ni = i32(N);
+  let x = i32(gid.x); let y = i32(gid.y);
+  var uA = 0.0; var uB = 0.0;
+  for (var dy = -R; dy <= R; dy = dy + 1) {
+    let sy = ((y + dy) % Ni + Ni) % Ni;
+    let rowS = sy * Ni;
+    let rowK = (dy + R) * kw;
+    for (var dx = -R; dx <= R; dx = dx + 1) {
+      let w = kern[rowK + dx + R];
+      if (w != 0.0) {
+        let sx = ((x + dx) % Ni + Ni) % Ni;
+        let s = srcS[rowS + sx];
+        uA = uA + w * s.x;
+        uB = uB + w * s.y;
+      }
+    }
+  }
+  let zA = (uA - muA) / sigA; let gA = 2.0 * exp(-0.5 * zA * zA) - 1.0;
+  let zB = (uB - muB) / sigB; let gB = 2.0 * exp(-0.5 * zB * zB) - 1.0;
+  let cur = srcS[y * Ni + x];
+  var a = cur.x + dt * (gA - killBA * uB); // A eroded by nearby B
+  var b = cur.y + dt * (gB - killAB * uA); // B eroded by nearby A
+  // global advantage (fd.x): the colour leading in total cells actively consumes the
+  // other at the contact front, so the majority overruns the minority to extinction.
+  let adv = fu.fd.x; // >0 → A leads
+  if (adv > 0.0) { b = b - dt * adv * 1.1 * uA; }      // A eats B where A is present
+  else { a = a + dt * adv * 1.1 * uB; }                // B leads (adv<0) → B eats A
+  a = clamp(a, 0.0, 1.0); b = clamp(b, 0.0, 1.0);
+  // energy self-sustain: only near existing mass of that channel (no spontaneous fill)
+  if (energy > 0.0) {
+    if (uA > 0.02 && fhash(vec3<f32>(f32(x), f32(y), seed)) < energy) { a = min(1.0, a + 0.4 * fhash(vec3<f32>(f32(x) + 3.0, f32(y) + 1.0, seed))); }
+    if (uB > 0.02 && fhash(vec3<f32>(f32(x), f32(y), seed + 17.0)) < energy) { b = min(1.0, b + 0.4 * fhash(vec3<f32>(f32(x) + 9.0, f32(y) + 5.0, seed))); }
+  }
+  dstS[y * Ni + x] = vec2<f32>(a, b);
+}
+`;
+
+export const FIGHT_RENDER_WGSL = /* wgsl */ `
+struct FU { fa: vec4<f32>, fb: vec4<f32>, fc: vec4<f32>, fd: vec4<f32>, fe: vec4<f32> };
+@group(0) @binding(0) var<uniform> fu: FU;
+@group(0) @binding(1) var<storage, read> stateS: array<vec2<f32>>;
+
+struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
+
+@vertex
+fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  var p = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+  let xy = p[vi];
+  var o: VSOut;
+  o.pos = vec4(xy, 0.0, 1.0);
+  o.uv = vec2((xy.x + 1.0) * 0.5, 1.0 - (xy.y + 1.0) * 0.5);
+  return o;
+}
+
+fn hsv2rgb_g(h: f32, s: f32, v: f32) -> vec3<f32> {
+  let i = floor(h * 6.0); let f = h * 6.0 - i;
+  let p = v * (1.0 - s); let q = v * (1.0 - f * s); let t = v * (1.0 - (1.0 - f) * s);
+  let m = i32(i) % 6;
+  if (m == 0) { return vec3(v, t, p); } if (m == 1) { return vec3(q, v, p); }
+  if (m == 2) { return vec3(p, v, t); } if (m == 3) { return vec3(p, q, v); }
+  if (m == 4) { return vec3(t, p, v); } return vec3(v, p, q);
+}
+fn cellc(x: i32, y: i32, N: i32) -> i32 {
+  let xx = clamp(x, 0, N - 1); let yy = clamp(y, 0, N - 1); return yy * N + xx;
+}
+fn samp(uv: vec2<f32>, N: i32, Nf: f32) -> vec2<f32> {
+  let fx = clamp(uv.x, 0.0, 0.999999) * Nf - 0.5;
+  let fy = clamp(uv.y, 0.0, 0.999999) * Nf - 0.5;
+  let x0 = i32(floor(fx)); let y0 = i32(floor(fy));
+  let tx = fx - floor(fx); let ty = fy - floor(fy);
+  let a = stateS[cellc(x0, y0, N)];
+  let b = stateS[cellc(x0 + 1, y0, N)];
+  let c = stateS[cellc(x0, y0 + 1, N)];
+  let d = stateS[cellc(x0 + 1, y0 + 1, N)];
+  return mix(mix(a, b, tx), mix(c, d, tx), ty);
+}
+
+@fragment
+fn fs(i: VSOut) -> @location(0) vec4<f32> {
+  let N = i32(fu.fa.x);
+  let Nf = fu.fa.x;
+  let s = samp(i.uv, N, Nf);
+  let A = s.x; let B = s.y;
+  let sat = fu.fe.z; let val = fu.fe.w;
+  let colA = hsv2rgb_g(fu.fe.x, sat, val);          // species A
+  let colB = hsv2rgb_g(fu.fe.y, sat, val);          // rival B
+  // body: each colour glows by its density, with a darker core ring for definition
+  var col = vec3(0.072, 0.072, 0.066);
+  col = col + colA * smoothstep(0.06, 0.9, A) * 1.35;
+  col = col + colB * smoothstep(0.06, 0.9, B) * 1.35;
+
+  // soft bloom: 8-tap blur of total mass, tinted by whichever side is local
+  let r = 2.6 / Nf;
+  var gA = 0.0; var gB = 0.0;
+  let rd = r * 0.7;
+  var offs = array<vec2<f32>, 8>(
+    vec2(r, 0.0), vec2(-r, 0.0), vec2(0.0, r), vec2(0.0, -r),
+    vec2(rd, rd), vec2(-rd, rd), vec2(rd, -rd), vec2(-rd, -rd));
+  for (var k = 0; k < 8; k = k + 1) {
+    let m = samp(i.uv + offs[k], N, Nf);
+    gA = gA + m.x; gB = gB + m.y;
+  }
+  col = col + (colA * gA + colB * gB) * 0.10;
+
+  // battle front: where the two interpenetrate, a hot glowing seam
+  let front = A * B;
+  col = col + vec3(1.0, 0.95, 0.72) * pow(front, 0.6) * 2.6;
+  col = col + mix(colA, colB, 0.5) * front * 1.5;
+
+  // tone + vignette
+  col = col / (col + vec3(0.7));        // gentle filmic rolloff
+  col = col * 1.35;
+  let dd = i.uv - vec2(0.5, 0.5);
+  col = col * clamp(1.0 - dot(dd, dd) * 0.8, 0.5, 1.0);
+  return vec4(col, 1.0);
+}
+`;
+
+// Two-channel advection so the warring colours drift & swirl (motion during the fight).
+//   fa=(N,R,dt,kw)  fc.w=frame(→time)  fd=(adv, drift, theta, swirl)
+export const FIGHT_ADVECT_WGSL = /* wgsl */ `
+struct FU { fa: vec4<f32>, fb: vec4<f32>, fc: vec4<f32>, fd: vec4<f32>, fe: vec4<f32> };
+@group(0) @binding(0) var<uniform> fu: FU;
+@group(0) @binding(1) var<storage, read> srcS: array<vec2<f32>>;
+@group(0) @binding(2) var<storage, read_write> dstS: array<vec2<f32>>;
+
+fn cw(x: i32, y: i32, N: i32) -> i32 { let xx = ((x % N) + N) % N; let yy = ((y % N) + N) % N; return yy * N + xx; }
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let N = u32(fu.fa.x);
+  if (gid.x >= N || gid.y >= N) { return; }
+  let Ni = i32(N); let Nf = fu.fa.x;
+  let t = fu.fc.w * fu.fa.z;
+  let drift = fu.fd.y; let theta = fu.fd.z; let swirl = fu.fd.w;
+  let TAU = 6.2831853;
+  let x = f32(gid.x); let y = f32(gid.y);
+  let vx = drift * cos(theta) + swirl * sin(TAU * y / Nf + t);
+  let vy = drift * sin(theta) + swirl * cos(TAU * x / Nf + t);
+  let fx = x - vx; let fy = y - vy;
+  let x0 = i32(floor(fx)); let y0 = i32(floor(fy));
+  let tx = fx - floor(fx); let ty = fy - floor(fy);
+  let a = srcS[cw(x0, y0, Ni)];
+  let b = srcS[cw(x0 + 1, y0, Ni)];
+  let c = srcS[cw(x0, y0 + 1, Ni)];
+  let d = srcS[cw(x0 + 1, y0 + 1, Ni)];
+  dstS[i32(gid.y) * Ni + i32(gid.x)] = mix(mix(a, b, tx), mix(c, d, tx), ty);
+}
+`;
+
 export const DECAY_WGSL = /* wgsl */ `
 struct U { p0: vec4<f32>, p1: vec4<f32> };
 @group(0) @binding(0) var<uniform> u: U;
@@ -295,10 +486,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 `;
 
 export const RENDER_WGSL = /* wgsl */ `
-struct U { p0: vec4<f32>, p1: vec4<f32> };
+struct U { p0: vec4<f32>, p1: vec4<f32>, p2: vec4<f32>, p3: vec4<f32>, p4: vec4<f32> };
 @group(0) @binding(0) var<uniform> u: U;
 @group(0) @binding(1) var<storage, read> stateS: array<f32>;
 @group(0) @binding(2) var<storage, read> histS: array<f32>;
+
+fn hsv2rgb_f(h: f32, s: f32, v: f32) -> vec3<f32> {
+  let i = floor(h * 6.0);
+  let f = h * 6.0 - i;
+  let p = v * (1.0 - s);
+  let q = v * (1.0 - f * s);
+  let t = v * (1.0 - (1.0 - f) * s);
+  let m = i32(i) % 6;
+  if (m == 0) { return vec3(v, t, p); }
+  if (m == 1) { return vec3(q, v, p); }
+  if (m == 2) { return vec3(p, v, t); }
+  if (m == 3) { return vec3(p, q, v); }
+  if (m == 4) { return vec3(t, p, v); }
+  return vec3(v, p, q);
+}
 
 struct VSOut {
   @builtin(position) pos: vec4<f32>,
@@ -395,6 +601,15 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   // warm halo bloom around bright structures
   let bloom = mix(vec3(0.286, 0.404, 0.255), vec3(0.85, 0.74, 0.58), smoothstep(0.2, 0.8, glow));
   col = col + bloom * glow * 0.55;
+
+  // evolvable tint: p4 = (hue, _, amount, _) — recolours toward a prompt while
+  // preserving brightness structure. amount 0 keeps the calm default palette.
+  let tintAmt = u.p4.z;
+  if (tintAmt > 0.0) {
+    let luma = dot(col, vec3(0.299, 0.587, 0.114));
+    let tinted = hsv2rgb_f(u.p4.x, 0.7, clamp(luma * 1.15, 0.0, 1.0));
+    col = mix(col, tinted, tintAmt);
+  }
 
   // vignette for full-screen depth
   let d = uv - vec2(0.5, 0.5);

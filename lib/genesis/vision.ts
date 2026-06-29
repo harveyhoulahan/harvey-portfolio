@@ -38,7 +38,9 @@ export async function loadVision(onProgress?: VisionProgress): Promise<void> {
       const device = (navigator as any).gpu ? "webgpu" : "wasm";
       const opts: any = {
         device,
-        dtype: "q8", // quantized → smaller download, faster inference
+        // fp16 on WebGPU gives noticeably cleaner embeddings (a stronger gradient for
+        // the search) than int8; fall back to q8 on the WASM path.
+        dtype: device === "webgpu" ? "fp16" : "q8",
         progress_callback: (p: any) => {
           if (onProgress && p?.status === "progress" && p?.file) {
             onProgress(String(p.file), (p.progress ?? 0) / 100);
@@ -72,10 +74,14 @@ function l2norm(a: Float32Array): Float32Array {
  */
 export async function embedText(text: string): Promise<Float32Array> {
   const { tokenizer, textModel } = mods;
+  // ensemble of templates; several mention a dark background to match how the
+  // simulation actually renders (glowing forms on near-black), which tightens CLIP.
   const prompts = [
     text,
     `a photo of ${text}`,
     `an image of ${text}`,
+    `${text} on a black background`,
+    `glowing ${text} on a dark background`,
     `a pattern that looks like ${text}`,
     `${text}, organic texture`,
   ];

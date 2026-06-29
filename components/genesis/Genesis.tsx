@@ -17,8 +17,9 @@ import { type CSSProperties, useEffect, useRef, useState } from "react";
 import {
   SIM_WGSL, LIFE_WGSL, ADVECT_WGSL, DECAY_WGSL, RENDER_WGSL,
   PARTICLE_FORCE_WGSL, PARTICLE_RENDER_WGSL,
+  FIGHT_WGSL, FIGHT_RENDER_WGSL, FIGHT_ADVECT_WGSL,
 } from "@/lib/genesis/sim-shaders";
-import { buildKernel, seedSoup, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
+import { buildKernel, seedScenario, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
 import { initParticles, randomMatrix, PARTICLE_DEFAULTS } from "@/lib/genesis/particle-life";
 import { loadVision, embedText, embedCanvas, embedPixels, cosine, resonance, type VisionStatus } from "@/lib/genesis/vision";
 import { CMAES } from "@/lib/genesis/cmaes";
@@ -32,7 +33,7 @@ const LIFE_EVERY = 5; // Game-of-Life advances every Nth frame (legible pace)
 const MU_AMP = 0.006;    // metabolism: how much μ breathes
 const SIG_AMP = 0.0008;  // metabolism: how much σ breathes
 const META_OMEGA = 0.02; // breathing rate
-const ENERGY_RATE = 0.0065; // stochastic-birth probability per cell/step
+const ENERGY_RATE = 0.003; // stochastic-birth probability per cell/step (lower = less screen-filling)
 const DRIFT = 0.26;      // self-propulsion speed (cells/step)
 const SWIRL = 0.18;      // rotational flow amplitude
 const THETA_JITTER = 0.04; // heading random-walk per step
@@ -48,13 +49,17 @@ const MATRIX_DRIFT_EVERY = 16;   // frames between matrix nudges
 type Status = "loading" | "ready" | "nogpu" | "error";
 type Substrate = "lenia" | "life" | "particle";
 
+
 /* ---- live, shareable parameters ------------------------------------------ */
 type Params = {
   // Lenia (base values; metabolism makes mu/sigma breathe around these)
   mu: number; sigma: number; energy: number; drift: number; swirl: number;
   kR: number; kSigma: number; // kernel scale (creature size) + ring width (shape)
+  leniaHue: number; leniaTint: number; // evolvable colour for Lenia
   // Particle Life
   rMax: number; friction: number; forceFactor: number; noise: number; cursor: number; matDrift: number;
+  // Particle palette genome (evolved by the search so summons take on prompt colours)
+  hueBase: number; hueSpread: number; sat: number; val: number;
   // Game of Life
   lifeEvery: number;
 };
@@ -62,12 +67,19 @@ type Params = {
 const KR_MAX = 22; // largest kernel radius the buffer is sized for
 
 const DEFAULTS: Params = {
-  mu: P.mu, sigma: P.sigma, energy: ENERGY_RATE, drift: DRIFT, swirl: SWIRL,
+  // σ=0.025 sits in a *bounded* regime: blobs persist as distinct clusters instead
+  // of dying (σ≈0.017) or filling the screen — so seeded scenarios stay visible.
+  mu: P.mu, sigma: 0.025, energy: ENERGY_RATE, drift: DRIFT, swirl: SWIRL,
   kR: P.R, kSigma: P.kSigma,
+  leniaHue: 0.30, leniaTint: 0,
   rMax: PL.rMax, friction: PL.friction, forceFactor: PL.forceFactor,
   noise: NOISE_AMP, cursor: CURSOR_STRENGTH, matDrift: MATRIX_DRIFT_RATE,
+  hueBase: 0.08, hueSpread: 0.85, sat: 0.55, val: 0.92,
   lifeEvery: LIFE_EVERY,
 };
+
+const COLOR_KEYS: (keyof Params)[] = ["hueBase", "hueSpread", "sat", "val"];
+const LENIA_COLOR_KEYS: (keyof Params)[] = ["leniaHue", "leniaTint"];
 
 const PARAM_KEYS = Object.keys(DEFAULTS) as (keyof Params)[];
 
@@ -119,7 +131,7 @@ const SLIDERS: Record<Substrate, SliderDef[]> = {
   particle: [
     ["rMax", "range", 0.05, 0.25, 0.005],
     ["friction", "friction", 0.40, 0.95, 0.01],
-    ["forceFactor", "force", 1, 12, 0.5],
+    ["forceFactor", "force", 1, 10, 0.5],
     ["noise", "jitter", 0, 4, 0.1],
     ["cursor", "cursor pull", -4, 6, 0.2],
     ["matDrift", "physics drift", 0, 0.06, 0.002],
@@ -339,8 +351,7 @@ export default function Genesis() {
           return b;
         };
 
-        const soup = seedSoup(N);
-        const bufs = [mkBuf(soup, ST), mkBuf(new Float32Array(N * N), ST)];
+        const bufs = [mkBuf(seedScenario(N), ST), mkBuf(new Float32Array(N * N), ST)];
         const histBuf = mkBuf(new Float32Array(N * N), ST); // motion-trail memory
         // kernel buffer sized for the largest radius; rebuilt live when R/ring change
         const kernBuf = device.createBuffer({
@@ -350,12 +361,13 @@ export default function Genesis() {
         let curR = Math.round(paramsRef.current.kR);
         let curKSig = paramsRef.current.kSigma;
         device.queue.writeBuffer(kernBuf, 0, buildKernel(curR, curKSig));
-        const uni = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const uni = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         device.queue.writeBuffer(uni, 0, new Float32Array([
           N, curR, P.dt, P.mu,        // p0
           P.sigma, 2 * curR + 1, 0, 0, // p1
           0, 0, 0, 0,                  // p2 (t, energy, seed, drift)
           0, 0, 0, 0,                  // p3 (theta, swirl, _, _)
+          0, 0, 0, 0,                  // p4 (leniaHue, _, leniaTint, _)
         ]));
         // per-frame living state: μ/σ breathe, heading θ wanders, energy feeds Lenia
         let theta = Math.random() * Math.PI * 2;
@@ -377,6 +389,7 @@ export default function Genesis() {
             sig, 2 * R + 1, 0, 0,
             tFlow, lenia ? pr.energy : 0, frame, lenia ? pr.drift : 0,
             theta, lenia ? pr.swirl : 0, 0, 0,
+            pr.leniaHue, 0, lenia ? pr.leniaTint : 0, 0,
           ]));
         };
 
@@ -388,7 +401,7 @@ export default function Genesis() {
         new Uint32Array(typeBuf.getMappedRange()).set(pstate.type); typeBuf.unmap();
         let curMat = randomMatrix(PL.K); // the live attraction matrix (slowly drifts)
         const matBuf = mkBuf(curMat, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        const pBuf = device.createBuffer({ size: 64, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const pBuf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         let pseed = 0;
         pUniWrite = () => {
           const aspect = canvas.width / Math.max(1, canvas.height);
@@ -401,6 +414,7 @@ export default function Genesis() {
             PL.dt, pr.friction, pr.forceFactor, pr.noise,     // b
             aspect, POINT_SIZE, cx, cy,                       // c
             pr.cursor, pseed, 0, 0,                           // d
+            pr.hueBase, pr.hueSpread, pr.sat, pr.val,         // e (palette genome)
           ]));
         };
         pUniWrite();
@@ -552,9 +566,55 @@ export default function Genesis() {
           ]}),
         ];
 
+        // 2-channel buffers for Lenia "war" episodes (populated from the live field)
+        const fightBufs = [
+          device.createBuffer({ size: N * N * 8, usage: ST }),
+          device.createBuffer({ size: N * N * 8, usage: ST }),
+        ];
+        const fightU = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const fightPipe = device.createComputePipeline({ layout: "auto", compute: { module: device.createShaderModule({ code: FIGHT_WGSL }), entryPoint: "main" } });
+        const fightRenderPipe = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module: device.createShaderModule({ code: FIGHT_RENDER_WGSL }), entryPoint: "vs" },
+          fragment: { module: device.createShaderModule({ code: FIGHT_RENDER_WGSL }), entryPoint: "fs", targets: [{ format }] },
+          primitive: { topology: "triangle-list" },
+        });
+        const fightAdvPipe = device.createComputePipeline({ layout: "auto", compute: { module: device.createShaderModule({ code: FIGHT_ADVECT_WGSL }), entryPoint: "main" } });
+        const ffl = fightPipe.getBindGroupLayout(0);
+        const ffr = fightRenderPipe.getBindGroupLayout(0);
+        const fal = fightAdvPipe.getBindGroupLayout(0);
+        const fcbg = [
+          device.createBindGroup({ layout: ffl, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[0] } },
+            { binding: 2, resource: { buffer: fightBufs[1] } }, { binding: 3, resource: { buffer: kernBuf } },
+          ]}),
+          device.createBindGroup({ layout: ffl, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[1] } },
+            { binding: 2, resource: { buffer: fightBufs[0] } }, { binding: 3, resource: { buffer: kernBuf } },
+          ]}),
+        ];
+        const frbg = [
+          device.createBindGroup({ layout: ffr, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[0] } },
+          ]}),
+          device.createBindGroup({ layout: ffr, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[1] } },
+          ]}),
+        ];
+        const fabg = [
+          device.createBindGroup({ layout: fal, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[0] } }, { binding: 2, resource: { buffer: fightBufs[1] } },
+          ]}),
+          device.createBindGroup({ layout: fal, entries: [
+            { binding: 0, resource: { buffer: fightU } }, { binding: 1, resource: { buffer: fightBufs[1] } }, { binding: 2, resource: { buffer: fightBufs[0] } },
+          ]}),
+        ];
+
         const groups = Math.ceil(N / 8);
         let cur = 0; // index of buffer holding the latest state
         let pcur = 0; // index of particle buffers holding the latest state
+        let fcur = 0; // index of fight buffers holding the latest state
+        let frame = 0; // global frame counter (shared by loop + reset scheduling)
 
         const stepOnce = () => {
           const life = substrateRef.current === "life";
@@ -651,6 +711,111 @@ export default function Genesis() {
           device.queue.writeBuffer(matBuf, 0, curMat);
         };
 
+        // ---- rival "war" episodes inside Lenia (2-channel competitive engine) ----
+        // war state + hues: channel 0 is the resident species, channel 1 the invader.
+        const leniaWar = { active: false, end: 0, hueB: 0, killAB: 0.4, killBA: 0.4 };
+        let warAdv = 0; // >0: species A leads in total cells (drives consumption)
+        let advBusy = false; // guards the (non-blocking) advantage readback
+        const LENIA_FIGHT_CHANCE = 0.45; // chance a fresh Lenia starts as a two-colour war
+        const writeFightUniform = (frame: number) => {
+          const pr = paramsRef.current;
+          const R = Math.round(pr.kR);
+          if (R !== curR || pr.kSigma !== curKSig) { device.queue.writeBuffer(kernBuf, 0, buildKernel(R, pr.kSigma)); curR = R; curKSig = pr.kSigma; }
+          device.queue.writeBuffer(fightU, 0, new Float32Array([
+            N, R, P.dt, 2 * R + 1,
+            pr.mu, pr.sigma, pr.mu, pr.sigma,                 // both channels share the slider growth
+            leniaWar.killAB, leniaWar.killBA, pr.energy, frame, // fc
+            warAdv, pr.drift, frame * 0.003, pr.swirl,         // fd (advantage + flow)
+            pr.leniaHue, leniaWar.hueB, 0.62, 0.95,            // fe colours (resident, invader)
+          ]));
+        };
+        const fightStep = () => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginComputePass();
+          pass.setPipeline(fightPipe); pass.setBindGroup(0, fcbg[fcur]);
+          pass.dispatchWorkgroups(groups, groups); pass.end();
+          device.queue.submit([enc.finish()]); fcur = 1 - fcur;
+        };
+        const fightAdvect = () => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginComputePass();
+          pass.setPipeline(fightAdvPipe); pass.setBindGroup(0, fabg[fcur]);
+          pass.dispatchWorkgroups(groups, groups); pass.end();
+          device.queue.submit([enc.finish()]); fcur = 1 - fcur;
+        };
+        const fightRender = () => {
+          const enc = device.createCommandEncoder();
+          const view = ctx.getCurrentTexture().createView();
+          const pass = enc.beginRenderPass({ colorAttachments: [{ view, loadOp: "clear", storeOp: "store", clearValue: { r: 0.094, g: 0.094, b: 0.086, a: 1 } }] });
+          pass.setPipeline(fightRenderPipe); pass.setBindGroup(0, frbg[fcur]);
+          pass.draw(3); pass.end();
+          device.queue.submit([enc.finish()]);
+        };
+        // clear the field and seed two fresh, separated clusters of different colours;
+        // they grow, collide and consume each other until the bigger one wins.
+        const startLeniaWar = (frame: number) => {
+          const v = new Float32Array(N * N * 2);
+          const stamp = (cx: number, cy: number, ch: number) => {
+            const rad = N * 0.12;
+            for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+              if (Math.hypot(dx, dy) > rad) continue;
+              const x = ((cx + dx) % N + N) % N | 0;
+              const y = ((cy + dy) % N + N) % N | 0;
+              if (Math.random() < 0.5) v[(y * N + x) * 2 + ch] = Math.random();
+            }
+          };
+          // two random, separated centres (left-ish vs right-ish)
+          stamp(N * (0.18 + 0.18 * Math.random()), N * (0.25 + 0.5 * Math.random()), 0);
+          stamp(N * (0.64 + 0.18 * Math.random()), N * (0.25 + 0.5 * Math.random()), 1);
+          device.queue.writeBuffer(fightBufs[0], 0, v); fcur = 0;
+          // resident keeps the current hue; rival gets a distinct new one
+          leniaWar.hueB = (paramsRef.current.leniaHue + 0.3 + 0.4 * Math.random()) % 1;
+          if (Math.random() < 0.5) { leniaWar.killAB = 0.30; leniaWar.killBA = 0.6; } // random aggressor
+          else { leniaWar.killAB = 0.6; leniaWar.killBA = 0.30; }
+          warAdv = 0;
+          leniaWar.active = true; leniaWar.end = frame + 560; // time to grow, clash, resolve
+        };
+        // periodic readback of the two colours' mass → who is winning (drives consumption)
+        const updateWarAdvantage = async () => {
+          const bytes = N * N * 8;
+          const staging = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+          const enc = device.createCommandEncoder();
+          enc.copyBufferToBuffer(fightBufs[fcur], 0, staging, 0, bytes);
+          device.queue.submit([enc.finish()]);
+          await staging.mapAsync(GPUMapMode.READ);
+          const v = new Float32Array(N * N * 2);
+          v.set(new Float32Array(staging.getMappedRange()));
+          staging.unmap(); staging.destroy?.();
+          let mA = 0, mB = 0;
+          for (let i = 0; i < N * N; i++) { mA += v[i * 2]; mB += v[i * 2 + 1]; }
+          warAdv = (mA - mB) / (mA + mB + 1e-6);
+        };
+        // resolve: whichever colour has more mass wins; it continues as the lone species
+        const resolveLeniaWar = async () => {
+          const bytes = N * N * 8;
+          const staging = device.createBuffer({ size: bytes, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+          const enc = device.createCommandEncoder();
+          enc.copyBufferToBuffer(fightBufs[fcur], 0, staging, 0, bytes);
+          device.queue.submit([enc.finish()]);
+          await staging.mapAsync(GPUMapMode.READ);
+          const v = new Float32Array(N * N * 2);
+          v.set(new Float32Array(staging.getMappedRange()));
+          staging.unmap(); staging.destroy?.();
+          let mA = 0, mB = 0;
+          for (let i = 0; i < N * N; i++) { mA += v[i * 2]; mB += v[i * 2 + 1]; }
+          const winnerB = mB > mA;
+          const ch = winnerB ? 1 : 0;
+          const out = new Float32Array(N * N);
+          for (let i = 0; i < N * N; i++) out[i] = v[i * 2 + ch];
+          device.queue.writeBuffer(bufs[cur], 0, out);
+          device.queue.writeBuffer(histBuf, 0, new Float32Array(N * N));
+          // the winner's colour lives on — fully tint the continuing Lenia to it
+          const winHue = winnerB ? leniaWar.hueB : paramsRef.current.leniaHue;
+          const np = { ...paramsRef.current, leniaHue: +winHue.toPrecision(4), leniaTint: 1 };
+          paramsRef.current = np; setParams(np);
+          leniaWar.active = false;
+        };
+
         /* ---- M5: CMA-ES search — breed parameters that maximize CLIP resonance --- */
         // Offscreen capture: render a candidate into our own texture and read the
         // pixels back directly — robust, unlike snapshotting the live canvas mid-search.
@@ -664,6 +829,17 @@ export default function Genesis() {
         const capRead = device.createBuffer({ size: capBPR * CAP, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
         const bgra = format.startsWith("bgra");
         const captureEmbed = async (kind: "field" | "particle") => {
+          if (kind === "particle") {
+            // render the capture square (aspect 1, fuller points) so CLIP sees the swarm
+            const pr = paramsRef.current;
+            device.queue.writeBuffer(pBuf, 0, new Float32Array([
+              PN, PL.K, pr.rMax, PL.beta,
+              PL.dt, pr.friction, pr.forceFactor, pr.noise,
+              1.0, POINT_SIZE * 2.4, -1, -1,
+              pr.cursor, pseed, 0, 0,
+              pr.hueBase, pr.hueSpread, pr.sat, pr.val,
+            ]));
+          }
           const enc = device.createCommandEncoder();
           const pass = enc.beginRenderPass({
             colorAttachments: [{ view: capView, loadOp: "clear", storeOp: "store", clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 } }],
@@ -683,8 +859,15 @@ export default function Genesis() {
             rgba[di + 3] = 255;
           }
           capRead.unmap();
-          return embedPixels(rgba, CAP, CAP);
+          let lum = 0;
+          for (let i = 0; i < rgba.length; i += 4) lum += (rgba[i] + rgba[i + 1] + rgba[i + 2]);
+          const cov = lum / (rgba.length / 4 * 3 * 255); // mean brightness ∈ [0,1]
+          const emb = await embedPixels(rgba, CAP, CAP);
+          return { emb, cov };
         };
+        // empty/collapsed frames (a swarm sucked into one dot) read as near-black —
+        // scale their fitness down so the search prefers worlds that fill the view.
+        const covPenalty = (cov: number) => 0.3 + 0.7 * Math.min(1, Math.max(0, (cov - 0.004) / 0.02));
         const developLenia = (steps: number, f0: number) => {
           for (let i = 0; i < steps; i++) { writeFieldUniform(f0 + i); stepOnce(); advectOnce(); }
           decayOnce();
@@ -695,9 +878,11 @@ export default function Genesis() {
         const applyCandidate = (sub: Substrate, vec: number[]) => {
           if (sub === "lenia") {
             const pr = { ...paramsRef.current };
+            const nL = SLIDERS.lenia.length;
             SLIDERS.lenia.forEach(([key, , min, max], i) => { pr[key] = min + vec[i] * (max - min); });
+            LENIA_COLOR_KEYS.forEach((key, i) => { pr[key] = vec[nL + i]; }); // hue, tint (0..1)
             paramsRef.current = pr;
-            device.queue.writeBuffer(bufs[cur], 0, seedSoup(N));
+            device.queue.writeBuffer(bufs[cur], 0, seedScenario(N));
             device.queue.writeBuffer(histBuf, 0, new Float32Array(N * N));
           } else {
             const K2 = PL.K * PL.K;
@@ -707,6 +892,7 @@ export default function Genesis() {
             device.queue.writeBuffer(matBuf, 0, curMat);
             const pr = { ...paramsRef.current };
             P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); pr[key] = mn + vec[K2 + i] * (mx - mn); });
+            COLOR_KEYS.forEach((key, i) => { pr[key] = vec[K2 + P_SEARCH_KEYS.length + i]; }); // palette genes, 0..1
             paramsRef.current = pr;
             const st = initParticles(PN, PL.K);
             device.queue.writeBuffer(posBufs[pcur], 0, st.pos);
@@ -719,10 +905,17 @@ export default function Genesis() {
           applyCandidate(sub, vec);
           if (sub === "lenia") { developLenia(95, 0); renderFrame(); } else { developParticle(150); particleRender(); }
           const a = await captureEmbed(kind);
-          if (mode === "prompt") return cosine(a, textEmbedRef.current!);
+          if (mode === "prompt") {
+            // average two frames for a less noisy fitness → the search climbs reliably
+            if (sub === "lenia") { developLenia(28, 95); renderFrame(); } else { developParticle(45); particleRender(); }
+            const a2 = await captureEmbed(kind);
+            const te = textEmbedRef.current!;
+            const sim = (cosine(a.emb, te) + cosine(a2.emb, te)) / 2;
+            return sim * covPenalty(Math.max(a.cov, a2.cov)); // punish invisible worlds
+          }
           if (sub === "lenia") { developLenia(60, 80); renderFrame(); } else { developParticle(90); particleRender(); }
           const b = await captureEmbed(kind);
-          return 1 - cosine(a, b); // open-ended: reward restless, ever-changing life
+          return (1 - cosine(a.emb, b.emb)) * covPenalty(Math.max(a.cov, b.cov)); // restless & visible
         };
 
         const runSearch = async (mode: "prompt" | "open") => {
@@ -743,18 +936,30 @@ export default function Genesis() {
             SLIDERS.lenia.forEach(([key, , min, max]) => {
               mean0.push(Math.max(0, Math.min(1, (paramsRef.current[key] - min) / (max - min))));
             });
+            LENIA_COLOR_KEYS.forEach((key) => mean0.push(Math.max(0, Math.min(1, paramsRef.current[key]))));
           } else {
             for (let i = 0; i < K2; i++) mean0.push((curMat[i] + 1) / 2);
             P_SEARCH_KEYS.forEach((key) => {
               const [mn, mx] = boundsOf("particle", key);
               mean0.push(Math.max(0, Math.min(1, (paramsRef.current[key] - mn) / (mx - mn))));
             });
+            COLOR_KEYS.forEach((key) => mean0.push(Math.max(0, Math.min(1, paramsRef.current[key]))));
           }
 
-          const es = new CMAES(mean0, 0.34);
-          const GENS = sub === "lenia" ? 14 : 10;
           let bestScore = -Infinity; let bestVec: number[] | null = null;
+          const GENS = sub === "lenia" ? 12 : 9;
           try {
+            // broad random warm-start: find a promising basin before CMA-ES refines it
+            const WARM = sub === "lenia" ? 12 : 16;
+            let warmVec = mean0.slice();
+            for (let i = 0; i < WARM && !searchCancelRef.current; i++) {
+              const v = Array.from({ length: mean0.length }, () => Math.random());
+              const s = await evalCandidate(sub, mode, v);
+              if (s > bestScore) { bestScore = s; bestVec = v.slice(); warmVec = v.slice(); }
+              setScore(s);
+              setSearchInfo(`exploring ${i + 1}/${WARM} · best ${bestScore.toFixed(3)}`);
+            }
+            const es = new CMAES(warmVec, 0.30);
             for (let g = 0; g < GENS && !searchCancelRef.current; g++) {
               const pop = es.ask();
               const fit: number[] = [];
@@ -773,10 +978,13 @@ export default function Genesis() {
               // reflect the winning controls in the sliders + permalink
               const np = { ...paramsRef.current };
               if (sub === "lenia") {
+                const nL = SLIDERS.lenia.length;
                 SLIDERS.lenia.forEach(([key, , min, max], i) => { np[key] = +(min + bestVec![i] * (max - min)).toPrecision(4); });
+                LENIA_COLOR_KEYS.forEach((key, i) => { np[key] = +bestVec![nL + i].toPrecision(4); });
               } else {
                 const K2 = PL.K * PL.K;
                 P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); np[key] = +(mn + bestVec![K2 + i] * (mx - mn)).toPrecision(4); });
+                COLOR_KEYS.forEach((key, i) => { np[key] = +bestVec![K2 + P_SEARCH_KEYS.length + i].toPrecision(4); });
               }
               setParams(np);
             }
@@ -832,12 +1040,16 @@ export default function Genesis() {
 
         const doReset = () => {
           if (substrateRef.current === "particle") { resetParticles(); return; }
-          const seed = substrateRef.current === "life" ? seedLifeField(N) : seedSoup(N);
-          device.queue.writeBuffer(bufs[cur], 0, seed);
+          leniaWar.active = false;
           device.queue.writeBuffer(histBuf, 0, new Float32Array(N * N));
+          if (substrateRef.current === "life") { device.queue.writeBuffer(bufs[cur], 0, seedLifeField(N)); return; }
+          // Lenia: sometimes a fresh sim begins as a two-colour fight to the death
+          if (Math.random() < LENIA_FIGHT_CHANCE) { startLeniaWar(frame); }
+          else { device.queue.writeBuffer(bufs[cur], 0, seedScenario(N)); }
         };
 
         setStatus("ready");
+        if (substrateRef.current === "lenia") doReset(); // roll for an opening fight on load
 
         if (reduce) {
           // static-ish: evolve briefly into structure, then hold one frame
@@ -847,7 +1059,6 @@ export default function Genesis() {
           return;
         }
 
-        let frame = 0;
         const loop = async () => {
           if (disposed) return;
           if (searchActiveRef.current) { raf = requestAnimationFrame(loop); return; } // search drives the GPU
@@ -866,6 +1077,25 @@ export default function Genesis() {
             particleRender();
             raf = requestAnimationFrame(loop);
             return;
+          }
+
+          // Lenia "war": some fresh sims open with two colours fighting to the death,
+          // animated frame-by-frame until the bigger one wins and lives on.
+          if (substrateRef.current === "lenia" && leniaWar.active) {
+            if (!pausedRef.current && frame >= leniaWar.end) {
+              await resolveLeniaWar();
+              // fall through and render the restored single-channel winner this frame
+            } else {
+              writeFightUniform(frame);
+              if (!pausedRef.current) {
+                // non-blocking refresh of who's winning → no frame stall, continuous motion
+                if (frame % 16 === 0 && !advBusy) { advBusy = true; updateWarAdvantage().finally(() => { advBusy = false; }); }
+                fightStep();    // grow + consume
+                fightAdvect();  // drift + swirl (motion)
+              }
+              fightRender();
+              raf = requestAnimationFrame(loop); return;
+            }
           }
 
           writeFieldUniform(frame); // metabolism + energy + flow heading
@@ -946,7 +1176,7 @@ export default function Genesis() {
           An artificial-life lab
         </h1>
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
-          {substrate === "lenia" && (<>A continuous cellular automaton <span style={{ color: SAND }}>(Lenia)</span> evolving live on your GPU. Click anywhere to seed a new creature.</>)}
+          {substrate === "lenia" && (<>A continuous cellular automaton <span style={{ color: SAND }}>(Lenia)</span> evolving live on your GPU. Rival colours invade and fight; the winner lives on. Click to seed life.</>)}
           {substrate === "life" && (<>Conway&rsquo;s <span style={{ color: SAND }}>Game of Life</span> on the GPU. Click to spark live cells.</>)}
           {substrate === "particle" && (<><span style={{ color: SAND }}>Particle Life</span> — {PN.toLocaleString()} agents, {PL.K} species, an attraction matrix that slowly evolves. Move your cursor to herd them; click to conjure new physics.</>)}
         </p>
