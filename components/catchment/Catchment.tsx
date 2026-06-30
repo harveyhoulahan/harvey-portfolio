@@ -102,6 +102,9 @@ const PANEL_CSS = `
 .cm-seg button[data-active="true"]{background:#4A6741;color:#F7F5F0;}
 .cm-seg button:not([data-active="true"]):hover{color:#1A1A18;background:rgba(74,103,65,0.07);}
 .cm-section{font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(26,26,24,0.34);margin:14px 0 5px;padding-top:11px;border-top:1px solid rgba(216,211,200,0.55);}
+.cm-group{width:100%;display:flex;align-items:center;justify-content:space-between;margin:14px 0 0;padding:11px 0 1px;border-top:1px solid rgba(216,211,200,0.55);border-left:0;border-right:0;border-bottom:0;background:transparent;font-family:inherit;font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(26,26,24,0.42);cursor:pointer;transition:color .15s;}
+.cm-group:hover{color:rgba(26,26,24,0.66);}
+.cm-chevron{font-size:0.62rem;line-height:1;color:rgba(74,103,65,0.7);}
 .cm-row{margin-top:9px;}
 .cm-rowtop{display:flex;align-items:baseline;justify-content:space-between;}
 .cm-label{font-size:0.64rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(26,26,24,0.68);}
@@ -165,6 +168,8 @@ export default function Catchment() {
   const [pick, setPick] = useState<Pick>(null);
   const [collapsed, setCollapsed] = useState(true); // opens minimised — one tap to expand
   const [neuralCollapsed, setNeuralCollapsed] = useState(true);
+  const [openGroups, setOpenGroups] = useState({ water: false, wind: false, light: false });
+  const toggleGroup = (k: "water" | "wind" | "light") => setOpenGroups((g) => ({ ...g, [k]: !g[k] }));
   const [windDeg, setWindDeg] = useState(90);
   const [windSpeed, setWindSpeed] = useState(1.2);
   const [meteors, setMeteors] = useState<MeteorFx[]>([]);
@@ -1170,21 +1175,39 @@ export default function Catchment() {
                 <button data-active={mode === "meteor"} onClick={() => setMode("meteor")}>Meteor</button>
               </div>
               <button className="cm-reset-btn" onClick={() => { resetNowRef.current?.(); resetRef.current = true; setPick(null); }}>Reset</button>
-              <div className="cm-section">Water</div>
-              <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
-                value={rain} onChange={(e) => setRain(+e.target.value)} />
-              <Ctl label="erosion" display={`${Math.round((ero / 1.5) * 100)}`} min={0} max={1.5} step={0.02}
-                value={ero} onChange={(e) => setEro(+e.target.value)} />
-              <div className="cm-section">Wind</div>
-              <Ctl label="strength" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
-                value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
-              <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1}
-                value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
-              <div className="cm-section">Light</div>
-              <Ctl label="sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1}
-                value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
-              <Ctl label="relief" display={`${Math.round(((exag - 0.2) / 0.7) * 100)}`} min={0.2} max={0.9} step={0.01}
-                value={exag} onChange={(e) => setExag(+e.target.value)} />
+              <button className="cm-group" onClick={() => toggleGroup("water")} aria-expanded={openGroups.water}>
+                <span>Water</span><span className="cm-chevron">{openGroups.water ? "▾" : "▸"}</span>
+              </button>
+              {openGroups.water && (
+                <>
+                  <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
+                    value={rain} onChange={(e) => setRain(+e.target.value)} />
+                  <Ctl label="erosion" display={`${Math.round((ero / 1.5) * 100)}`} min={0} max={1.5} step={0.02}
+                    value={ero} onChange={(e) => setEro(+e.target.value)} />
+                </>
+              )}
+              <button className="cm-group" onClick={() => toggleGroup("wind")} aria-expanded={openGroups.wind}>
+                <span>Wind</span><span className="cm-chevron">{openGroups.wind ? "▾" : "▸"}</span>
+              </button>
+              {openGroups.wind && (
+                <>
+                  <Ctl label="strength" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
+                    value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
+                  <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1}
+                    value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
+                </>
+              )}
+              <button className="cm-group" onClick={() => toggleGroup("light")} aria-expanded={openGroups.light}>
+                <span>Light</span><span className="cm-chevron">{openGroups.light ? "▾" : "▸"}</span>
+              </button>
+              {openGroups.light && (
+                <>
+                  <Ctl label="sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1}
+                    value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
+                  <Ctl label="relief" display={`${Math.round(((exag - 0.2) / 0.7) * 100)}`} min={0.2} max={0.9} step={0.01}
+                    value={exag} onChange={(e) => setExag(+e.target.value)} />
+                </>
+              )}
               <p className="cm-hint">
                 {mode === "pour" ? "Drag the terrain to pour water."
                   : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
