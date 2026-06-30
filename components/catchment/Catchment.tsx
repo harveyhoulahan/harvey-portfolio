@@ -910,7 +910,11 @@ export default function Catchment() {
               const t = cur; cur = nxt; nxt = t;
             }
             const deltaBuf = cur; // last layer (out=1) output lives here
-            const bgAsm = bg(Pn.asm, [auBuf, neuralWatBuf, bedBuf, featA]);
+            // bedNorm input uses the STATIC edge-faded bed (bed0Buf), matching the
+            // bed the model trains on. (The live bedBuf erodes over time; the model
+            // was trained on a static bed, so feeding it the live bed would drift the
+            // input off-distribution.)
+            const bgAsm = bg(Pn.asm, [auBuf, neuralWatBuf, bed0Buf, featA]);
             const bgApply = bg(Pn.apply, [puBuf, deltaBuf, neuralWatBuf, oceanBuf]);
             bgWaterNeural = bg(P.water, [ruBuf, bedBuf, neuralWatBuf, flagsBuf, velBuf]);
             const WGc = Math.ceil(total / 64);
@@ -964,9 +968,6 @@ export default function Catchment() {
       } catch (e) { console.warn("[catchment] bloom unavailable:", e); bloomOK = false; }
 
       // Auto-resync neural water to physics every ~3s to prevent long-term drift.
-      let neuralAutoResyncFrame = 0;
-      const NEURAL_RESYNC_EVERY = 180;
-
       // Real frame loop (uses indexBuf). Overrides the placeholder above.
       const realFrame = () => {
         if (disposed) return;
@@ -1037,16 +1038,13 @@ export default function Catchment() {
         cp.end();
 
         // neural surrogate steps its own water state forward — run SUBSTEPS times to
-        // match the physics step rate (physics also runs SUBSTEPS per frame).
-        // Auto-resync to physics every ~3s to prevent long-term drift accumulation.
+        // match the physics step rate (physics also runs SUBSTEPS per frame). The
+        // model is trained to be a STANDALONE stable operator (long-horizon rollout +
+        // mass/bias conservation), so there is no auto-resync band-aid: it predicts
+        // the water dynamics itself. The Neural button seeds it from physics once at
+        // switch-on; "Resync to physics" is an optional manual control.
         if (neuralOK && neuralOnRef.current && runNeural) {
           for (let ns = 0; ns < SUBSTEPS; ns++) runNeural(enc);
-          if (++neuralAutoResyncFrame >= NEURAL_RESYNC_EVERY) {
-            neuralReseedRef.current = true;
-            neuralAutoResyncFrame = 0;
-          }
-        } else {
-          neuralAutoResyncFrame = 0;
         }
 
         const canvasView = ctx.getCurrentTexture().createView();

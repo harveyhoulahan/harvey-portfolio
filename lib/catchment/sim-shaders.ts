@@ -397,8 +397,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 /* ===========================================================================
  * M4 — neural surrogate inference (the conv-operator forward, on the GPU).
- * Mirrors lib/catchment/surrogate.ts (verified vs numpy to ~5e-8). Feature
- * buffers are channel-major f32: index = ch*n*n + y*n + x. Dependency-free.
+ * Mirrors lib/catchment/surrogate.ts (WGSL vs CPU ~5e-8); BOTH match the PyTorch
+ * trainer forward exactly (same tanh GELU, same clamp_min, same ocean mask) —
+ * verified by ml/parity_test.py to <1e-4. Feature buffers are channel-major f32:
+ * index = ch*n*n + y*n + x. Dependency-free.
  * =========================================================================== */
 
 // Assemble the 3 input channels [water, bedNorm, rain*100] into a feature buffer.
@@ -459,21 +461,34 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 }
 `;
 
-// Final apply: neuralWater = relu(neuralWater + delta); ocean stays dry.
-// Cap water at 1.0 to prevent runaway accumulation from positive model bias.
+// Final apply (flux-divergence form): the last conv layer wrote a 2-channel edge
+// flux into `flux` (gx = flux[i] flow right, gy = flux[hw+i] flow down). Here we take
+// its divergence (ΔW, mass-conserving, closed outer boundary), then apply rain and
+// evaporation analytically and zero ocean cells — the exact canonical_step shared
+// with the PyTorch trainer and surrogate.ts. Because divergence conserves mass,
+// water cannot run away: the clamp is a WIDE safety rail (8.0) that must never bind.
 export const NEURAL_APPLY_WGSL = /* wgsl */ `
-struct PU { n: u32, _a: u32, _b: u32, _c: u32 };
+struct PU { n: u32, rain: f32, dt: f32, evap: f32 };
 @group(0) @binding(0) var<uniform> pu: PU;
-@group(0) @binding(1) var<storage, read> delta: array<f32>;
+@group(0) @binding(1) var<storage, read> flux: array<f32>;
 @group(0) @binding(2) var<storage, read_write> wat: array<f32>;
 @group(0) @binding(3) var<storage, read> ocean: array<u32>;
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
-  let i = gid.x; let hw = pu.n * pu.n;
+  let n = pu.n; let hw = n * n;
+  let i = gid.x;
   if (i >= hw) { return; }
-  var v = wat[i] + delta[i];
-  if (ocean[i] != 0u) { v = 0.0; }
-  wat[i] = clamp(v, 0.0, 4.0);
+  if (ocean[i] != 0u) { wat[i] = 0.0; return; }
+  let x = i % n; let y = i / n;
+  // ΔW = inflow - outflow over the 4 edges (closed boundary: no flux off the grid).
+  var dW = 0.0;
+  if (x < n - 1u) { dW = dW - flux[i]; }          // export right
+  if (x > 0u)     { dW = dW + flux[i - 1u]; }      // import from left neighbour
+  if (y < n - 1u) { dW = dW - flux[hw + i]; }      // export down
+  if (y > 0u)     { dW = dW + flux[hw + i - n]; }  // import from up neighbour
+  var v = wat[i] + pu.rain * pu.dt + dW;           // rain (analytic) + transport
+  v = max(v, 0.0) * (1.0 - pu.evap * pu.dt);       // evaporation (analytic)
+  wat[i] = clamp(v, 0.0, 8.0);
 }
 `;
 

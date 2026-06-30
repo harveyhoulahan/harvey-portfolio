@@ -1,12 +1,16 @@
 /*
- * surrogate.ts — CPU reference inference for a `catchment-surrogate-v1` model
+ * surrogate.ts — CPU reference inference for a `catchment-surrogate-v2` model
  * (the neural water operator trained by ml/train_surrogate.py).
  *
- * A small residual, dilated convolutional neural operator: it maps
- * [water, bedNorm, rain×100] → next water (residual, ReLU-clamped). This pure-TS
- * forward pass is (a) the ground-truth reference the WebGPU path is checked
- * against, and (b) a dependency-free fallback. It's a *local* operator, so a model
- * trained at 96² runs unchanged at any grid size.
+ * A small dilated convolutional neural operator in FLUX-DIVERGENCE form: it maps
+ * [water, bedNorm, rain×100] → a 2-channel edge flux (gx, gy). The next water is
+ * water + divergence(flux) (mass-conserving transport) with rain and evaporation
+ * applied analytically and ocean cells zeroed — see surrogateStep / canonicalStep.
+ * Predicting fluxes instead of a free ΔW makes integrated water conservative by
+ * construction, which is what removes the long-horizon autoregressive drift (no
+ * inference clamp/resync band-aid needed). This pure-TS forward pass is (a) the
+ * ground-truth reference the WebGPU path is checked against, and (b) a
+ * dependency-free fallback. It's a *local* operator, so it runs at any grid size.
  *
  * Pure module (no React/WebGPU) → unit-testable in Node.
  */
@@ -30,9 +34,11 @@ export interface SurrogateRaw {
     channels: number;
     inputs: string[];
     predicts: string;
+    output?: string;   // "flux-div" for v2 (final layer = 2-ch edge flux)
     trainRes: number;
     HSCALE: number;
     dt: number;
+    evap?: number;     // evaporation coefficient (v2; analytic sink in canonicalStep)
     layers: SurrogateLayer[];
   };
   weights: Record<string, string>; // base64 float32
@@ -43,7 +49,10 @@ export interface Surrogate {
   weights: Record<string, Float32Array>;
 }
 
-export const SURROGATE_FORMAT = "catchment-surrogate-v1";
+export const SURROGATE_FORMAT = "catchment-surrogate-v2";
+// Defaults if the model JSON omits them (kept in sync with ml/train_surrogate.py).
+const DT_DEFAULT = 0.02;
+const EVAP_DEFAULT = 0.012;
 
 function b64ToF32(b64: string): Float32Array {
   const bin = atob(b64);
@@ -123,10 +132,56 @@ function groupNorm(x: Float32Array, c: number, h: number, w: number, groups: num
 }
 
 /**
+ * ΔW from a 2-channel edge flux field, in divergence form (closed outer boundary).
+ * flux layout is channel-major: gx = flux[0..hw) (flow to the RIGHT neighbour),
+ * gy = flux[hw..2hw) (flow DOWN). sum(ΔW) == 0 exactly, so transport conserves mass.
+ */
+function fluxDivergence(flux: Float32Array, n: number): Float32Array {
+  const hw = n * n;
+  const dW = new Float32Array(hw);
+  for (let y = 0; y < n; y++) {
+    for (let x = 0; x < n; x++) {
+      const i = y * n + x;
+      const outR = x < n - 1 ? flux[i] : 0;          // export to right edge
+      const inL = x > 0 ? flux[i - 1] : 0;           // import from left neighbour
+      const outD = y < n - 1 ? flux[hw + i] : 0;     // export to bottom edge
+      const inU = y > 0 ? flux[hw + i - n] : 0;      // import from top neighbour
+      dW[i] = inL - outR + (inU - outD);
+    }
+  }
+  return dW;
+}
+
+/**
+ * The shared water update: rain + transport + evaporation + ocean-zero. Mirrors
+ * canonical_step in ml/train_surrogate.py and NEURAL_APPLY_WGSL exactly.
+ * `ocean` is 1 for sea cells, 0 for land (length n*n).
+ */
+function canonicalStep(dW: Float32Array, water: Float32Array, ocean: Uint8Array | null,
+                       rain: number, dt: number, evap: number, n: number): Float32Array {
+  const hw = n * n;
+  const next = new Float32Array(hw);
+  const rainAdd = rain * dt;
+  const evapMul = 1 - evap * dt;
+  for (let i = 0; i < hw; i++) {
+    if (ocean && ocean[i]) { next[i] = 0; continue; }
+    let v = (water[i] + rainAdd + dW[i]);
+    if (v < 0) v = 0;
+    v *= evapMul;
+    // wide safety rail (8.0); flux-divergence makes water conservative, so this must
+    // never bind in normal operation. Mirrors NEURAL_APPLY_WGSL.
+    next[i] = v > 8.0 ? 8.0 : v;
+  }
+  return next;
+}
+
+/**
  * One neural step. water/bedNorm are length n*n (row-major). Returns next water.
  * bedNorm = bed/HSCALE; rain is the engine's rainfall scalar (channel = rain×100).
+ * ocean (1=sea) may be null in headless tests (then no cells are zeroed).
  */
-export function surrogateStep(model: Surrogate, water: Float32Array, bedNorm: Float32Array, rain: number, n: number): Float32Array {
+export function surrogateStep(model: Surrogate, water: Float32Array, bedNorm: Float32Array,
+                              ocean: Uint8Array | null, rain: number, n: number): Float32Array {
   const hw = n * n;
   const rainCh = rain * 100;
   // input channels: [water, bedNorm, rain×100]
@@ -146,8 +201,9 @@ export function surrogateStep(model: Surrogate, water: Float32Array, bedNorm: Fl
     cur = z;
     curC = layer.out;
   }
-  // final layer has out=1: residual add to water, ReLU clamp
-  const next = new Float32Array(hw);
-  for (let i = 0; i < hw; i++) next[i] = Math.min(Math.max(0, water[i] + cur[i]), 4.0);
-  return next;
+  // final layer has out=2: (gx, gy) edge flux -> ΔW = divergence(flux)
+  const dW = fluxDivergence(cur, n);
+  const dt = model.arch.dt ?? DT_DEFAULT;
+  const evap = model.arch.evap ?? EVAP_DEFAULT;
+  return canonicalStep(dW, water, ocean, rain, dt, evap, n);
 }
