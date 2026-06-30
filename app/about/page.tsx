@@ -11,7 +11,7 @@ export default function About() {
     <div className="py-20 md:py-28">
       <div className="col-shell max-w-prose">
         <span className="mono-label">About</span>
-        <h1 className="mt-5 font-display">From a cotton farm to carbon policy.</h1>
+        <h1 className="mt-5 font-display">Spatial and ML engineer in climate tech.</h1>
       </div>
 
       <div className="mx-auto max-w-prose px-6">
