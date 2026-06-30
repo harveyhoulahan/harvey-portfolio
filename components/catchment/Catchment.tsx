@@ -23,6 +23,7 @@ import {
   POST_BRIGHT_WGSL, POST_BLUR_WGSL, POST_COMPOSITE_WGSL,
 } from "@/lib/catchment/sim-shaders";
 import { decodeSurrogate } from "@/lib/catchment/surrogate";
+import { useIdleUI } from "@/lib/useIdleUI";
 
 const BASE_Y = -0.16; // pedestal base height (world units)
 
@@ -31,28 +32,11 @@ const HSCALE = 80.0; // bedrock height units (matches the validated reference)
 const DEFAULT_VSCALE = 0.5;
 const SUBSTEPS = 2;
 const SAMPLE_COUNT = 4;
-const GUIDE_STEPS = [
-  {
-    kicker: "1 · terrain",
-    title: "A real catchment, running live",
-    body: "Orbit the landform. Water, fire, fuel, sediment, and scars all live in GPU buffers rather than a baked animation.",
-  },
-  {
-    kicker: "2 · water",
-    title: "Rain becomes flow",
-    body: "Raise rainfall or use Pour. Water routes downhill, pools in hollows, carries sediment, and reshapes the bedrock.",
-  },
-  {
-    kicker: "3 · disturbance",
-    title: "Fire and impacts change the system",
-    body: "Ignite or call a meteor. Wind and slope steer spread; water suppresses fire; impacts push water and leave craters.",
-  },
-  {
-    kicker: "4 · surrogate",
-    title: "Physics becomes training data",
-    body: "Export teacher frames for M4. The next layer is a neural model learning to emulate this physics step by step.",
-  },
-];
+
+// Consolidated "macro" controls — one slider sweeps a curated path through related
+// params so the full effect range survives. Raw params stay reachable under "advanced".
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+const unmix = (a: number, b: number, v: number) => (b === a ? 0 : Math.min(1, Math.max(0, (v - a) / (b - a))));
 
 function hasWebGL(): boolean {
   try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); }
@@ -140,17 +124,6 @@ const PANEL_CSS = `
 .cm-neural-btn{width:100%;margin-top:10px;padding:7px 0;font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:#F7F5F0;background:#4A6741;border:1px solid #4A6741;cursor:pointer;transition:opacity .15s,background .15s;}
 .cm-neural-btn:disabled{cursor:wait;opacity:.58;}
 .cm-neural-btn:not(:disabled):hover{background:#3f5a38;}
-.cm-guide{z-index:6;width:min(360px,calc(100vw - 2rem));background:rgba(247,245,240,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid #D8D3C8;border-bottom:2px solid #4A6741;padding:10px 12px;font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;}
-.cm-guide-top{display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.cm-guide-actions{display:flex;align-items:center;gap:6px;}
-.cm-guide-actions button{width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(216,211,200,.9);background:rgba(247,245,240,.64);color:rgba(26,26,24,.58);font-size:.8rem;line-height:1;cursor:pointer;}
-.cm-guide-actions button:hover{background:rgba(74,103,65,.08);color:#1A1A18;}
-.cm-guide-kicker{font-size:.5rem;letter-spacing:.18em;text-transform:uppercase;color:#4A6741;}
-.cm-guide-title{margin-top:4px;font-family:var(--font-display),serif;font-size:.96rem;line-height:1.12;color:#1A1A18;}
-.cm-guide-body{margin-top:4px;font-size:.6rem;line-height:1.45;color:rgba(26,26,24,.54);}
-.cm-guide-nav{display:flex;align-items:center;gap:5px;margin-top:8px;}
-.cm-guide-nav button{width:22px;height:4px;background:rgba(26,26,24,.18);border:0;cursor:pointer;}
-.cm-guide-nav button[data-active="true"]{background:#4A6741;}
 .cm-right{display:flex;align-items:center;gap:10px;}
 .cm-collapse{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid #D8D3C8;color:rgba(26,26,24,0.6);font-size:0.9rem;line-height:1;cursor:pointer;transition:background .15s,color .15s;}
 .cm-collapse:hover{background:rgba(74,103,65,0.08);color:#1A1A18;}
@@ -174,6 +147,11 @@ const PANEL_CSS = `
 @keyframes cm-impact-core{0%,48%{opacity:0;transform:translate(-50%,-50%) scale(.16)}60%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(2.9)}}
 @keyframes cm-fragment-a{0%,52%{opacity:0;transform:translate(-50%,-50%) scale(.3)}64%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + 52px),calc(-50% - 34px)) scale(.8)}}
 @keyframes cm-fragment-b{0%,54%{opacity:0;transform:translate(-50%,-50%) scale(.3)}68%{opacity:1}100%{opacity:0;transform:translate(calc(-50% - 42px),calc(-50% + 26px)) scale(.7)}}
+.cm-panel,.cm-neural{transition:opacity .6s ease;}
+.is-faded{opacity:0 !important;pointer-events:none !important;}
+.cm-adv{width:100%;margin-top:13px;padding:0;font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(26,26,24,0.45);background:transparent;border:0;text-align:left;cursor:pointer;}
+.cm-adv:hover{color:#1A1A18;}
+.cm-dot{position:absolute;bottom:22px;left:22px;width:8px;height:8px;border-radius:999px;background:rgba(74,103,65,.62);box-shadow:0 0 12px rgba(74,103,65,.5);pointer-events:none;z-index:6;}
 @media (prefers-reduced-motion: reduce){.cm-live i,.cm-meteor i{animation:none;}}
 `;
 
@@ -189,6 +167,7 @@ export default function Catchment() {
   const [mode, setMode] = useState<Mode>("orbit");
   const [pick, setPick] = useState<Pick>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
   const [windDeg, setWindDeg] = useState(90);
   const [windSpeed, setWindSpeed] = useState(1.2);
   const [meteors, setMeteors] = useState<MeteorFx[]>([]);
@@ -197,8 +176,9 @@ export default function Catchment() {
   const [teacherFrames, setTeacherFrames] = useState(0);
   const [modelAvailable, setModelAvailable] = useState(false);
   const [neuralOn, setNeuralOn] = useState(false);
-  const [guideStep, setGuideStep] = useState(0);
-  const [guideOpen, setGuideOpen] = useState(true);
+  // let the animation breathe: title retires on first interaction, controls fade when idle
+  const { everInteracted, idle } = useIdleUI({ timeout: 3500 });
+  const uiVisible = everInteracted && !idle;
   type MapInfo = { id: string; file: string; name: string; tagline: string; rain?: number; wind?: number; secret?: boolean };
   const [maps, setMaps] = useState<MapInfo[]>([]);
   const [mapId, setMapId] = useState("hinterland");
@@ -1063,18 +1043,18 @@ export default function Catchment() {
         </span>
       ))}
 
-      <div className="pointer-events-none absolute left-0 top-0 z-[5] p-6">
-        <span className="mono-label">Catchment · M5 narrative</span>
+      <div className="pointer-events-none absolute left-0 top-0 z-[5] p-6"
+        style={{ opacity: everInteracted ? 0 : 1, transition: "opacity .7s ease" }}>
+        <span className="mono-label">catchment · live</span>
         <h1 className="mt-2 font-display text-3xl text-ink md:text-4xl">A living catchment</h1>
         <p className="mt-2 max-w-sm text-sm text-ink/60">
-          Rain carves the real terrain and fire runs with the wind — shallow-water
-          erosion and fire spread, live on your GPU. Pour water, light a fire, and
-          watch them fight it out.
+          Real terrain, live on your GPU. Rain carves it, fire runs with the wind.
+          Drag to orbit; pour, ignite, watch them fight.
         </p>
       </div>
 
       {status === "running" && (
-        <div className={`cm-panel pointer-events-auto absolute bottom-0 left-0 m-5${collapsed ? " is-collapsed" : ""}`}>
+        <div className={`cm-panel pointer-events-auto absolute bottom-0 left-0 m-5${collapsed ? " is-collapsed" : ""}${uiVisible ? "" : " is-faded"}`}>
           <style>{PANEL_CSS}</style>
           <div className="cm-head">
             <span className="cm-title">Controls</span>
@@ -1112,28 +1092,41 @@ export default function Catchment() {
                 <button data-active={mode === "meteor"} onClick={() => setMode("meteor")}>Meteor</button>
               </div>
               <button className="cm-reset-btn" onClick={() => { resetNowRef.current?.(); resetRef.current = true; setPick(null); }}>Reset</button>
-              <div className="cm-section">Water</div>
-              <Ctl label="Rainfall" display={(rain * 1000).toFixed(0)} min={0} max={0.02} step={0.001} value={rain} onChange={(e) => setRain(+e.target.value)} />
-              <Ctl label="Erosion" display={`×${ero.toFixed(2)}`} min={0} max={1.5} step={0.05} value={ero} onChange={(e) => setEro(+e.target.value)} />
-              <div className="cm-section">Fire</div>
-              <Ctl label="Wind dir" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1} value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
-              <Ctl label="Wind" display={`×${windSpeed.toFixed(1)}`} min={0} max={3} step={0.1} value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
-              <div className="cm-section">View</div>
-              <Ctl label="Sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1} value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
-              <Ctl label="Relief" display={`×${exag.toFixed(2)}`} min={0.2} max={0.9} step={0.01} value={exag} onChange={(e) => setExag(+e.target.value)} />
+              <Ctl label="water" display={`${Math.round(unmix(0, 0.02, rain) * 100)}`} min={0} max={1} step={0.01}
+                value={unmix(0, 0.02, rain)} onChange={(e) => { const t = +e.target.value; setRain(mix(0, 0.02, t)); setEro(mix(0, 1.5, t)); }} />
+              <Ctl label="wind" display={`${Math.round(unmix(0, 3, windSpeed) * 100)}`} min={0} max={1} step={0.01}
+                value={unmix(0, 3, windSpeed)} onChange={(e) => setWindSpeed(mix(0, 3, +e.target.value))} />
+              <Ctl label="light" display={`${Math.round(unmix(0, 360, sunDeg) * 100)}`} min={0} max={1} step={0.01}
+                value={unmix(0, 360, sunDeg)} onChange={(e) => { const t = +e.target.value; setSunDeg(mix(0, 360, t)); setExag(mix(0.35, 0.75, t)); }} />
               <p className="cm-hint">
-                {mode === "pour" ? "Drag on the terrain to pour water."
-                  : mode === "ignite" ? "Click the ground to start a fire — wind & slope steer it; water stops it."
-                    : mode === "meteor" ? "Click the ground to call a random meteor — crater, splash, heat, and fire all feed the sim."
+                {mode === "pour" ? "Drag the terrain to pour water."
+                  : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
+                    : mode === "meteor" ? "Click to call a meteor — crater, splash, heat, and fire all feed the sim."
                   : "Drag to orbit · click to inspect."}
               </p>
+              <button className="cm-adv" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
+                {advanced ? "advanced ▾" : "advanced ▸"}
+              </button>
+              {advanced && (
+                <>
+                  <div className="cm-section">Water</div>
+                  <Ctl label="Rainfall" display={(rain * 1000).toFixed(0)} min={0} max={0.02} step={0.001} value={rain} onChange={(e) => setRain(+e.target.value)} />
+                  <Ctl label="Erosion" display={`×${ero.toFixed(2)}`} min={0} max={1.5} step={0.05} value={ero} onChange={(e) => setEro(+e.target.value)} />
+                  <div className="cm-section">Fire</div>
+                  <Ctl label="Wind dir" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1} value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
+                  <Ctl label="Wind" display={`×${windSpeed.toFixed(1)}`} min={0} max={3} step={0.1} value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
+                  <div className="cm-section">View</div>
+                  <Ctl label="Sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1} value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
+                  <Ctl label="Relief" display={`×${exag.toFixed(2)}`} min={0.2} max={0.9} step={0.01} value={exag} onChange={(e) => setExag(+e.target.value)} />
+                </>
+              )}
             </>
           )}
         </div>
       )}
 
       {status === "running" && (
-        <div className="cm-neural pointer-events-auto absolute bottom-0 right-0 m-5 mb-12">
+        <div className={`cm-neural pointer-events-auto absolute bottom-0 right-0 m-5 mb-12${uiVisible ? "" : " is-faded"}`}>
           <div className="cm-neural-title">
             <span>M4 neural surrogate</span>
             <span className="cm-neural-pill">{modelAvailable ? (neuralOn ? "neural live" : "physics") : "teacher"}</span>
@@ -1141,8 +1134,8 @@ export default function Catchment() {
           {modelAvailable ? (
             <>
               <p className="cm-neural-copy">
-                A conv neural operator runs its own water state on the GPU. Flip the teacher (physics)
-                and the student (neural) — and watch where the student drifts.
+                A neural operator runs its own water on the GPU. Flip teacher (physics) ↔ student
+                (neural) and watch where it drifts.
               </p>
               <div className="cm-seg" style={{ marginTop: 8 }}>
                 <button data-active={!neuralOn} onClick={() => setNeuralOn(false)}>Physics</button>
@@ -1174,37 +1167,9 @@ export default function Catchment() {
         </div>
       )}
 
-      {status === "running" && guideOpen && (
-        <div className="cm-guide pointer-events-auto absolute right-0 top-0 m-5 hidden md:block">
-          <div className="cm-guide-top">
-            <span className="cm-guide-kicker">{GUIDE_STEPS[guideStep].kicker}</span>
-            <div className="cm-guide-actions">
-              <button
-                aria-label="Next guide step"
-                onClick={() => setGuideStep((step) => (step + 1) % GUIDE_STEPS.length)}
-              >
-                →
-              </button>
-              <button aria-label="Close guide" onClick={() => setGuideOpen(false)}>×</button>
-            </div>
-          </div>
-          <h2 className="cm-guide-title">{GUIDE_STEPS[guideStep].title}</h2>
-          <p className="cm-guide-body">{GUIDE_STEPS[guideStep].body}</p>
-          <div className="cm-guide-nav" aria-label="Catchment guide steps">
-            {GUIDE_STEPS.map((step, index) => (
-              <button
-                key={step.kicker}
-                aria-label={`Show guide step ${index + 1}`}
-                data-active={guideStep === index}
-                onClick={() => setGuideStep(index)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       {status === "running" && pick && (
-        <div className="absolute right-0 top-0 m-4 border border-hairline bg-concrete/90 px-4 py-3 backdrop-blur-sm">
+        <div className="absolute right-0 top-0 m-4 border border-hairline bg-concrete/90 px-4 py-3 backdrop-blur-sm"
+          style={{ opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
           <span className="mono-label">Inspected point</span>
           <dl className="mt-2 space-y-1 font-mono text-xs text-ink/75">
             <div className="flex justify-between gap-6"><dt className="text-ink/45">Elevation</dt><dd>{pick.elevM} m</dd></div>
@@ -1230,11 +1195,8 @@ export default function Catchment() {
           <button onClick={() => location.reload()} className="btn-secondary mt-3 text-sm">Reload</button>
         </div>
       )}
-      {status === "running" && (
-        <div className="pointer-events-none absolute bottom-0 right-0 p-4 text-right">
-          <span className="font-mono text-[11px] text-ink/40">WebGPU · shallow-water erosion + fire spread</span>
-        </div>
-      )}
+      {/* faint affordance: controls live here, move to reveal */}
+      {status === "running" && everInteracted && idle && <div className="cm-dot" />}
     </div>
   );
 }

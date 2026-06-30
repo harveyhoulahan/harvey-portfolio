@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Playground from "@/components/Playground";
 
 export const metadata: Metadata = {
-  title: "Playground — Spatial + ML demos | Harvey Houlahan",
+  title: "Playground — live GPU demos | Harvey Houlahan",
   description:
-    "Live, client-side spatial-ML demos: describe terrain in plain English and rank a DEM-derived grid in real time, or teach an in-browser geospatial foundation model to map any concept from a handful of clicks. No API keys.",
+    "Two flagship browser-native simulations, GPU-accelerated with WebGPU and entirely client-side: Genesis, an artificial-life lab that summons lifeforms by prompt, and Catchment, a living terrain of water, fire, and a neural surrogate. No servers, no API keys.",
 };
 
 export default function PlaygroundPage() {

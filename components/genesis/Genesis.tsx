@@ -23,6 +23,7 @@ import { buildKernel, seedScenario, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
 import { initParticles, randomMatrix, PARTICLE_DEFAULTS } from "@/lib/genesis/particle-life";
 import { loadVision, embedText, embedCanvas, embedPixels, cosine, resonance, type VisionStatus } from "@/lib/genesis/vision";
 import { CMAES } from "@/lib/genesis/cmaes";
+import { useIdleUI } from "@/lib/useIdleUI";
 
 const N = 192; // grid resolution (NxN) for the field substrates
 const P = DEFAULT_PARAMS;
@@ -157,6 +158,50 @@ const boundsOf = (sub: Substrate, key: keyof Params): [number, number] => {
   return d ? [d[2], d[3]] : [0, 1];
 };
 
+// Consolidated "macro" controls — one slider sweeps a curated path through two raw
+// params so the full effect range survives. forward maps macro t∈[0,1] → param patch;
+// read derives the thumb position back from current params. Raw params stay reachable
+// under the "advanced" disclosure.
+const mix = (a: number, b: number, t: number) => a + (b - a) * t;
+const unmix = (a: number, b: number, v: number) => (b === a ? 0 : Math.min(1, Math.max(0, (v - a) / (b - a))));
+type MacroDef = {
+  key: string; label: string;
+  forward: (t: number) => Partial<Params>;
+  read: (p: Params) => number;
+};
+const MACROS: Record<Substrate, MacroDef[]> = {
+  lenia: [
+    { key: "growth", label: "growth",
+      forward: (t) => ({ mu: mix(0.10, 0.25, t), sigma: mix(0.040, 0.012, t) }),
+      read: (p) => unmix(0.10, 0.25, p.mu) },
+    { key: "motion", label: "motion",
+      forward: (t) => ({ drift: mix(0, 0.6, t), swirl: mix(0, 0.5, t) }),
+      read: (p) => unmix(0, 0.6, p.drift) },
+    { key: "scale", label: "scale",
+      forward: (t) => ({ kR: Math.round(mix(6, KR_MAX, t)), kSigma: mix(0.04, 0.30, t) }),
+      read: (p) => unmix(6, KR_MAX, p.kR) },
+    { key: "energy", label: "energy",
+      forward: (t) => ({ energy: mix(0, 0.02, t) }),
+      read: (p) => unmix(0, 0.02, p.energy) },
+  ],
+  particle: [
+    { key: "intensity", label: "intensity",
+      forward: (t) => ({ rMax: mix(0.05, 0.25, t), forceFactor: mix(1, 10, t) }),
+      read: (p) => unmix(0.05, 0.25, p.rMax) },
+    { key: "life", label: "life",
+      forward: (t) => ({ friction: mix(0.95, 0.40, t), noise: mix(0, 4, t) }),
+      read: (p) => unmix(0, 4, p.noise) },
+    { key: "cursor", label: "cursor pull",
+      forward: (t) => ({ cursor: mix(-4, 6, t) }),
+      read: (p) => unmix(-4, 6, p.cursor) },
+  ],
+  life: [
+    { key: "lifeEvery", label: "pace",
+      forward: (t) => ({ lifeEvery: Math.round(mix(20, 1, t)) }),
+      read: (p) => unmix(20, 1, p.lifeEvery) },
+  ],
+};
+
 /** Random binary field for seeding Conway's Game of Life. */
 function seedLifeField(n: number, density = 0.32): Float32Array {
   const s = new Float32Array(n * n);
@@ -178,7 +223,12 @@ export default function Genesis() {
   const [substrate, setSubstrate] = useState<Substrate>("lenia");
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [advanced, setAdvanced] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  // let the animation breathe: title retires on first interaction, controls fade when idle
+  const { everInteracted, idle } = useIdleUI({ timeout: 3500 });
+  const uiVisible = everInteracted && !idle;
 
   // M4 — foundation-model scoring ("summon")
   const [prompt, setPrompt] = useState("");
@@ -237,6 +287,11 @@ export default function Genesis() {
     paramsRef.current = { ...paramsRef.current, ...obj };
     setParams((p) => ({ ...p, ...obj }));
     resetRef.current = true; // reseed so the preset reads cleanly
+  };
+  const setMacro = (def: MacroDef, t: number) => {
+    const patch = def.forward(t);
+    paramsRef.current = { ...paramsRef.current, ...patch };
+    setParams((p) => ({ ...p, ...patch }));
   };
   const copyLink = () => {
     try {
@@ -1160,36 +1215,37 @@ export default function Genesis() {
     <div style={wrap}>
       <canvas ref={canvasRef} style={cvs} />
 
-      {/* title plate — frosted dark card so it stays legible over any structure */}
+      {/* title plate — frosted dark card; retires on first interaction */}
       <div style={{
-        position: "absolute", top: 22, left: 22, maxWidth: 430, color: CONCRETE,
+        position: "absolute", top: 22, left: 22, maxWidth: 380, color: CONCRETE,
         pointerEvents: "none",
+        opacity: everInteracted ? 0 : 1, transition: "opacity .7s ease",
         background: "linear-gradient(135deg, rgba(20,20,18,0.62), rgba(20,20,18,0.40))",
         backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
         border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
         padding: "16px 20px", boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
       }}>
         <div style={{ fontSize: 11, letterSpacing: 2.5, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
-          Genesis · flagship II
+          genesis · ii
         </div>
         <h1 style={{ fontSize: 27, margin: "7px 0 5px", fontWeight: 600, letterSpacing: -0.3, color: "#FBFAF7" }}>
           An artificial-life lab
         </h1>
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
-          {substrate === "lenia" && (<>A continuous cellular automaton <span style={{ color: SAND }}>(Lenia)</span> evolving live on your GPU. Rival colours invade and fight; the winner lives on. Click to seed life.</>)}
-          {substrate === "life" && (<>Conway&rsquo;s <span style={{ color: SAND }}>Game of Life</span> on the GPU. Click to spark live cells.</>)}
-          {substrate === "particle" && (<><span style={{ color: SAND }}>Particle Life</span> — {PN.toLocaleString()} agents, {PL.K} species, an attraction matrix that slowly evolves. Move your cursor to herd them; click to conjure new physics.</>)}
+          {substrate === "lenia" && (<>A continuous cellular automaton on your GPU. Click to seed life.</>)}
+          {substrate === "life" && (<>Conway&rsquo;s Game of Life on the GPU. Click to spark cells.</>)}
+          {substrate === "particle" && (<>{PN.toLocaleString()} agents, {PL.K} species, evolving physics. Move to herd them; click to reshape.</>)}
         </p>
       </div>
 
       {/* M4 — summon (CLIP scoring) */}
       {status === "ready" && (
-        <div style={summonCard}>
+        <div style={{ ...summonCard, opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
           <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
-            Summon · CLIP
+            summon · clip
           </div>
           <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(247,245,240,0.62)", margin: "5px 0 9px" }}>
-            Describe a lifeform — an in-browser vision model scores how much the simulation resembles it.
+            Describe a lifeform. An in-browser vision model scores the resemblance.
           </p>
           <div style={{ display: "flex", gap: 6 }}>
             <input
@@ -1231,17 +1287,17 @@ export default function Genesis() {
             <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 6 }}>{searchInfo}</div>
           )}
           <div style={{ fontSize: 10.5, color: "rgba(247,245,240,0.42)", marginTop: 9, lineHeight: 1.45 }}>
-            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> breeds the substrate (CMA-ES) toward your words; <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life. Results are abstract — <b style={{ color: SAND, fontWeight: 600 }}>Particles</b> resemble creatures &amp; swarms best.
+            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> breeds toward your words (CMA-ES). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life. <b style={{ color: SAND, fontWeight: 600 }}>Particles</b> read most creature-like.
           </div>
         </div>
       )}
 
       {/* control panel */}
       {status === "ready" && (
-        <div style={panelWrap(panelOpen)}>
+        <div style={{ ...panelWrap(panelOpen), opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
           <div style={panelHead}>
             <span style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
-              Controls
+              controls
             </span>
             <button style={collapseBtn} onClick={() => setPanelOpen((o) => !o)} aria-label="Toggle controls">
               {panelOpen ? "–" : "+"}
@@ -1257,20 +1313,36 @@ export default function Genesis() {
           {panelOpen && (
             <>
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
-                {SLIDERS[substrate].map(([key, label, min, max, step]) => (
-                  <Slider key={key} label={label} min={min} max={max} step={step}
-                    value={params[key]} onChange={(v) => setParam(key, v)} />
-                ))}
+                {MACROS[substrate].map((m) => {
+                  const t = m.read(params);
+                  return (
+                    <Slider key={m.key} label={m.label} min={0} max={1} step={0.01}
+                      value={t} display={`${Math.round(t * 100)}`}
+                      onChange={(v) => setMacro(m, v)} />
+                  );
+                })}
               </div>
 
               {PRESETS[substrate] && (
                 <div style={{ marginTop: 12 }}>
-                  <div style={presetLabel}>Presets</div>
+                  <div style={presetLabel}>presets</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
                     {Object.entries(PRESETS[substrate]!).map(([name, obj]) => (
                       <button key={name} style={chip} onClick={() => applyPreset(obj)}>{name}</button>
                     ))}
                   </div>
+                </div>
+              )}
+
+              <button style={advBtn} onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
+                {advanced ? "advanced ▾" : "advanced ▸"}
+              </button>
+              {advanced && (
+                <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 9 }}>
+                  {SLIDERS[substrate].map(([key, label, min, max, step]) => (
+                    <Slider key={key} label={label} min={min} max={max} step={step}
+                      value={params[key]} onChange={(v) => setParam(key, v)} />
+                  ))}
                 </div>
               )}
 
@@ -1295,6 +1367,15 @@ export default function Genesis() {
         </Center>
       )}
       {status === "error" && <Center>Couldn’t start the simulation: {err}</Center>}
+
+      {/* faint affordance: controls live here, move to reveal */}
+      {status === "ready" && everInteracted && idle && (
+        <div style={{
+          position: "absolute", bottom: 22, left: 22, width: 8, height: 8, borderRadius: 999,
+          background: "rgba(196,168,130,0.5)", boxShadow: "0 0 12px rgba(196,168,130,0.5)",
+          pointerEvents: "none", transition: "opacity .6s ease",
+        }} />
+      )}
 
       {egg && (
         <div style={{
@@ -1444,6 +1525,11 @@ const chip: CSSProperties = {
   border: "1px solid rgba(247,245,240,0.2)", borderRadius: 7, padding: "5px 10px",
   fontSize: 12, cursor: "pointer", fontFamily: "inherit",
 };
+const advBtn: CSSProperties = {
+  marginTop: 12, background: "transparent", color: "rgba(247,245,240,0.5)",
+  border: "none", padding: 0, fontSize: 10.5, letterSpacing: 1, textTransform: "uppercase",
+  cursor: "pointer", fontFamily: "inherit",
+};
 
 const seg: CSSProperties = {
   display: "flex", gap: 2, padding: 2, borderRadius: 10,
@@ -1457,10 +1543,10 @@ const segBtn = (active: boolean): CSSProperties => ({
   fontWeight: active ? 600 : 400, cursor: "pointer", transition: "background 0.15s",
 });
 
-function Slider({ label, min, max, step, value, onChange }: {
-  label: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void;
+function Slider({ label, min, max, step, value, onChange, display }: {
+  label: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void; display?: string;
 }) {
-  const fmt = Number.isInteger(value) ? String(value) : String(+value.toPrecision(3));
+  const fmt = display ?? (Number.isInteger(value) ? String(value) : String(+value.toPrecision(3)));
   return (
     <label style={{ display: "block" }}>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.72)", marginBottom: 3 }}>

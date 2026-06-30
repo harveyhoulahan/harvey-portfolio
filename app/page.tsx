@@ -54,26 +54,19 @@ export default function Home() {
           <TextShimmer as="span" className="mono-label">
             {profile.availability}
           </TextShimmer>
-          <h2 className="mt-4 font-display">Let&apos;s build something spatial.</h2>
+          <h2 className="mt-4 font-display">Let&apos;s build something.</h2>
           <p className="mx-auto mt-5 max-w-prose text-ink/70">
-            Climate, carbon, biodiversity, agriculture. The real-world problems
-            where I do my best work. Don&apos;t take my word for it — poke at a
-            live one.
+            Climate, carbon, biodiversity, agriculture — the real-world problems
+            where I do my best work.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link href="/playground" className="btn-primary">
-              Try the live demo <ArrowRight size={15} />
+              Live demos <ArrowRight size={15} />
             </Link>
             <Link href="/contact" className="btn-secondary">
               Get in touch
             </Link>
           </div>
-          <a
-            href={`mailto:${profile.email}`}
-            className="mt-5 inline-block font-mono text-xs uppercase tracking-[0.12em] text-ink/50 hover:text-sage"
-          >
-            {profile.email}
-          </a>
         </div>
       </section>
     </>

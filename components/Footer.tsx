@@ -11,9 +11,7 @@ export default function Footer() {
           <div className="max-w-prose">
             <span className="mono-label">{profile.availability}</span>
             <h3 className="mt-3 font-display text-2xl">Let&apos;s build something spatial.</h3>
-            <p className="mt-3 text-ink/70">
-              {profile.locationNow} → {profile.locationNext} · {profile.timezone} · remote
-            </p>
+            <p className="mt-3 text-ink/70">{profile.footerSubtitle}</p>
           </div>
 
           <div className="flex flex-col gap-2 font-mono text-sm">

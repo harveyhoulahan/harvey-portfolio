@@ -57,7 +57,7 @@ export default function OpengraphImage() {
             letterSpacing: 1,
           }}
         >
-          FastAPI · PostGIS · React/MapLibre · Docker &nbsp;&nbsp;/&nbsp;&nbsp; Byron Bay → Lisbon
+          FastAPI · PostGIS · React/MapLibre · Docker &nbsp;&nbsp;/&nbsp;&nbsp; Byron Bay · remote
         </div>
       </div>
     ),

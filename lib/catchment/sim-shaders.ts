@@ -574,7 +574,7 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   base = mix(base, srgbToLinear(vec3<f32>(0.30, 0.42, 0.24)), clamp(in.eco.x - 0.4, 0.0, 1.0) * 0.5); // lusher where fuel is high
   if (in.info.y > 0.5) { base = mix(base, srgbToLinear(vec3<f32>(0.46, 0.57, 0.55)), 0.6); }
   base = mix(base, srgbToLinear(vec3<f32>(0.58, 0.50, 0.40)), clamp(in.sediment * 1.5, 0.0, 0.5));
-  if (in.info.x > 0.5) { base = srgbToLinear(vec3<f32>(0.40, 0.52, 0.55)); }
+  if (in.info.x > 0.5) { base = srgbToLinear(vec3<f32>(0.05, 0.22, 0.48)); }
   let amb = mix(srgbToLinear(vec3<f32>(0.34, 0.33, 0.30)), srgbToLinear(vec3<f32>(0.52, 0.55, 0.60)), N.y * 0.5 + 0.5);
   let sunCol = srgbToLinear(vec3<f32>(1.0, 0.96, 0.88));
   var col = base * (amb + sunCol * ndl * 0.85);
@@ -774,16 +774,19 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let tt = ru.misc.z;
     // depth-graded body colour with slow large-scale "current" variation
     let cvar = vnoise(in.world.xz * 1.3 + vec2<f32>(tt * 0.03, -tt * 0.02)) - 0.5;
-    let deepC = srgbToLinear(vec3<f32>(0.025, 0.12, 0.24));
-    let midC = srgbToLinear(vec3<f32>(0.05, 0.26, 0.40));
+    // cohesive ocean body — same turquoise→deep-blue family as the inland water,
+    // so the open sea reads as one continuous ocean rather than steel + navy patches
+    let deepC = srgbToLinear(vec3<f32>(0.05, 0.23, 0.40));
+    let midC = srgbToLinear(vec3<f32>(0.13, 0.43, 0.53));
     var col = mix(deepC, midC, clamp(0.45 + in.depth * 16.0 + cvar * 0.35, 0.0, 1.0));
-    // fresnel sky reflection — reflect the actual sky gradient off the wave normal
+    // fresnel sky reflection — kept gentle and cool so it tints the swell rather than
+    // washing it to pale steel (the old clash was reflection vs body, not two blues)
     let refl = reflect(-V, N);
-    let horizon = srgbToLinear(vec3<f32>(0.90, 0.88, 0.82));
-    let zenith = srgbToLinear(vec3<f32>(0.52, 0.64, 0.80));
+    let horizon = srgbToLinear(vec3<f32>(0.62, 0.76, 0.82));
+    let zenith = srgbToLinear(vec3<f32>(0.40, 0.58, 0.74));
     let skyCol = mix(horizon, zenith, clamp(refl.y * 0.5 + 0.5, 0.0, 1.0));
     let fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-    col = mix(col, skyCol, clamp(fres, 0.0, 0.9));
+    col = mix(col, skyCol, clamp(fres, 0.0, 0.5));
     // subsurface scattering — translucent green glow on lit, steep wave backs
     let sss = pow(max(0.0, dot(V, -L)), 2.0) * smoothstep(0.0, 0.012, in.depth) * 0.7;
     col = col + srgbToLinear(vec3<f32>(0.08, 0.40, 0.32)) * sss;
@@ -808,14 +811,15 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   rn += vec2<f32>(cos(dot(p, vec2<f32>(38.0, 11.0)) + t * 2.4), cos(dot(p, vec2<f32>(-13.0, 41.0)) - t * 2.0)) * 0.5;
   rn += flow * cos(fcoord) * clamp(spd, 0.0, 1.5);
   let N = normalize(vec3<f32>(rn.x * 0.07, 1.0, rn.y * 0.07));
-  let shallow = srgbToLinear(vec3<f32>(0.47, 0.67, 0.70));
-  let deep = srgbToLinear(vec3<f32>(0.12, 0.31, 0.46));
+  // same ocean family as the open sea: turquoise shallows → deep teal-blue
+  let shallow = srgbToLinear(vec3<f32>(0.20, 0.52, 0.57));
+  let deep = srgbToLinear(vec3<f32>(0.05, 0.23, 0.40));
   var col = mix(shallow, deep, clamp(in.depth / 1.3, 0.0, 1.0));
-  col = mix(col, srgbToLinear(vec3<f32>(0.44, 0.46, 0.42)), clamp(spd * 0.22, 0.0, 0.22));
+  col = mix(col, srgbToLinear(vec3<f32>(0.40, 0.45, 0.44)), clamp(spd * 0.22, 0.0, 0.22));
   let spec = pow(max(dot(N, H), 0.0), 90.0);
   col += srgbToLinear(vec3<f32>(1.0, 0.98, 0.9)) * spec * 1.1;
   let fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-  col = mix(col, srgbToLinear(vec3<f32>(0.76, 0.85, 0.88)), fres * 0.4);
+  col = mix(col, srgbToLinear(vec3<f32>(0.58, 0.78, 0.83)), fres * 0.4);
   let foam = smoothstep(0.45, 1.1, spd);
   let streak = smoothstep(0.55, 1.0, sin(fcoord * 0.5) * 0.5 + 0.5) * smoothstep(0.4, 1.0, spd);
   col = mix(col, srgbToLinear(vec3<f32>(0.93, 0.96, 0.96)), clamp(foam * 0.45 + streak * 0.4, 0.0, 0.7));

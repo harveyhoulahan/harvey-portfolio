@@ -27,9 +27,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hjhportfolio.com"),
-  title: "Harvey Houlahan — Geospatial ML Infrastructure Engineer",
+  title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
   description:
-    "Production geospatial ML infrastructure for climate, carbon & nature tech. Available for contract work. Byron Bay → Lisbon.",
+    "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
   keywords: [
     "Geospatial ML",
     "PostGIS",
@@ -45,9 +45,9 @@ export const metadata: Metadata = {
     canonical: "https://hjhportfolio.com",
   },
   openGraph: {
-    title: "Harvey Houlahan — Geospatial ML Infrastructure Engineer",
+    title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
     description:
-      "Production geospatial ML infrastructure for climate, carbon & nature tech. Available for contract work. Byron Bay → Lisbon.",
+      "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
     url: "https://hjhportfolio.com",
     siteName: "Harvey Houlahan",
     type: "website",
@@ -56,9 +56,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Harvey Houlahan — Geospatial ML Infrastructure Engineer",
+    title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
     description:
-      "Production geospatial ML infrastructure for climate, carbon & nature tech. Available for contract work. Byron Bay → Lisbon.",
+      "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
   },
 };
 
