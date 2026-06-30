@@ -87,7 +87,10 @@ function Ctl(props: {
 }
 
 const PANEL_CSS = `
-.cm-panel{width:250px;z-index:6;background:rgba(247,245,240,0.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid #D8D3C8;border-left:2px solid #4A6741;padding:14px 16px 16px;font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;}
+.cm-panel{width:250px;z-index:6;max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain;background:rgba(247,245,240,0.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid #D8D3C8;border-left:2px solid #4A6741;padding:14px 16px 16px;font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;}
+.cm-panel::-webkit-scrollbar{width:5px;}
+.cm-panel::-webkit-scrollbar-thumb{background:rgba(74,103,65,.28);border-radius:3px;}
+.cm-panel::-webkit-scrollbar-track{background:transparent;}
 .cm-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;}
 .cm-title{font-size:0.72rem;letter-spacing:0.18em;text-transform:uppercase;color:#1A1A18;}
 .cm-live{display:inline-flex;align-items:center;gap:6px;font-size:0.6rem;letter-spacing:0.14em;text-transform:uppercase;color:#4A6741;}
@@ -98,7 +101,7 @@ const PANEL_CSS = `
 .cm-seg button:last-child{border-right:none;}
 .cm-seg button[data-active="true"]{background:#4A6741;color:#F7F5F0;}
 .cm-seg button:not([data-active="true"]):hover{color:#1A1A18;background:rgba(74,103,65,0.07);}
-.cm-section{font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(26,26,24,0.34);margin:15px 0 3px;}
+.cm-section{font-size:0.58rem;letter-spacing:0.16em;text-transform:uppercase;color:rgba(26,26,24,0.34);margin:14px 0 5px;padding-top:11px;border-top:1px solid rgba(216,211,200,0.55);}
 .cm-row{margin-top:9px;}
 .cm-rowtop{display:flex;align-items:baseline;justify-content:space-between;}
 .cm-label{font-size:0.64rem;letter-spacing:0.1em;text-transform:uppercase;color:rgba(26,26,24,0.68);}
@@ -145,8 +148,6 @@ const PANEL_CSS = `
 @keyframes cm-fragment-b{0%,54%{opacity:0;transform:translate(-50%,-50%) scale(.3)}68%{opacity:1}100%{opacity:0;transform:translate(calc(-50% - 42px),calc(-50% + 26px)) scale(.7)}}
 .cm-panel,.cm-neural{transition:opacity .6s ease;}
 .is-faded{opacity:0 !important;pointer-events:none !important;}
-.cm-adv{width:100%;margin-top:13px;padding:0;font-size:0.58rem;letter-spacing:0.14em;text-transform:uppercase;color:rgba(26,26,24,0.45);background:transparent;border:0;text-align:left;cursor:pointer;}
-.cm-adv:hover{color:#1A1A18;}
 .cm-dot{position:absolute;bottom:22px;left:22px;width:8px;height:8px;border-radius:999px;background:rgba(74,103,65,.62);box-shadow:0 0 12px rgba(74,103,65,.5);pointer-events:none;z-index:6;}
 @media (prefers-reduced-motion: reduce){.cm-live i,.cm-meteor i{animation:none;}}
 `;
@@ -162,8 +163,8 @@ export default function Catchment() {
   const [ero, setEro] = useState(0.6);
   const [mode, setMode] = useState<Mode>("orbit");
   const [pick, setPick] = useState<Pick>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
+  const [collapsed, setCollapsed] = useState(true); // opens minimised — one tap to expand
+  const [neuralCollapsed, setNeuralCollapsed] = useState(true);
   const [windDeg, setWindDeg] = useState(90);
   const [windSpeed, setWindSpeed] = useState(1.2);
   const [meteors, setMeteors] = useState<MeteorFx[]>([]);
@@ -1177,6 +1178,8 @@ export default function Catchment() {
               <div className="cm-section">Wind</div>
               <Ctl label="strength" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
                 value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
+              <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1}
+                value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
               <div className="cm-section">Light</div>
               <Ctl label="sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1}
                 value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
@@ -1188,15 +1191,6 @@ export default function Catchment() {
                     : mode === "meteor" ? "Click to call a meteor — crater, splash, heat, and fire all feed the sim."
                   : "Drag to orbit · click to inspect."}
               </p>
-              <button className="cm-adv" onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
-                {advanced ? "advanced ▾" : "advanced ▸"}
-              </button>
-              {advanced && (
-                <>
-                  <div className="cm-section">Wind direction</div>
-                  <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1} value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
-                </>
-              )}
             </>
           )}
         </div>
@@ -1206,9 +1200,18 @@ export default function Catchment() {
         <div className={`cm-neural pointer-events-auto absolute bottom-0 right-0 m-5 mb-12${uiVisible ? "" : " is-faded"}`}>
           <div className="cm-neural-title">
             <span>M4 neural surrogate</span>
-            <span className="cm-neural-pill">{modelAvailable ? (neuralOn ? "neural live" : "physics") : "teacher"}</span>
+            <div className="cm-right">
+              {!neuralCollapsed && (
+                <span className="cm-neural-pill">{modelAvailable ? (neuralOn ? "neural live" : "physics") : "teacher"}</span>
+              )}
+              <button
+                className="cm-collapse"
+                aria-label={neuralCollapsed ? "Expand surrogate" : "Collapse surrogate"}
+                onClick={() => setNeuralCollapsed((v) => !v)}
+              >{neuralCollapsed ? "+" : "–"}</button>
+            </div>
           </div>
-          {modelAvailable ? (
+          {!neuralCollapsed && (modelAvailable ? (
             <>
               <p className="cm-neural-copy">
                 A neural operator runs its own water on the GPU. Flip teacher (physics) ↔ student
@@ -1240,7 +1243,7 @@ export default function Catchment() {
               </button>
               <p className="cm-neural-copy">{surrogateMsg}</p>
             </>
-          )}
+          ))}
         </div>
       )}
 
