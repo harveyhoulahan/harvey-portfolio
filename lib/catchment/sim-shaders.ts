@@ -536,6 +536,7 @@ struct VSOut {
   @location(2) info: vec2<f32>,
   @location(3) sediment: f32,
   @location(4) eco: vec3<f32>,  // fuel, char, fire
+  @location(5) beach: f32,      // 0..1 sandy foreshore strength (1 at the waterline)
 };
 
 @vertex
@@ -556,6 +557,7 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
   out.info = vec2<f32>(select(0.0, 1.0, isOcean), f32((flags[vi] >> 1u) & 1u));
   out.sediment = sed[vi];
   out.eco = vec3<f32>(fuel[vi], charr[vi], fire[vi]);
+  out.beach = f32((flags[vi] >> 2u) & 15u) / 15.0; // 4-bit beach strength packed in flags
   return out;
 }
 
@@ -574,10 +576,24 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   base = mix(base, srgbToLinear(vec3<f32>(0.30, 0.42, 0.24)), clamp(in.eco.x - 0.4, 0.0, 1.0) * 0.5); // lusher where fuel is high
   if (in.info.y > 0.5) { base = mix(base, srgbToLinear(vec3<f32>(0.46, 0.57, 0.55)), 0.6); }
   base = mix(base, srgbToLinear(vec3<f32>(0.58, 0.50, 0.40)), clamp(in.sediment * 1.5, 0.0, 0.5));
+  // sandy beach: wet, darker sand at the waterline fading to dry pale sand up the slope
+  var wetSheen = 0.0;
+  if (in.beach > 0.001 && in.info.x < 0.5) {
+    let aboveSea = clamp((hN - 0.06) / 0.12, 0.0, 1.0);
+    let wetSand = srgbToLinear(vec3<f32>(0.50, 0.46, 0.39));
+    let drySand = srgbToLinear(vec3<f32>(0.84, 0.78, 0.63));
+    let sand = mix(wetSand, drySand, aboveSea);
+    base = mix(base, sand, clamp(in.beach * 1.15, 0.0, 1.0));
+    wetSheen = clamp(in.beach * (1.0 - aboveSea), 0.0, 1.0); // glossy band the tide keeps wet
+  }
   if (in.info.x > 0.5) { base = srgbToLinear(vec3<f32>(0.05, 0.22, 0.48)); }
   let amb = mix(srgbToLinear(vec3<f32>(0.34, 0.33, 0.30)), srgbToLinear(vec3<f32>(0.52, 0.55, 0.60)), N.y * 0.5 + 0.5);
   let sunCol = srgbToLinear(vec3<f32>(1.0, 0.96, 0.88));
   var col = base * (amb + sunCol * ndl * 0.85);
+  // wet sand near the tideline catches a low specular sheen
+  let Vt = normalize(ru.cam.xyz - in.world);
+  let Ht = normalize(L + Vt);
+  col = col + srgbToLinear(vec3<f32>(1.0, 0.98, 0.92)) * pow(max(dot(N, Ht), 0.0), 42.0) * wetSheen * 0.55;
   // char scar
   col = mix(col, srgbToLinear(vec3<f32>(0.10, 0.09, 0.085)), clamp(in.eco.y, 0.0, 1.0) * 0.82);
   // fire emissive (flickers via time in misc.z)
@@ -701,6 +717,7 @@ struct VSOut {
   @location(2) ocean: f32,
   @location(3) v: vec2<f32>,
   @location(4) onrm: vec3<f32>,
+  @location(5) shore: f32,   // ocean: 0 deep → 1 at the sand (drives shallows + surf)
 };
 
 fn hash12(p: vec2<f32>) -> f32 {
@@ -759,6 +776,7 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
   out.world = vec3<f32>(x, y, z);
   out.ocean = select(0.0, 1.0, isOcean);
   out.v = vel[vi];
+  out.shore = select(0.0, f32((flags[vi] >> 2u) & 15u) / 15.0, isOcean);
   return out;
 }
 
@@ -776,9 +794,13 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let cvar = vnoise(in.world.xz * 1.3 + vec2<f32>(tt * 0.03, -tt * 0.02)) - 0.5;
     // cohesive ocean body — same turquoise→deep-blue family as the inland water,
     // so the open sea reads as one continuous ocean rather than steel + navy patches
-    let deepC = srgbToLinear(vec3<f32>(0.05, 0.23, 0.40));
-    let midC = srgbToLinear(vec3<f32>(0.13, 0.43, 0.53));
+    let deepC = srgbToLinear(vec3<f32>(0.04, 0.20, 0.39));
+    let midC = srgbToLinear(vec3<f32>(0.10, 0.40, 0.52));
     var col = mix(deepC, midC, clamp(0.45 + in.depth * 16.0 + cvar * 0.35, 0.0, 1.0));
+    // shallows: as the sea thins over the sand it greens toward turquoise
+    let shore = in.shore;
+    let shallowC = srgbToLinear(vec3<f32>(0.26, 0.60, 0.61));
+    col = mix(col, shallowC, smoothstep(0.0, 1.0, shore) * 0.78);
     // fresnel sky reflection — kept gentle and cool so it tints the swell rather than
     // washing it to pale steel (the old clash was reflection vs body, not two blues)
     let refl = reflect(-V, N);
@@ -797,11 +819,18 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let crest = smoothstep(0.009, 0.015, in.depth);
     let foamN = smoothstep(0.5, 0.92, vnoise(in.world.xz * 16.0 + vec2<f32>(tt * 0.5, tt * 0.3)));
     col = mix(col, srgbToLinear(vec3<f32>(0.88, 0.93, 0.95)), clamp(crest * (0.35 + 0.5 * foamN), 0.0, 0.8));
-    return vec4<f32>(displayColor(col) * 0.96, 0.96);
+    // surf: a foam line that swells up the sand on the wave, then drains back
+    let surfWave = sin(in.world.x * 5.5 + in.world.z * 5.5 - tt * 1.5) * 0.5 + 0.5;
+    let surf = smoothstep(0.45, 0.95, shore) * (0.35 + 0.65 * smoothstep(0.3, 0.95, surfWave));
+    col = mix(col, srgbToLinear(vec3<f32>(0.93, 0.96, 0.97)), clamp(surf, 0.0, 0.9));
+    // the very edge thins toward transparent so the wet sand reads through the wash
+    let alpha = mix(0.96, 0.74, smoothstep(0.7, 1.0, shore));
+    return vec4<f32>(displayColor(col) * alpha, alpha);
   }
 
-  // ---- sim water (land): velocity-driven ripples ----
-  if (in.depth < 0.02) { discard; }
+  // ---- sim water (land): a feathered wet sheen at the rim deepening into pools ----
+  let edge = smoothstep(0.012, 0.07, in.depth);     // soft shoreline, no hard pixel cut
+  if (edge <= 0.002) { discard; }
   let t = ru.misc.z;
   let spd = length(in.v);
   let p = in.world.xz;
@@ -811,20 +840,18 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   rn += vec2<f32>(cos(dot(p, vec2<f32>(38.0, 11.0)) + t * 2.4), cos(dot(p, vec2<f32>(-13.0, 41.0)) - t * 2.0)) * 0.5;
   rn += flow * cos(fcoord) * clamp(spd, 0.0, 1.5);
   let N = normalize(vec3<f32>(rn.x * 0.07, 1.0, rn.y * 0.07));
-  // same ocean family as the open sea: turquoise shallows → deep teal-blue
-  let shallow = srgbToLinear(vec3<f32>(0.20, 0.52, 0.57));
-  let deep = srgbToLinear(vec3<f32>(0.05, 0.23, 0.40));
-  var col = mix(shallow, deep, clamp(in.depth / 1.3, 0.0, 1.0));
-  col = mix(col, srgbToLinear(vec3<f32>(0.40, 0.45, 0.44)), clamp(spd * 0.22, 0.0, 0.22));
+  // shallow water stays a quiet teal that lets the wet ground read through; pools deepen to blue
+  let shallow = srgbToLinear(vec3<f32>(0.11, 0.31, 0.35));
+  let deep = srgbToLinear(vec3<f32>(0.03, 0.18, 0.35));
+  var col = mix(shallow, deep, clamp(in.depth, 0.0, 1.0));
+  col = mix(col, srgbToLinear(vec3<f32>(0.34, 0.40, 0.40)), clamp(spd * 0.20, 0.0, 0.20));
   let spec = pow(max(dot(N, H), 0.0), 90.0);
-  col += srgbToLinear(vec3<f32>(1.0, 0.98, 0.9)) * spec * 1.1;
+  col += srgbToLinear(vec3<f32>(1.0, 0.98, 0.9)) * spec * 0.9;
   let fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-  col = mix(col, srgbToLinear(vec3<f32>(0.58, 0.78, 0.83)), fres * 0.4);
-  let foam = smoothstep(0.45, 1.1, spd);
-  let streak = smoothstep(0.55, 1.0, sin(fcoord * 0.5) * 0.5 + 0.5) * smoothstep(0.4, 1.0, spd);
-  col = mix(col, srgbToLinear(vec3<f32>(0.93, 0.96, 0.96)), clamp(foam * 0.45 + streak * 0.4, 0.0, 0.7));
-  var alpha = clamp(0.5 + in.depth * 0.4, 0.5, 0.93);
-  alpha = max(alpha, spec * 0.85);
+  col = mix(col, srgbToLinear(vec3<f32>(0.50, 0.70, 0.78)), fres * 0.30);
+  // transparent at the feathered rim (just a wet glint) → opaque where it ponds
+  var alpha = clamp(0.12 + in.depth * 0.9, 0.0, 0.92) * edge;
+  alpha = max(alpha, spec * 0.7 * edge);
   return vec4<f32>(displayColor(col) * alpha, alpha);
 }
 `;

@@ -33,10 +33,6 @@ const DEFAULT_VSCALE = 0.5;
 const SUBSTEPS = 2;
 const SAMPLE_COUNT = 4;
 
-// Consolidated "macro" controls — one slider sweeps a curated path through related
-// params so the full effect range survives. Raw params stay reachable under "advanced".
-const mix = (a: number, b: number, t: number) => a + (b - a) * t;
-const unmix = (a: number, b: number, v: number) => (b === a ? 0 : Math.min(1, Math.max(0, (v - a) / (b - a))));
 
 function hasWebGL(): boolean {
   try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); }
@@ -76,7 +72,7 @@ type Mode = "orbit" | "pour" | "ignite" | "meteor";
 type MeteorKind = 1 | 2 | 3;
 type MeteorFx = { id: number; x: number; y: number; kind: MeteorKind; angle: number };
 type SurrogateStatus = "idle" | "exporting" | "ready" | "error";
-type RainDrop = { x: number; z: number; gx: number; gz: number; seed: number; speed: number; length: number };
+type RainDrop = { x: number; z: number; gx: number; gz: number; seed: number; speed: number; length: number; ocean: boolean };
 
 function Ctl(props: {
   label: string; display: string; min: number; max: number; step: number;
@@ -132,7 +128,7 @@ const PANEL_CSS = `
 .cm-select{width:100%;margin-top:4px;padding:6px 8px;font-family:inherit;font-size:0.66rem;letter-spacing:0.08em;color:#1A1A18;background:rgba(255,255,255,0.5);border:1px solid #D8D3C8;border-radius:0;cursor:pointer;}
 .cm-select:focus{outline:none;border-color:#4A6741;}
 .cm-tagline{margin-top:5px;font-size:0.6rem;line-height:1.5;letter-spacing:0.02em;color:rgba(26,26,24,0.45);font-style:italic;}
-.cm-rain-canvas{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:multiply;}
+.cm-rain-canvas{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:normal;}
 .cm-meteor{position:absolute;width:210px;height:210px;left:var(--mx);top:var(--my);pointer-events:none;transform:translate(-50%,-50%);z-index:4;mix-blend-mode:screen;}
 .cm-meteor i{position:absolute;left:50%;top:50%;display:block;border-radius:999px;transform:translate(-50%,-50%);}
 .cm-meteor i:nth-child(1){width:4px;height:190px;transform-origin:50% 100%;transform:translate(-50%,-112%) rotate(var(--ma));background:linear-gradient(to top,rgba(255,252,225,1),rgba(226,119,45,.86) 32%,rgba(196,168,130,.24) 70%,transparent);filter:blur(.15px);animation:cm-meteor-streak .9s cubic-bezier(.17,.72,.13,1) forwards;}
@@ -245,13 +241,12 @@ export default function Catchment() {
       const latMid = (south + north) / 2;
       const cellMx = ((east - west) * 111320 * Math.cos((latMid * Math.PI) / 180)) / (n - 1);
       const cellWorld = (2 * HALF) / (n - 1);
-      const landCells: RainDrop[] = [];
+      const rainCells: RainDrop[] = [];
       for (let r = 1; r < n - 1; r += 2) {
         for (let c = 1; c < n - 1; c += 2) {
           const i = r * n + c;
-          if (dem.ocean[i]) continue;
           const seed = ((Math.sin((c * 12.9898 + r * 78.233) * 437.53) + 1) * 0.5) % 1;
-          landCells.push({
+          rainCells.push({
             gx: c,
             gz: r,
             x: (c / (n - 1)) * 2 * HALF - HALF,
@@ -259,10 +254,11 @@ export default function Catchment() {
             seed,
             speed: 0.8 + seed * 0.55,
             length: 0.08 + seed * 0.05,
+            ocean: dem.ocean[i] !== 0,    // rain over the sea ripples the surface too
           });
         }
       }
-      const rainDrops = landCells.sort((a, b) => a.seed - b.seed).slice(0, 380);
+      const rainDrops = rainCells.sort((a, b) => a.seed - b.seed).slice(0, 820);
 
       const drawFallback = () => requestAnimationFrame(() => {
         const cv = canvasRef.current; if (!cv) return;
@@ -293,16 +289,76 @@ export default function Catchment() {
       };
       const zeroBuf = (bytes: number) => device.createBuffer({ size: bytes, usage: SIM_ST });
 
+      // Beach: distance (in cells) from every land cell to the nearest ocean, via a
+      // multi-source BFS, then ramp the coastal band down to a gentle sandy foreshore
+      // so the shoreline reads as a beach instead of a sharp cliff.
+      const SEA_ELEV = 0.06;                       // normalised sea level (matches vs*0.06)
+      // Wide enough to ramp the tall coastal escarpment (elev ~0.5–0.8) down to the
+      // waterline as a gentle beach rather than a sliver that still reads as a cliff.
+      const BEACH_CELLS = Math.max(14, Math.round(n * 0.11));
+      const distOcean = new Int32Array(total).fill(-1);
+      const bfsQ = new Int32Array(total);
+      let qh = 0, qt = 0;
+      for (let i = 0; i < total; i++) if (dem.ocean[i]) { distOcean[i] = 0; bfsQ[qt++] = i; }
+      while (qh < qt) {
+        const i = bfsQ[qh++], r = (i / n) | 0, c = i % n, d = distOcean[i];
+        if (d >= BEACH_CELLS) continue;            // only need the band, stop expanding past it
+        if (c > 0 && distOcean[i - 1] < 0) { distOcean[i - 1] = d + 1; bfsQ[qt++] = i - 1; }
+        if (c < n - 1 && distOcean[i + 1] < 0) { distOcean[i + 1] = d + 1; bfsQ[qt++] = i + 1; }
+        if (r > 0 && distOcean[i - n] < 0) { distOcean[i - n] = d + 1; bfsQ[qt++] = i - n; }
+        if (r < n - 1 && distOcean[i + n] < 0) { distOcean[i + n] = d + 1; bfsQ[qt++] = i + n; }
+      }
+      const elevField = Float32Array.from(dem.elev);
+      const beachStrength = new Float32Array(total); // 0..1, strongest at the waterline
+      for (let i = 0; i < total; i++) {
+        const d = distOcean[i];
+        if (dem.ocean[i] || d <= 0 || d > BEACH_CELLS) continue;
+        const orig = dem.elev[i];
+        if (orig <= SEA_ELEV) continue;            // already at/below the water — leave it
+        const t = d / BEACH_CELLS;                 // 0 near water → 1 at the inner edge
+        const s = t * t * (3 - 2 * t);             // smoothstep → gentle slope by the water
+        elevField[i] = SEA_ELEV + (orig - SEA_ELEV) * s;
+        beachStrength[i] = 1 - s;
+      }
+
       const bedInit = new Float32Array(total);
       for (let i = 0; i < total; i++) {
         const r = Math.floor(i / n), c = i % n;
         const dist = Math.min(Math.min(c, n - 1 - c), Math.min(r, n - 1 - r)) / (n - 1);
         const t = Math.min(1, dist / 0.10);
         const fade = t * t * (3 - 2 * t); // smoothstep: 0 at edges, 1 beyond 10% inward
-        bedInit[i] = dem.elev[i] * HSCALE * fade;
+        bedInit[i] = elevField[i] * HSCALE * fade;
       }
+
+      // Ocean-side shoreline: distance (in cells) from each ocean cell back to land,
+      // so the sea can shallow to turquoise and break into surf as it nears the sand.
+      const SHORE_CELLS = 6;
+      const distLand = new Int32Array(total).fill(-1);
+      qh = 0; qt = 0;
+      for (let i = 0; i < total; i++) if (!dem.ocean[i]) { distLand[i] = 0; bfsQ[qt++] = i; }
+      while (qh < qt) {
+        const i = bfsQ[qh++], r = (i / n) | 0, c = i % n, dd = distLand[i];
+        if (dd >= SHORE_CELLS) continue;           // only the surf band needs filling
+        if (c > 0 && distLand[i - 1] < 0 && dem.ocean[i - 1]) { distLand[i - 1] = dd + 1; bfsQ[qt++] = i - 1; }
+        if (c < n - 1 && distLand[i + 1] < 0 && dem.ocean[i + 1]) { distLand[i + 1] = dd + 1; bfsQ[qt++] = i + 1; }
+        if (r > 0 && distLand[i - n] < 0 && dem.ocean[i - n]) { distLand[i - n] = dd + 1; bfsQ[qt++] = i - n; }
+        if (r < n - 1 && distLand[i + n] < 0 && dem.ocean[i + n]) { distLand[i + n] = dd + 1; bfsQ[qt++] = i + n; }
+      }
+
+      // flags bits 2–5 carry a 0–15 "shore strength": beach proximity on land cells,
+      // surf proximity on ocean cells. The terrain shader reads it only for land, the
+      // water shader only for ocean, so the same nibble serves both with no clash.
       const flags = new Uint32Array(total);
-      for (let i = 0; i < total; i++) flags[i] = (dem.ocean[i] ? 1 : 0) | (dem.stream[i] ? 2 : 0);
+      for (let i = 0; i < total; i++) {
+        let q4: number;
+        if (dem.ocean[i]) {
+          const dl = distLand[i];
+          q4 = dl > 0 && dl <= SHORE_CELLS ? Math.round((1 - (dl - 1) / SHORE_CELLS) * 15) : 0;
+        } else {
+          q4 = Math.round(Math.min(1, beachStrength[i]) * 15);
+        }
+        flags[i] = (dem.ocean[i] ? 1 : 0) | (dem.stream[i] ? 2 : 0) | (q4 << 2);
+      }
       const oceanU = new Uint32Array(total);
       for (let i = 0; i < total; i++) oceanU[i] = dem.ocean[i] ? 1 : 0;
 
@@ -325,7 +381,7 @@ export default function Catchment() {
         const hl = dem.elev[r * n + Math.max(0, c - 1)], hr = dem.elev[r * n + Math.min(n - 1, c + 1)];
         const hu = dem.elev[Math.max(0, r - 1) * n + c], hd = dem.elev[Math.min(n - 1, r + 1) * n + c];
         const sl = Math.min(1, Math.hypot(hl - hr, hu - hd) * 6);
-        fuelInit[i] = Math.max(0.05, 1 - sl * 0.8);
+        fuelInit[i] = Math.max(0.05, 1 - sl * 0.8) * (1 - beachStrength[i] * 0.85); // bare sand barely burns
       }
       const fuelBuf = mkBuf(fuelInit, SIM_ST);
       const fireBuf = zeroBuf(total * 4);
@@ -617,24 +673,27 @@ export default function Catchment() {
         const windRad = (wind.deg * Math.PI) / 180;
         const wx = Math.cos(windRad), wz = Math.sin(windRad);
         const intensity = Math.min(1, rainAmt / 0.02);
-        const active = Math.floor(rainDrops.length * (0.10 + intensity * 0.72));
+        const active = Math.floor(rainDrops.length * (0.14 + intensity * 0.84));
         const now = performance.now() * 0.001;
         ctx2.lineCap = "round";
 
         for (let k = 0; k < active; k++) {
           const drop = rainDrops[(k * 37) % rainDrops.length];
-          const phase = (drop.seed + now * drop.speed * (0.75 + wind.speed * 0.08)) % 1;
-          const groundY = sampleElev(dem, drop.gx, drop.gz) * vs + 0.004;
-          const lean = (0.035 + wind.speed * 0.022) * phase;
-          const skyY = groundY + 0.34 + intensity * 0.16 + drop.seed * 0.06;
-          const tip: Vec3 = [
-            drop.x - wx * lean,
-            groundY + (skyY - groundY) * (1 - phase),
-            drop.z - wz * lean,
-          ];
+          // depth layering: seed sorts drops near→far. Near drops fall faster, streak
+          // longer and brighter; far drops are short, faint and slow → parallax depth.
+          const depth = drop.seed;                                  // 0 far .. 1 near
+          const fall = 0.6 + depth * 0.95;
+          const phase = (drop.seed + now * drop.speed * fall * (0.8 + wind.speed * 0.06)) % 1;
+          const surfaceY = drop.ocean ? vs * 0.06 : sampleElev(dem, drop.gx, drop.gz) * vs;
+          const groundY = surfaceY + 0.004;
+          const lean = (0.03 + wind.speed * 0.02) * phase;
+          const skyY = groundY + 0.42 + intensity * 0.18 + depth * 0.14;
+          const tipY = groundY + (skyY - groundY) * (1 - phase);
+          const tip: Vec3 = [drop.x - wx * lean, tipY, drop.z - wz * lean];
+          const fallLen = drop.length * (0.5 + depth * 0.7 + intensity * 0.2);
           const tail: Vec3 = [
             tip[0] - wx * (drop.length * (0.16 + wind.speed * 0.08)),
-            tip[1] + drop.length * (0.48 + intensity * 0.18),
+            tip[1] + fallLen,
             tip[2] - wz * (drop.length * (0.16 + wind.speed * 0.08)),
           ];
           const a = projectToScreen(m, tail, w, h);
@@ -643,32 +702,47 @@ export default function Catchment() {
           const vx2 = b[0] - a[0];
           const vy2 = b[1] - a[1];
           const len2 = Math.hypot(vx2, vy2) || 1;
-          const maxLen = dpr * (5 + intensity * 8 + wind.speed * 1.4);
-          const sx = b[0] - (vx2 / len2) * Math.min(len2, maxLen);
-          const sy = b[1] - (vy2 / len2) * Math.min(len2, maxLen);
-          const alpha = (0.07 + intensity * 0.18) * (0.48 + Math.sin(phase * Math.PI) * 0.52);
-          ctx2.strokeStyle = `rgba(44,56,50,${alpha})`;
-          ctx2.lineWidth = Math.max(0.6, dpr * (0.32 + intensity * 0.24));
+          const maxLen = dpr * (10 + depth * 16 + intensity * 10 + wind.speed * 1.6);
+          const drawn = Math.min(len2, maxLen);
+          const sx = b[0] - (vx2 / len2) * drawn;
+          const sy = b[1] - (vy2 / len2) * drawn;
+          // motion-blurred streak: fully transparent tail fading up to a cool head,
+          // so each drop reads as a soft streak of falling water, not a hard scratch
+          // a slate blue-grey, dark enough to read against the bright sky yet still
+          // cool over the terrain; alpha pushed up so the rain is clearly present
+          const headA = (0.30 + intensity * 0.4) * (0.5 + depth * 0.5) * (0.5 + Math.sin(phase * Math.PI) * 0.5);
+          const grad = ctx2.createLinearGradient(sx, sy, b[0], b[1]);
+          grad.addColorStop(0, "rgba(82,104,128,0)");
+          grad.addColorStop(0.55, `rgba(88,110,134,${headA * 0.5})`);
+          grad.addColorStop(1, `rgba(96,120,146,${headA})`);
+          ctx2.strokeStyle = grad;
+          ctx2.lineWidth = Math.max(0.6, dpr * (0.55 + depth * 0.65 + intensity * 0.25));
           ctx2.beginPath();
           ctx2.moveTo(sx, sy);
           ctx2.lineTo(b[0], b[1]);
           ctx2.stroke();
-          if (intensity > 0.35 && k % 4 === 0) {
-            ctx2.fillStyle = `rgba(247,245,240,${alpha * 0.72})`;
-            ctx2.beginPath();
-            ctx2.arc(b[0], b[1], Math.max(0.6, dpr * 0.56), 0, Math.PI * 2);
-            ctx2.fill();
-          }
 
-          if (phase > 0.92) {
+          // impact: a bright splash core then an expanding ripple ring on the surface
+          // it lands on — wider and cooler on water, tight and pale on the ground
+          if (phase > 0.86) {
             const g = projectToScreen(m, [drop.x, groundY, drop.z], w, h);
             if (!g) continue;
-            const pulse = (phase - 0.92) / 0.08;
-            ctx2.strokeStyle = `rgba(247,245,240,${(1 - pulse) * (0.10 + intensity * 0.20)})`;
-            ctx2.lineWidth = Math.max(0.5, dpr * 0.28);
+            const pulse = (phase - 0.86) / 0.14;                    // 0 → 1 over the impact
+            const fade = 1 - pulse;
+            const ringR = dpr * (0.8 + pulse * (drop.ocean ? 5.4 : 3.2));
+            ctx2.strokeStyle = drop.ocean
+              ? `rgba(206,226,236,${fade * (0.16 + intensity * 0.22)})`
+              : `rgba(230,236,232,${fade * (0.12 + intensity * 0.18)})`;
+            ctx2.lineWidth = Math.max(0.5, dpr * 0.3);
             ctx2.beginPath();
-            ctx2.ellipse(g[0], g[1], dpr * (1.2 + pulse * 3.2), dpr * (0.35 + pulse * 1.0), -0.42, 0, Math.PI * 2);
+            ctx2.ellipse(g[0], g[1], ringR, ringR * 0.36, -0.42, 0, Math.PI * 2);
             ctx2.stroke();
+            if (pulse < 0.45) {
+              ctx2.fillStyle = `rgba(242,247,245,${(0.45 - pulse) * (0.5 + intensity * 0.5)})`;
+              ctx2.beginPath();
+              ctx2.arc(g[0], g[1], Math.max(0.6, dpr * (0.6 + pulse * 0.8)), 0, Math.PI * 2);
+              ctx2.fill();
+            }
           }
         }
       };
@@ -897,7 +971,10 @@ export default function Catchment() {
 
         const vs = exagRef.current;
         simData[0] = n; simData[1] = 0.02; simData[2] = 1.0; simData[3] = HSCALE;
-        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainRef.current; simData[7] = 0.012;
+        // evap is the key to physical-looking water: a strong sink so rain runs off
+        // slopes and only collects where it genuinely ponds (valleys, basins, channels)
+        // instead of blanketing every cell. Equilibrium film ≈ rain/evap.
+        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainRef.current; simData[7] = 0.06;
         const k = eroRef.current;
         simData[8] = 0.08 * k; simData[9] = 0.10 * k; simData[10] = 0.05 * k; simData[11] = 1.2;
         const pr = pourRef.current;
@@ -1092,12 +1169,19 @@ export default function Catchment() {
                 <button data-active={mode === "meteor"} onClick={() => setMode("meteor")}>Meteor</button>
               </div>
               <button className="cm-reset-btn" onClick={() => { resetNowRef.current?.(); resetRef.current = true; setPick(null); }}>Reset</button>
-              <Ctl label="water" display={`${Math.round(unmix(0, 0.02, rain) * 100)}`} min={0} max={1} step={0.01}
-                value={unmix(0, 0.02, rain)} onChange={(e) => { const t = +e.target.value; setRain(mix(0, 0.02, t)); setEro(mix(0, 1.5, t)); }} />
-              <Ctl label="wind" display={`${Math.round(unmix(0, 3, windSpeed) * 100)}`} min={0} max={1} step={0.01}
-                value={unmix(0, 3, windSpeed)} onChange={(e) => setWindSpeed(mix(0, 3, +e.target.value))} />
-              <Ctl label="light" display={`${Math.round(unmix(0, 360, sunDeg) * 100)}`} min={0} max={1} step={0.01}
-                value={unmix(0, 360, sunDeg)} onChange={(e) => { const t = +e.target.value; setSunDeg(mix(0, 360, t)); setExag(mix(0.35, 0.75, t)); }} />
+              <div className="cm-section">Water</div>
+              <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
+                value={rain} onChange={(e) => setRain(+e.target.value)} />
+              <Ctl label="erosion" display={`${Math.round((ero / 1.5) * 100)}`} min={0} max={1.5} step={0.02}
+                value={ero} onChange={(e) => setEro(+e.target.value)} />
+              <div className="cm-section">Wind</div>
+              <Ctl label="strength" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
+                value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
+              <div className="cm-section">Light</div>
+              <Ctl label="sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1}
+                value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
+              <Ctl label="relief" display={`${Math.round(((exag - 0.2) / 0.7) * 100)}`} min={0.2} max={0.9} step={0.01}
+                value={exag} onChange={(e) => setExag(+e.target.value)} />
               <p className="cm-hint">
                 {mode === "pour" ? "Drag the terrain to pour water."
                   : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
@@ -1109,15 +1193,8 @@ export default function Catchment() {
               </button>
               {advanced && (
                 <>
-                  <div className="cm-section">Water</div>
-                  <Ctl label="Rainfall" display={(rain * 1000).toFixed(0)} min={0} max={0.02} step={0.001} value={rain} onChange={(e) => setRain(+e.target.value)} />
-                  <Ctl label="Erosion" display={`×${ero.toFixed(2)}`} min={0} max={1.5} step={0.05} value={ero} onChange={(e) => setEro(+e.target.value)} />
-                  <div className="cm-section">Fire</div>
-                  <Ctl label="Wind dir" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1} value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
-                  <Ctl label="Wind" display={`×${windSpeed.toFixed(1)}`} min={0} max={3} step={0.1} value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
-                  <div className="cm-section">View</div>
-                  <Ctl label="Sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1} value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
-                  <Ctl label="Relief" display={`×${exag.toFixed(2)}`} min={0.2} max={0.9} step={0.01} value={exag} onChange={(e) => setExag(+e.target.value)} />
+                  <div className="cm-section">Wind direction</div>
+                  <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1} value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
                 </>
               )}
             </>
