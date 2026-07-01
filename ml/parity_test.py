@@ -3,8 +3,10 @@
 the lib/catchment/surrogate.ts CPU math. Catches the GELU-variant class of bug.
 
 The numpy reference below is a hand port of surrogate.ts (independent tanh-GELU
-formula, replicate-pad dilated conv, residual on in==out, final residual add) — it
-shares NO gelu code with PyTorch, so agreement is meaningful, not circular.
+formula, replicate-pad dilated conv, residual on in==out, 2-channel edge-flux output,
+flux divergence) — it shares NO gelu/divergence code with PyTorch, so agreement is
+meaningful, not circular. We compare the transport ΔW = div(flux) on both sides
+(isolates the forward pass + divergence; rain/evap/ocean are trivial elementwise).
 
 Usage: python ml/parity_test.py [path/to/surrogate.json]
 """
@@ -46,9 +48,19 @@ def ts_conv(inp, cin, h, w, weight, bias, cout, dil):
         out[co] = acc
     return out
 
+def ts_flux_div(gx, gy, n):  # mirrors fluxDivergence() in surrogate.ts (closed boundary)
+    dW = np.zeros((n, n), dtype=np.float64)
+    for y in range(n):
+        for x in range(n):
+            outR = gx[y, x] if x < n - 1 else 0.0
+            inL = gx[y, x - 1] if x > 0 else 0.0
+            outD = gy[y, x] if y < n - 1 else 0.0
+            inU = gy[y - 1, x] if y > 0 else 0.0
+            dW[y, x] = inL - outR + (inU - outD)
+    return dW
+
 def ts_forward(model_json, water, bed_norm, rain, n):
     arch = model_json["arch"]; Wts = model_json["weights"]
-    hw = n * n
     cur = np.stack([water, bed_norm, np.full((n, n), rain * 100.0)], 0).astype(np.float64)
     curC = 3
     for ly in arch["layers"]:
@@ -60,11 +72,11 @@ def ts_forward(model_json, water, bed_norm, rain, n):
         if ly.get("residual") and ly["in"] == ly["out"]:
             z = z + cur
         cur = z; curC = ly["out"]
-    return water + cur[0]   # raw next water (pre output-op)
+    return ts_flux_div(cur[0], cur[1], n)   # ΔW = divergence of the 2-ch edge flux
 
 def main():
     m = json.load(open(PATH))
-    assert m["format"] == "catchment-surrogate-v1"
+    assert m["format"] == "catchment-surrogate-v2", f"expected v2, got {m['format']}"
     print(f"model: {PATH}  trainRes={m['arch'].get('trainRes')}  gelu={m['arch'].get('gelu','?')}")
 
     # rebuild PyTorch model from exported weights
@@ -78,7 +90,7 @@ def main():
     for i in range(len(dils)):
         sd[f"blocks.{i}.conv.weight"] = torch.tensor(b64f(W[f"blk{i}.w"]).reshape(ch, ch, 3, 3))
         sd[f"blocks.{i}.conv.bias"] = torch.tensor(b64f(W[f"blk{i}.b"]))
-    sd["out.weight"] = torch.tensor(b64f(W["out.w"]).reshape(1, ch, 3, 3))
+    sd["out.weight"] = torch.tensor(b64f(W["out.w"]).reshape(2, ch, 3, 3))
     sd["out.bias"] = torch.tensor(b64f(W["out.b"]))
     net.load_state_dict({k: v.double() for k, v in sd.items()})
 
@@ -90,11 +102,10 @@ def main():
     rain = 0.012
 
     with torch.no_grad():
-        # raw pre-output-op water+delta on BOTH sides (isolates the forward pass)
-        dW = net.delta(torch.tensor(water, dtype=torch.float64)[None],
+        # transport ΔW = div(flux) on BOTH sides (isolates forward pass + divergence)
+        py = net.delta(torch.tensor(water, dtype=torch.float64)[None],
                        torch.tensor(bed_norm, dtype=torch.float64),
                        torch.tensor([rain], dtype=torch.float64))[0].numpy()
-        py = water.astype(np.float64) + dW
     ref = ts_forward(m, water.astype(np.float64), bed_norm.astype(np.float64), rain, n)
 
     diff = np.abs(py - ref)

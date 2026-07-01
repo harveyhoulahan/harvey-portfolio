@@ -466,7 +466,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 // its divergence (ΔW, mass-conserving, closed outer boundary), then apply rain and
 // evaporation analytically and zero ocean cells — the exact canonical_step shared
 // with the PyTorch trainer and surrogate.ts. Because divergence conserves mass,
-// water cannot run away: the clamp is a WIDE safety rail (8.0) that must never bind.
+// water is bounded by physics alone — no upper clamp is applied.
 export const NEURAL_APPLY_WGSL = /* wgsl */ `
 struct PU { n: u32, rain: f32, dt: f32, evap: f32 };
 @group(0) @binding(0) var<uniform> pu: PU;
@@ -488,7 +488,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   if (y > 0u)     { dW = dW + flux[hw + i - n]; }  // import from up neighbour
   var v = wat[i] + pu.rain * pu.dt + dW;           // rain (analytic) + transport
   v = max(v, 0.0) * (1.0 - pu.evap * pu.dt);       // evaporation (analytic)
-  wat[i] = clamp(v, 0.0, 8.0);
+  wat[i] = max(v, 0.0);                             // flux-div is conservative: no upper clamp needed
 }
 `;
 

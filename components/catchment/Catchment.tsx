@@ -875,7 +875,7 @@ export default function Catchment() {
       const BGskirt = device.createBindGroup({ layout: P.skirt.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ruBuf } }, { binding: 1, resource: { buffer: bedBuf } }, { binding: 2, resource: { buffer: skirtBuf } }] });
 
       // ---- M4: neural surrogate (GPU inference). Fully gated + isolated: if a
-      // valid catchment-surrogate-v1 model is absent or anything fails, the
+      // valid catchment-surrogate-v2 model is absent or anything fails, the
       // physics engine is completely untouched. Mirrors lib/catchment/surrogate.ts.
       let neuralOK = false;
       let neuralWatBuf: any = null;
@@ -893,7 +893,11 @@ export default function Catchment() {
             neuralWatBuf = zeroBuf(total * 4);
             const auBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
             const puBuf = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-            { const pb = new ArrayBuffer(16); new Uint32Array(pb)[0] = n; device.queue.writeBuffer(puBuf, 0, pb); }
+            // PU = { n:u32, rain:f32, dt:f32, evap:f32 }. n/dt/evap are constant; rain
+            // is refreshed each frame in runNeural. dt/evap come from the model JSON so
+            // the WGSL apply matches canonical_step in the trainer exactly.
+            const nDt = model.arch.dt ?? 0.02;
+            const nEvap = model.arch.evap ?? 0.012;
             const nMods = { asm: cs(NEURAL_ASSEMBLE_WGSL), conv: cs(NEURAL_CONV_WGSL), apply: cs(NEURAL_APPLY_WGSL) };
             const Pn = { asm: cpipe(nMods.asm), conv: cpipe(nMods.conv), apply: cpipe(nMods.apply) };
             const actCode = (a: string) => (a === "gelu" ? 1 : a === "relu" ? 2 : 0);
@@ -909,18 +913,21 @@ export default function Catchment() {
               convBGs.push({ bg: bg(Pn.conv, [cuBuf, cur, nxt, wBuf, bBuf]), count: Math.ceil((l.out * total) / 64) });
               const t = cur; cur = nxt; nxt = t;
             }
-            const deltaBuf = cur; // last layer (out=1) output lives here
+            const fluxBufN = cur; // last layer (out=2) edge flux (gx,gy) lives here
             // bedNorm input uses the STATIC edge-faded bed (bed0Buf), matching the
             // bed the model trains on. (The live bedBuf erodes over time; the model
             // was trained on a static bed, so feeding it the live bed would drift the
             // input off-distribution.)
             const bgAsm = bg(Pn.asm, [auBuf, neuralWatBuf, bed0Buf, featA]);
-            const bgApply = bg(Pn.apply, [puBuf, deltaBuf, neuralWatBuf, oceanBuf]);
+            const bgApply = bg(Pn.apply, [puBuf, fluxBufN, neuralWatBuf, oceanBuf]);
             bgWaterNeural = bg(P.water, [ruBuf, bedBuf, neuralWatBuf, flagsBuf, velBuf]);
             const WGc = Math.ceil(total / 64);
             runNeural = (encoder: any) => {
               const ab = new ArrayBuffer(16); new Uint32Array(ab)[0] = n; const af = new Float32Array(ab); af[2] = HSCALE; af[3] = rainRef.current;
               device.queue.writeBuffer(auBuf, 0, ab);
+              // PU: refresh rain each frame (n/dt/evap constant across the run).
+              const pb = new ArrayBuffer(16); new Uint32Array(pb)[0] = n; const pf = new Float32Array(pb); pf[1] = rainRef.current; pf[2] = nDt; pf[3] = nEvap;
+              device.queue.writeBuffer(puBuf, 0, pb);
               const cp2 = encoder.beginComputePass();
               cp2.setPipeline(Pn.asm); cp2.setBindGroup(0, bgAsm); cp2.dispatchWorkgroups(WGc);
               for (const c of convBGs) { cp2.setPipeline(Pn.conv); cp2.setBindGroup(0, c.bg); cp2.dispatchWorkgroups(c.count); }
@@ -967,8 +974,9 @@ export default function Catchment() {
         bloomOK = true;
       } catch (e) { console.warn("[catchment] bloom unavailable:", e); bloomOK = false; }
 
-      // Auto-resync neural water to physics every ~3s to prevent long-term drift.
-      // Real frame loop (uses indexBuf). Overrides the placeholder above.
+      // Real frame loop (uses indexBuf). Overrides the placeholder above. Neural water
+      // is a standalone autoregressive rollout (no auto-resync): the flux-divergence
+      // operator is mass-conserving, so it stays stable without periodic reseeding.
       const realFrame = () => {
         if (disposed) return;
         const { w, h } = sizeCanvas(); ensureAttachments(w, h);

@@ -168,9 +168,7 @@ function canonicalStep(dW: Float32Array, water: Float32Array, ocean: Uint8Array 
     let v = (water[i] + rainAdd + dW[i]);
     if (v < 0) v = 0;
     v *= evapMul;
-    // wide safety rail (8.0); flux-divergence makes water conservative, so this must
-    // never bind in normal operation. Mirrors NEURAL_APPLY_WGSL.
-    next[i] = v > 8.0 ? 8.0 : v;
+    next[i] = v; // flux-divergence is conservative; no upper clamp needed
   }
   return next;
 }
