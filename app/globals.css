@@ -3,18 +3,19 @@
 @tailwind utilities;
 
 /*
- * Harvey Houlahan — Geospatial ML Infrastructure Engineer
- * Light-only architectural design system. Precision meets raw materiality:
- * concrete-warm background, structural typography, deliberate negative space.
+ * Harvey Houlahan — Spatial · Simulation · ML Engineer
+ * "CALDERA-CIR" design system: the survey-sheet aesthetic. Cool hillshade
+ * paper, contour hairlines, mono annotations — chrome that reads like a
+ * 1:25k topographic sheet published by someone who hand-writes WGSL.
  */
 
 :root {
-  --background: #f7f5f0; /* warm off-white, like raw concrete or linen */
-  --foreground: #1a1a18; /* near-black, warm not cold */
-  --sage: #4a6741; /* muted sage green — native vegetation / nature signal */
-  --sand: #c4a882; /* warm sand / timber */
-  --surface: #efece5; /* section / card surface */
-  --hairline: #d8d3c8; /* subtle border */
+  --background: #ecefea; /* hillshade paper */
+  --foreground: #161f1b; /* rainforest shadow */
+  --flow: #14655a; /* channel teal — accent */
+  --infra: #b23a18; /* CIR vegetation red — signal */
+  --terrace: #e2e7e0; /* bench surface */
+  --contour: #c3ccc2; /* contour hairline */
 }
 
 * {
@@ -26,72 +27,49 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  background-color: var(--background);
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Inter, system-ui, sans-serif;
+  font-family: var(--font-sans), "IBM Plex Sans", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern", "liga", "calt";
 }
 
 ::selection {
-  background-color: var(--sage);
+  background-color: var(--flow);
   color: var(--background);
 }
 
-/*
- * Subtle "purple & blue" atmosphere — echoes the Byron Bay relief map. A pair
- * of faint indigo/periwinkle glows sit behind all content (above the warm
- * background, below the foreground), giving the cream a quiet cool depth.
- */
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(58vw 52vh at 94% 6%, rgba(86, 86, 178, 0.1), transparent 68%),
-    radial-gradient(52vw 46vh at 4% 98%, rgba(44, 36, 92, 0.08), transparent 70%);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  body::before {
-    animation: aurora-drift 24s ease-in-out infinite alternate;
-  }
-}
-
-@keyframes aurora-drift {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  100% {
-    transform: translate3d(-2%, 1.5%, 0) scale(1.06);
-  }
+/* Visible keyboard focus, everywhere. */
+:focus-visible {
+  outline: 2px solid var(--flow);
+  outline-offset: 3px;
 }
 
 @layer base {
-  /* Type scale kept deliberately tight — three sizes, large and confident. */
+  /* Type scale kept deliberately tight — three sizes, set in Archivo, dense
+     and instrument-like rather than editorial. */
   h1,
   h2,
   h3 {
-    font-family: var(--font-display), "Playfair Display", Georgia, serif;
-    font-weight: 500;
-    letter-spacing: -0.01em;
-    line-height: 1.05;
+    font-family: var(--font-display), "Archivo", system-ui, sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.04;
     color: var(--foreground);
   }
   h1 {
-    font-size: clamp(2.75rem, 6vw, 4.5rem);
+    font-size: clamp(2.6rem, 5.5vw, 4.25rem);
   }
   h2 {
-    font-size: clamp(2rem, 4vw, 3rem);
+    font-size: clamp(1.9rem, 3.8vw, 2.75rem);
   }
   h3 {
-    font-size: clamp(1.4rem, 2.5vw, 1.875rem);
+    font-size: clamp(1.35rem, 2.4vw, 1.75rem);
   }
   p {
     line-height: 1.7;
@@ -130,7 +108,7 @@ body::before {
     font-size: 0.72rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--sage);
+    color: var(--flow);
   }
 
   /* Inline stack tag — no icon grids, just honest type. */
@@ -139,34 +117,70 @@ body::before {
     font-size: 0.78rem;
     letter-spacing: 0.01em;
     padding: 0.28rem 0.7rem;
-    border: 1px solid var(--hairline);
-    border-radius: 2px;
+    border: 1px solid var(--contour);
+    border-radius: 0;
     color: var(--foreground);
     background-color: transparent;
     white-space: nowrap;
+    transition: border-color 0.2s ease;
+  }
+  .stack-tag:hover {
+    border-color: var(--flow);
   }
 
-  /* Case study block — full-width, sage structural left border. */
+  /* Case study block — contour hairline with a survey benchmark at datum. */
   .case-block {
-    border-left: 2px solid var(--sage);
+    position: relative;
+    border-left: 1px solid var(--contour);
     padding-left: clamp(1.25rem, 4vw, 2.5rem);
   }
+  .case-block::before {
+    content: "";
+    position: absolute;
+    left: -3.5px;
+    top: 0.55rem;
+    width: 6px;
+    height: 6px;
+    background: var(--flow);
+  }
 
-  /* Primary call-to-action — solid sage, no gradients, no glass. */
+  /* Primary call-to-action — solid channel teal, square-cut. On hover the
+     darker fill sweeps in from the left like a plotter carriage. */
   .btn-primary {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
-    background-color: var(--sage);
+    background-color: var(--flow);
+    background-image: linear-gradient(90deg, #0f5147 0%, #0f5147 50%, var(--flow) 50%);
+    background-size: 200% 100%;
+    background-position: 100% 0;
     color: var(--background);
     padding: 0.8rem 1.4rem;
-    border-radius: 2px;
+    border-radius: 0;
     font-size: 0.95rem;
     font-weight: 500;
-    transition: background-color 0.2s ease;
+    transition: background-position 0.35s cubic-bezier(0.65, 0, 0.35, 1);
   }
   .btn-primary:hover {
-    background-color: #3d5636;
+    background-position: 0 0;
+  }
+
+  /* While a form is in flight the button becomes a flowing channel — the
+     stream keeps moving until the request resolves. */
+  .btn-sending {
+    background-image: repeating-linear-gradient(
+      90deg,
+      #0f5147 0 12px,
+      var(--flow) 12px 24px
+    );
+    background-size: auto;
+    background-position: 0 0;
+    animation: btn-stream 0.7s linear infinite;
+  }
+  @keyframes btn-stream {
+    to {
+      background-position: 24px 0;
+    }
   }
 
   /* Secondary — outlined, structural. */
@@ -177,7 +191,7 @@ body::before {
     border: 1px solid var(--foreground);
     color: var(--foreground);
     padding: 0.8rem 1.4rem;
-    border-radius: 2px;
+    border-radius: 0;
     font-size: 0.95rem;
     font-weight: 500;
     transition: background-color 0.2s ease, color 0.2s ease;
@@ -186,9 +200,67 @@ body::before {
     background-color: var(--foreground);
     color: var(--background);
   }
+
+  /*
+   * Survey corner ticks — the registration marks on a map sheet. Draws a
+   * short horizontal + vertical tick in each corner of the element.
+   */
+  .survey-corners {
+    position: relative;
+  }
+  .survey-corners::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    background-image:
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground)),
+      linear-gradient(var(--foreground), var(--foreground));
+    background-size:
+      10px 1px, 1px 10px,
+      10px 1px, 1px 10px,
+      10px 1px, 1px 10px,
+      10px 1px, 1px 10px;
+    background-position:
+      top -1px left -1px, top -1px left -1px,
+      top -1px right -1px, top -1px right -1px,
+      bottom -1px left -1px, bottom -1px left -1px,
+      bottom -1px right -1px, bottom -1px right -1px;
+    opacity: 0.35;
+    transition: opacity 0.25s ease;
+  }
+  .group:hover > .survey-corners::after,
+  .survey-corners:hover::after {
+    opacity: 0.9;
+  }
+
+  /* Graticule tick strip — the ruler edge under the navbar. */
+  .graticule-ticks {
+    height: 4px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--contour) 0 1px,
+      transparent 1px 64px
+    );
+  }
+
+  /* Survey graph paper — a faint drafting grid for section bands. */
+  .graticule-grid {
+    background-image:
+      linear-gradient(rgba(107, 125, 115, 0.13) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(107, 125, 115, 0.13) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
 }
 
-/* Single, subtle entrance — the only motion on the page. */
+/* Single, subtle entrance — the only page-level motion. */
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -202,6 +274,26 @@ body::before {
 
 .animate-enter {
   animation: fade-in-up 0.7s cubic-bezier(0.2, 0.6, 0.2, 1) both;
+}
+
+/* Contour motif on playground cards: redraw on hover. */
+@keyframes contour-draw {
+  from {
+    stroke-dashoffset: var(--motif-len, 360);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.contour-motif path {
+  stroke-dasharray: var(--motif-len, 360);
+  stroke-dashoffset: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .group:hover .contour-motif path,
+  .group:focus-visible .contour-motif path {
+    animation: contour-draw 0.9s cubic-bezier(0.65, 0, 0.35, 1) both;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

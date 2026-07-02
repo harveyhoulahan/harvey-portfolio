@@ -17,11 +17,11 @@ export default function OpengraphImage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          backgroundColor: "#F7F5F0",
-          color: "#1A1A18",
+          backgroundColor: "#ECEFEA",
+          color: "#161F1B",
           padding: "72px",
-          fontFamily: "Georgia, serif",
-          borderLeft: "16px solid #4A6741",
+          fontFamily: "Helvetica, Arial, sans-serif",
+          borderLeft: "16px solid #14655A",
         }}
       >
         <div
@@ -29,20 +29,20 @@ export default function OpengraphImage() {
             fontSize: 26,
             letterSpacing: 6,
             textTransform: "uppercase",
-            color: "#4A6741",
+            color: "#14655A",
             fontFamily: "monospace",
           }}
         >
           Geospatial ML Infrastructure
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 84, lineHeight: 1.05 }}>Harvey Houlahan</div>
+          <div style={{ fontSize: 84, lineHeight: 1.05, fontWeight: 700, letterSpacing: -2 }}>Harvey Houlahan</div>
           <div
             style={{
               fontSize: 34,
               marginTop: 24,
               lineHeight: 1.35,
-              color: "#3a3a36",
+              color: "#3d4a44",
               fontFamily: "Helvetica, Arial, sans-serif",
             }}
           >
@@ -52,7 +52,7 @@ export default function OpengraphImage() {
         <div
           style={{
             fontSize: 24,
-            color: "#1A1A18",
+            color: "#161F1B",
             fontFamily: "monospace",
             letterSpacing: 1,
           }}

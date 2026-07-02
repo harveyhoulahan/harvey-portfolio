@@ -12,8 +12,8 @@ const headingStyles = {
     to: "scale(1.12)",
   },
   color: {
-    from: "#1A1A18",
-    to: "#4A6741",
+    from: "#161F1B",
+    to: "#14655A",
   },
 } as const;
 
@@ -27,7 +27,7 @@ export default function WorkshopHero() {
   return (
     <div
       ref={heroRef}
-      className="relative overflow-hidden border-b border-hairline"
+      className="graticule-grid relative overflow-hidden border-b border-contour"
     >
       <div className="col-shell flex min-h-[70vh] max-w-work flex-col justify-between py-16 md:py-24">
         <div className="flex flex-1 flex-col justify-center">
@@ -35,7 +35,7 @@ export default function WorkshopHero() {
           <h1 className="mt-6 font-display leading-[0.85]">
             <TextCursorProximity
               label="THE"
-              className="block text-[20vw] font-semibold tracking-tight md:text-[12rem]"
+              className="block text-[15vw] font-semibold tracking-tight md:text-[min(12rem,13vw)]"
               styles={headingStyles}
               falloff="gaussian"
               radius={150}
@@ -43,7 +43,7 @@ export default function WorkshopHero() {
             />
             <TextCursorProximity
               label="WORKSHOP"
-              className="block text-[20vw] font-semibold tracking-tight md:text-[12rem]"
+              className="block text-[15vw] font-semibold tracking-tight md:text-[min(12rem,13vw)]"
               styles={headingStyles}
               falloff="gaussian"
               radius={150}
@@ -53,7 +53,7 @@ export default function WorkshopHero() {
         </div>
 
         {/* Auto-scrolling project name pills */}
-        <div className="mt-12 w-full overflow-hidden border-t border-hairline pt-8">
+        <div className="mt-12 w-full overflow-hidden border-t border-contour pt-8">
           <motion.div
             className="flex w-max items-center gap-4"
             animate={reduceMotion ? undefined : { x: ["0%", "-33.333%"] }}
@@ -69,10 +69,10 @@ export default function WorkshopHero() {
             {marqueeItems.map((project, index) => (
               <span
                 key={`${project.id}-${index}`}
-                className="inline-flex shrink-0 items-center gap-2 rounded-full border border-hairline bg-surface px-5 py-2 font-mono text-xs uppercase tracking-[0.12em] text-ink/70"
+                className="inline-flex shrink-0 items-center gap-2 border border-contour bg-terrace px-5 py-2 font-mono text-xs uppercase tracking-[0.12em] text-ink/70"
               >
                 <span
-                  className="h-1.5 w-1.5 rounded-full bg-sage"
+                  className="h-1.5 w-1.5 bg-flow"
                   aria-hidden
                 />
                 {project.company}

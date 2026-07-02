@@ -366,7 +366,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let dz = f32(r) - u.ign.y;
   let dist = sqrt(dx * dx + dz * dz);
   let radius = max(u.ign.z, 1.0);
-  if (dist > radius * 1.22) { return; }
+  // 2.6r covers the ejecta-ray halo; crater edits stay inside 1.22r.
+  if (dist > radius * 2.6) { return; }
 
   let kind = u.ign.w;
   let isIron = kind > 1.5 && kind < 2.5;
@@ -377,20 +378,51 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let ignition = select(select(0.25, 0.12, isIron), 1.0, isVolatile);
   let dry = select(select(0.35, 0.45, isIron), 0.8, isVolatile);
 
-  let core = 1.0 - smoothstep(0.0, radius * 0.72, dist);
-  let bowl = pow(max(core, 0.0), 1.55);
-  let rim = smoothstep(radius * 0.52, radius * 0.88, dist) * (1.0 - smoothstep(radius * 0.88, radius * 1.2, dist));
-  bed[i] = max(0.0, bed[i] - bowl * depth + rim * rimLift);
+  // Ejecta rays: bright streaks of thrown material at fixed angles around the
+  // crater — the pattern every fresh lunar crater wears. Phase keyed off the
+  // impact position so no two craters share ray directions.
+  let theta = atan2(dz, dx);
+  let rayN = select(select(7.0, 9.0, isIron), 12.0, isVolatile);
+  let ray = pow(0.5 + 0.5 * cos(theta * rayN + u.ign.x * 1.7 + u.ign.y * 0.9), 3.0);
 
-  let dir = normalize(vec2<f32>(dx, dz) + vec2<f32>(0.0001, 0.0));
-  vel[i] = clamp(vel[i] + dir * (bowl + rim) * splash * 2.5, vec2<f32>(-5.0), vec2<f32>(5.0));
-  wat[i] = max(0.0, wat[i] * (1.0 - bowl * 0.72) + rim * splash * 0.16);
+  if (dist <= radius * 1.22) {
+    let core = 1.0 - smoothstep(0.0, radius * 0.72, dist);
+    let bowl = pow(max(core, 0.0), 1.55);
+    // rim modulated by the rays so the crater lip reads scalloped, not stamped
+    let rim = smoothstep(radius * 0.52, radius * 0.88, dist) * (1.0 - smoothstep(radius * 0.88, radius * 1.2, dist));
+    var db = -bowl * depth + rim * rimLift * (0.72 + 0.56 * ray);
+    // iron impactors rebound a central peak, like real complex craters
+    if (isIron) {
+      let peak = 1.0 - smoothstep(0.0, radius * 0.24, dist);
+      db = db + pow(peak, 1.6) * depth * 0.46;
+    }
+    bed[i] = max(0.0, bed[i] + db);
 
-  let heat = bowl * ignition + rim * ignition * 0.35;
-  fuel[i] = max(0.0, fuel[i] - bowl * dry * 0.4);
-  charr[i] = clamp(charr[i] + heat * 0.28, 0.0, 1.0);
-  if (heat > 0.2 && fuel[i] > 0.08) {
-    fire[i] = max(fire[i], clamp(heat, 0.0, 1.0));
+    let dir = normalize(vec2<f32>(dx, dz) + vec2<f32>(0.0001, 0.0));
+    vel[i] = clamp(vel[i] + dir * (bowl + rim) * splash * 2.5, vec2<f32>(-5.0), vec2<f32>(5.0));
+    wat[i] = max(0.0, wat[i] * (1.0 - bowl * 0.72) + rim * splash * 0.16);
+
+    let heat = bowl * ignition + rim * ignition * 0.35;
+    fuel[i] = max(0.0, fuel[i] - bowl * dry * 0.4);
+    charr[i] = clamp(charr[i] + heat * 0.28, 0.0, 1.0);
+    if (heat > 0.2 && fuel[i] > 0.08) {
+      fire[i] = max(fire[i], clamp(heat, 0.0, 1.0));
+    }
+    // volatile impactors throw a burning ring beyond the rim
+    if (isVolatile) {
+      let ring = smoothstep(radius * 0.85, radius * 1.05, dist) * (1.0 - smoothstep(radius * 1.05, radius * 1.22, dist));
+      if (ring > 0.15 && fuel[i] > 0.08) { fire[i] = max(fire[i], ring); }
+    }
+  } else {
+    // beyond the rim: ray scarring — scorched fuel and char along the ejecta
+    // streaks, fading with distance. Volatile rocks scorch hardest.
+    let zone = 1.0 - smoothstep(radius * 1.1, radius * 2.5, dist);
+    let scorch = ray * zone * select(select(0.55, 0.4, isIron), 1.0, isVolatile);
+    charr[i] = clamp(charr[i] + scorch * 0.5, 0.0, 1.0);
+    fuel[i] = max(0.0, fuel[i] - scorch * 0.35);
+    if (isVolatile && scorch > 0.4 && fuel[i] > 0.1) {
+      fire[i] = max(fire[i], scorch * 0.6);
+    }
   }
 }
 `;
@@ -520,7 +552,10 @@ fn displayColor(linear: vec3<f32>) -> vec3<f32> {
 `;
 
 export const RENDER_TERRAIN_WGSL = /* wgsl */ `
-struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32> };
+// impact = (worldX, worldZ, kind*100 + ageSeconds, radiusWorld) — the last
+// meteor strike; drives the incandescent crater glow that cools over ~6s.
+// radiusWorld <= 0 means no live impact.
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32> };
 @group(0) @binding(0) var<uniform> ru: RU;
 @group(0) @binding(1) var<storage, read> bed: array<f32>;
 @group(0) @binding(2) var<storage, read> nrm: array<vec4<f32>>;
@@ -614,6 +649,24 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   // fire emissive (flickers via time in misc.z)
   let flick = 0.8 + 0.2 * sin(ru.misc.z * 24.0 + in.world.x * 30.0);
   col = col + srgbToLinear(vec3<f32>(1.0, 0.45, 0.12)) * in.eco.z * 2.2 * flick;
+  // incandescent crater: white-hot core cooling through orange to dull red
+  // over ~6 seconds, shimmering slightly. Bloom picks this up.
+  if (ru.impact.w > 0.0) {
+    let ik = floor(ru.impact.z / 100.0);
+    let age = ru.impact.z - ik * 100.0;
+    let dImp = distance(in.world.xz, ru.impact.xy);
+    let rw = ru.impact.w;
+    let cool = exp(-age * 0.55);
+    let hotCore = 1.0 - smoothstep(0.0, rw * 0.78, dImp);
+    let hotRim = (smoothstep(rw * 0.55, rw * 0.85, dImp) - smoothstep(rw * 0.85, rw * 1.25, dImp)) * 0.4;
+    let hot = (pow(hotCore, 1.4) + max(hotRim, 0.0)) * cool;
+    if (hot > 0.001) {
+      let hotCol = mix(srgbToLinear(vec3<f32>(0.9, 0.16, 0.02)), srgbToLinear(vec3<f32>(1.0, 0.86, 0.6)), clamp(cool, 0.0, 1.0));
+      let boost = select(2.4, 3.4, ik >= 2.5);
+      let shimmer = 0.85 + 0.15 * sin(ru.misc.z * 30.0 + dImp * 90.0);
+      col = col + hotCol * hot * boost * shimmer;
+    }
+  }
   let dist = length(in.world - ru.cam.xyz);
   col = mix(col, srgbToLinear(vec3<f32>(0.969, 0.961, 0.941)), smoothstep(3.0, 6.5, dist) * ru.cam.w);
   if (ru.pick.w > 0.5) {

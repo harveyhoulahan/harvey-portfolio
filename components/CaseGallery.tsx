@@ -44,7 +44,7 @@ export default function CaseGallery({ images }: { images: CaseImage[] }) {
               type="button"
               onClick={() => scrollBy(-1)}
               aria-label="Previous image"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-hairline text-ink/60 transition-colors hover:border-sage hover:text-sage"
+              className="flex h-8 w-8 items-center justify-center border border-contour text-ink/60 transition-colors hover:border-flow hover:text-flow"
             >
               <ArrowLeft size={15} />
             </button>
@@ -52,7 +52,7 @@ export default function CaseGallery({ images }: { images: CaseImage[] }) {
               type="button"
               onClick={() => scrollBy(1)}
               aria-label="Next image"
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-hairline text-ink/60 transition-colors hover:border-sage hover:text-sage"
+              className="flex h-8 w-8 items-center justify-center border border-contour text-ink/60 transition-colors hover:border-flow hover:text-flow"
             >
               <ArrowRight size={15} />
             </button>
@@ -72,7 +72,7 @@ export default function CaseGallery({ images }: { images: CaseImage[] }) {
             <button
               type="button"
               onClick={() => setLightbox(i)}
-              className="group relative block aspect-[16/10] w-full overflow-hidden rounded-sm border border-hairline bg-surface"
+              className="group relative block aspect-[16/10] w-full overflow-hidden rounded-sm border border-contour bg-terrace"
               aria-label={`Expand image: ${img.caption ?? img.alt}`}
             >
               <Image
@@ -103,7 +103,7 @@ export default function CaseGallery({ images }: { images: CaseImage[] }) {
             type="button"
             onClick={() => setLightbox(null)}
             aria-label="Close"
-            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center rounded-full border border-white/30 text-white/80 transition-colors hover:border-white hover:text-white"
+            className="absolute right-5 top-5 flex h-10 w-10 items-center justify-center border border-white/30 text-white/80 transition-colors hover:border-white hover:text-white"
           >
             <X size={18} />
           </button>

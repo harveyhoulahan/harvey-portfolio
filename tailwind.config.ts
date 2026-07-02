@@ -9,21 +9,30 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Architectural palette — precision meets raw materiality.
-        concrete: "#F7F5F0", // warm off-white background
-        ink: "#1A1A18", // near-black, warm
-        sage: "#4A6741", // muted native-vegetation green (accent)
-        sand: "#C4A882", // warm timber (secondary accent)
-        surface: "#EFECE5", // card / section surface, warmer than bg
-        hairline: "#D8D3C8", // subtle border
+        // "CALDERA-CIR" — the Tweed-caldera DEM behind Catchment, graded as a
+        // colour-infrared composite. Hillshade paper, rainforest-shadow ink,
+        // channel teal for flow accumulation, CIR vegetation red as the signal.
+        paper: "#ECEFEA", // hillshade paper — flat unlit-slope white, cool cast
+        ink: "#161F1B", // rainforest shadow — blue-green black
+        flow: "#14655A", // channel teal — flow accumulation / estuary (accent)
+        infra: "#B23A18", // CIR vegetation red — canopy in false-colour infrared
+        terrace: "#E2E7E0", // bench surface — cards / sections
+        contour: "#C3CCC2", // contour grey-green — hairline borders
+        // Legacy aliases (old token names → new hexes) so nothing off the main
+        // redesign path breaks; new chrome should use the names above.
+        concrete: "#ECEFEA",
+        sage: "#14655A",
+        sand: "#B23A18",
+        surface: "#E2E7E0",
+        hairline: "#C3CCC2",
         // Semantic aliases so utilities read cleanly.
-        background: "#F7F5F0",
-        foreground: "#1A1A18",
-        border: "#D8D3C8",
+        background: "#ECEFEA",
+        foreground: "#161F1B",
+        border: "#C3CCC2",
       },
       fontFamily: {
-        display: ["var(--font-display)", "Playfair Display", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Archivo", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "IBM Plex Sans", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"],
       },
       maxWidth: {

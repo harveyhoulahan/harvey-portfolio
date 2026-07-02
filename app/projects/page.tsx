@@ -23,7 +23,7 @@ export default function Projects() {
           Real systems with real users, not proof-of-concept demos.
         </p>
 
-        <div className="mt-10 divide-y divide-hairline">
+        <div className="mt-10 divide-y divide-contour">
           {caseStudies.map((study) => (
             <CaseStudyBlock key={study.id} study={study} />
           ))}
@@ -31,12 +31,12 @@ export default function Projects() {
       </div>
 
       {/* Research & writing */}
-      <section className="border-t border-hairline bg-surface">
+      <section className="border-t border-contour bg-terrace">
         <div className="mx-auto max-w-work px-6 py-16 md:py-20">
           <span className="mono-label">Research &amp; writing</span>
           <h2 className="mt-5 font-display">Papers</h2>
 
-          <div className="mt-8 divide-y divide-hairline border-t border-hairline">
+          <div className="mt-8 divide-y divide-contour border-t border-contour">
             {papers.map((paper) => (
               <article
                 key={paper.title}
@@ -58,7 +58,7 @@ export default function Projects() {
                       href={link.href}
                       target={link.external ? "_blank" : undefined}
                       rel={link.external ? "noopener noreferrer" : undefined}
-                      className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-sm text-ink/70 transition-colors hover:text-sage"
+                      className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-sm text-ink/70 transition-colors hover:text-flow"
                     >
                       {link.label} <ArrowUpRight size={13} />
                     </a>
@@ -71,14 +71,14 @@ export default function Projects() {
       </section>
 
       {/* Personal projects */}
-      <section className="border-t border-hairline">
+      <section className="border-t border-contour">
         <div className="mx-auto max-w-work px-6 py-16 md:py-20">
           <span className="mono-label">Personal projects</span>
           <h2 className="mt-5 font-display">Built for myself</h2>
 
-          <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden rounded-sm border border-hairline bg-hairline md:grid-cols-2">
+          <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden border border-contour bg-contour md:grid-cols-2">
             {personalProjects.map((project) => (
-              <div key={project.name} className="flex flex-col bg-surface p-7">
+              <div key={project.name} className="flex flex-col bg-terrace p-7">
                 <div className="flex items-baseline justify-between gap-4">
                   <h3 className="font-display text-xl">{project.name}</h3>
                   {project.year && (
@@ -103,7 +103,7 @@ export default function Projects() {
                         href={link.href}
                         target={link.external ? "_blank" : undefined}
                         rel={link.external ? "noopener noreferrer" : undefined}
-                        className="inline-flex items-center gap-1 font-mono text-sm text-ink/70 transition-colors hover:text-sage"
+                        className="inline-flex items-center gap-1 font-mono text-sm text-ink/70 transition-colors hover:text-flow"
                       >
                         {link.label} <ArrowUpRight size={13} />
                       </a>

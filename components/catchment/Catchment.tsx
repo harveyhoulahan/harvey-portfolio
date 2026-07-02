@@ -70,7 +70,6 @@ type Status = "loading" | "running" | "nogpu" | "error";
 type Pick = { elevM: number; slopeDeg: number; lng: number; lat: number } | null;
 type Mode = "orbit" | "pour" | "ignite" | "meteor";
 type MeteorKind = 1 | 2 | 3;
-type MeteorFx = { id: number; x: number; y: number; kind: MeteorKind; angle: number };
 type SurrogateStatus = "idle" | "exporting" | "ready" | "error";
 type RainDrop = { x: number; z: number; gx: number; gz: number; seed: number; speed: number; length: number; ocean: boolean };
 
@@ -135,24 +134,10 @@ const PANEL_CSS = `
 .cm-select:focus{outline:none;border-color:#4A6741;}
 .cm-tagline{margin-top:5px;font-size:0.6rem;line-height:1.5;letter-spacing:0.02em;color:rgba(26,26,24,0.45);font-style:italic;}
 .cm-rain-canvas{position:absolute;inset:0;z-index:1;pointer-events:none;mix-blend-mode:normal;}
-.cm-meteor{position:absolute;width:210px;height:210px;left:var(--mx);top:var(--my);pointer-events:none;transform:translate(-50%,-50%);z-index:4;mix-blend-mode:screen;}
-.cm-meteor i{position:absolute;left:50%;top:50%;display:block;border-radius:999px;transform:translate(-50%,-50%);}
-.cm-meteor i:nth-child(1){width:4px;height:190px;transform-origin:50% 100%;transform:translate(-50%,-112%) rotate(var(--ma));background:linear-gradient(to top,rgba(255,252,225,1),rgba(226,119,45,.86) 32%,rgba(196,168,130,.24) 70%,transparent);filter:blur(.15px);animation:cm-meteor-streak .9s cubic-bezier(.17,.72,.13,1) forwards;}
-.cm-meteor i:nth-child(2){width:72px;height:72px;background:radial-gradient(circle,rgba(255,252,225,.95),rgba(226,119,45,.52) 34%,rgba(74,103,65,.12) 58%,transparent 74%);box-shadow:0 0 42px rgba(226,119,45,.38);animation:cm-impact-core .9s ease-out forwards;}
-.cm-meteor i:nth-child(3){width:8px;height:8px;background:rgba(255,250,224,.95);box-shadow:0 0 16px rgba(255,178,88,.7);animation:cm-fragment-a .9s ease-out forwards;}
-.cm-meteor i:nth-child(4){width:6px;height:6px;background:rgba(239,236,229,.9);box-shadow:0 0 12px rgba(239,236,229,.55);animation:cm-fragment-b .9s ease-out forwards;}
-.cm-meteor[data-kind="2"] i:nth-child(1){background:linear-gradient(to top,rgba(255,255,255,.98),rgba(130,139,143,.9) 36%,rgba(239,236,229,.2) 72%,transparent);}
-.cm-meteor[data-kind="2"] i:nth-child(2){background:radial-gradient(circle,rgba(255,255,255,.96),rgba(129,137,142,.62) 38%,rgba(26,26,24,.12) 66%,transparent 78%);box-shadow:0 0 38px rgba(99,110,115,.44);}
-.cm-meteor[data-kind="3"] i:nth-child(1){width:5px;background:linear-gradient(to top,rgba(255,253,222,1),rgba(255,116,45,.9) 28%,rgba(74,103,65,.35) 68%,transparent);}
-.cm-meteor[data-kind="3"] i:nth-child(2){width:96px;height:96px;background:radial-gradient(circle,rgba(255,252,218,.98),rgba(255,116,45,.7) 34%,rgba(74,103,65,.25) 58%,transparent 78%);box-shadow:0 0 62px rgba(255,116,45,.55);}
-@keyframes cm-meteor-streak{0%{opacity:0;transform:translate(-50%,-190%) rotate(var(--ma)) scaleY(.2)}30%{opacity:1}72%{opacity:1}100%{opacity:0;transform:translate(-50%,-16%) rotate(var(--ma)) scaleY(1.04)}}
-@keyframes cm-impact-core{0%,48%{opacity:0;transform:translate(-50%,-50%) scale(.16)}60%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) scale(2.9)}}
-@keyframes cm-fragment-a{0%,52%{opacity:0;transform:translate(-50%,-50%) scale(.3)}64%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + 52px),calc(-50% - 34px)) scale(.8)}}
-@keyframes cm-fragment-b{0%,54%{opacity:0;transform:translate(-50%,-50%) scale(.3)}68%{opacity:1}100%{opacity:0;transform:translate(calc(-50% - 42px),calc(-50% + 26px)) scale(.7)}}
 .cm-panel,.cm-neural{transition:opacity .6s ease;}
 .is-faded{opacity:0 !important;pointer-events:none !important;}
 .cm-dot{position:absolute;bottom:22px;left:22px;width:8px;height:8px;border-radius:999px;background:rgba(74,103,65,.62);box-shadow:0 0 12px rgba(74,103,65,.5);pointer-events:none;z-index:6;}
-@media (prefers-reduced-motion: reduce){.cm-live i,.cm-meteor i{animation:none;}}
+@media (prefers-reduced-motion: reduce){.cm-live i{animation:none;}}
 `;
 
 export default function Catchment() {
@@ -172,7 +157,6 @@ export default function Catchment() {
   const toggleGroup = (k: "water" | "wind" | "light") => setOpenGroups((g) => ({ ...g, [k]: !g[k] }));
   const [windDeg, setWindDeg] = useState(90);
   const [windSpeed, setWindSpeed] = useState(1.2);
-  const [meteors, setMeteors] = useState<MeteorFx[]>([]);
   const [surrogateStatus, setSurrogateStatus] = useState<SurrogateStatus>("idle");
   const [surrogateMsg, setSurrogateMsg] = useState("Teacher export ready");
   const [teacherFrames, setTeacherFrames] = useState(0);
@@ -198,7 +182,6 @@ export default function Catchment() {
   const windRef = useRef({ deg: 90, speed: 1.2 });
   const igniteRef = useRef<{ gx: number; gz: number } | null>(null);
   const meteorRef = useRef<{ gx: number; gz: number; radius: number; kind: MeteorKind } | null>(null);
-  const meteorIdRef = useRef(0);
   const exportTeacherFrameRef = useRef<(() => Promise<void>) | null>(null);
   const neuralOnRef = useRef(false);
   const neuralReseedRef = useRef(false);
@@ -395,8 +378,10 @@ export default function Catchment() {
       const heatBuf = zeroBuf(total * 4);
 
       const simBuf = device.createBuffer({ size: 144, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const ruBuf = device.createBuffer({ size: 144, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const simData = new Float32Array(36), ruData = new Float32Array(36);
+      // 160 bytes = 10 vec4s: the render uniform grew an impact slot for the
+      // meteor crater glow (terrain shader reads it; skirt/water ignore it).
+      const ruBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const simData = new Float32Array(36), ruData = new Float32Array(40);
 
       const cs = (code: string) => device.createShaderModule({ code });
       let mods: any;
@@ -538,9 +523,12 @@ export default function Catchment() {
         pourRef.current.on = false;
         igniteRef.current = null;
         meteorRef.current = null;
+        meteorCharge = null;
+        pendingMeteor = null;
+        impactFx = null;
+        debris.length = 0;
         pickU.on = 0;
         setPick(null);
-        setMeteors([]);
       };
       const copyFloatBuffer = async (buffer: any, floats: number) => {
         const bytes = floats * 4;
@@ -631,8 +619,24 @@ export default function Catchment() {
       const cam = { az: -0.85, el: 0.62, dist: 3.0 }, camT = { az: -0.85, el: 0.62, dist: 3.0 };
       let dragging = false, lastX = 0, lastY = 0, downX = 0, downY = 0;
       let lastInteractTime = performance.now();
-      const pickU = { x: 0, z: 0, on: 0 };
+      const pickU = { x: 0, z: 0, on: 0, r: 0.05 };
       let lastMVP: Mat4 = new Float32Array(16);
+
+      // --- meteor state -----------------------------------------------------
+      // charge: pointer held in meteor mode; pending: rock in flight;
+      // impactFx: drives crater glow + shockwave; debris: ballistic ejecta.
+      let meteorCharge: { t0: number; wx: number; wz: number } | null = null;
+      let pendingMeteor: {
+        tLaunch: number; tImpact: number; from: Vec3; to: Vec3;
+        gx: number; gz: number; radius: number; kind: MeteorKind; sizeT: number;
+      } | null = null;
+      let impactFx: { t0: number; x: number; y: number; z: number; radiusW: number; kind: MeteorKind } | null = null;
+      const debris: {
+        x: number; y: number; z: number; vx: number; vy: number; vz: number;
+        t0: number; life: number; size: number; kind: MeteorKind;
+      }[] = [];
+      const shake = { t0: -1e6, amp: 0 };
+      let lastFxTime = performance.now();
 
       const elevAt = (wx: number, wz: number) => {
         const gx = ((wx + HALF) / (2 * HALF)) * (n - 1), gz = ((wz + HALF) / (2 * HALF)) * (n - 1);
@@ -663,6 +667,113 @@ export default function Catchment() {
         if (nx < -1.15 || nx > 1.15 || ny < -1.15 || ny > 1.15 || nz < 0 || nz > 1.1) return null;
         return [(nx * 0.5 + 0.5) * w, (0.5 - ny * 0.5) * h, nz];
       };
+      // World-space meteor FX on the overlay canvas: the incoming fireball
+      // with tail and sparks, the impact flash, ground shockwave rings and
+      // ballistic ejecta. Everything is projected through the live MVP so it
+      // sticks to the terrain no matter how the camera moves.
+      const fxColor = (kind: MeteorKind, a: number) =>
+        kind === 2 ? `rgba(232,238,246,${a})` : kind === 3 ? `rgba(255,140,52,${a})` : `rgba(255,192,110,${a})`;
+      const drawMeteorFx = (ctx2: CanvasRenderingContext2D, m: Mat4, w: number, h: number, dpr: number) => {
+        const nowMs = performance.now();
+        const dt = Math.min(0.05, (nowMs - lastFxTime) / 1000);
+        lastFxTime = nowMs;
+        if (reduced) return;
+        if (!pendingMeteor && !impactFx && debris.length === 0) return;
+        ctx2.save();
+        ctx2.globalCompositeOperation = "lighter";
+        ctx2.lineCap = "round";
+
+        if (pendingMeteor) {
+          const pm = pendingMeteor;
+          const t = Math.min(1, (nowMs - pm.tLaunch) / Math.max(1, pm.tImpact - pm.tLaunch));
+          const tt = t * t; // gravity feel: accelerating approach
+          const lerp3 = (k: number): Vec3 => [
+            pm.from[0] + (pm.to[0] - pm.from[0]) * k,
+            pm.from[1] + (pm.to[1] - pm.from[1]) * k,
+            pm.from[2] + (pm.to[2] - pm.from[2]) * k,
+          ];
+          const pos = lerp3(tt);
+          const tp = Math.max(0, t - 0.14); const prev = lerp3(tp * tp);
+          const a2 = projectToScreen(m, prev, w, h);
+          const b2 = projectToScreen(m, pos, w, h);
+          if (a2 && b2) {
+            const size = dpr * (2.6 + pm.sizeT * 5.5) * (0.7 + tt * 0.6);
+            const grad = ctx2.createLinearGradient(a2[0], a2[1], b2[0], b2[1]);
+            grad.addColorStop(0, "rgba(255,140,50,0)");
+            grad.addColorStop(0.65, fxColor(pm.kind, 0.35));
+            grad.addColorStop(1, fxColor(pm.kind, 0.9));
+            ctx2.strokeStyle = grad;
+            ctx2.lineWidth = size * 0.9;
+            ctx2.beginPath(); ctx2.moveTo(a2[0], a2[1]); ctx2.lineTo(b2[0], b2[1]); ctx2.stroke();
+            const rg = ctx2.createRadialGradient(b2[0], b2[1], 0, b2[0], b2[1], size * 3.4);
+            rg.addColorStop(0, "rgba(255,252,235,0.95)");
+            rg.addColorStop(0.35, fxColor(pm.kind, 0.55));
+            rg.addColorStop(1, "rgba(255,140,50,0)");
+            ctx2.fillStyle = rg;
+            ctx2.beginPath(); ctx2.arc(b2[0], b2[1], size * 3.4, 0, Math.PI * 2); ctx2.fill();
+            // sputtering sparks shed along the tail
+            for (let si = 0; si < 3; si++) {
+              const ph = nowMs * 0.02 + si * 2.1;
+              const sxp = b2[0] - (b2[0] - a2[0]) * (0.25 + 0.25 * si) + Math.sin(ph) * size;
+              const syp = b2[1] - (b2[1] - a2[1]) * (0.25 + 0.25 * si) + Math.cos(ph * 1.3) * size;
+              ctx2.fillStyle = fxColor(pm.kind, 0.5 - si * 0.13);
+              ctx2.fillRect(sxp, syp, dpr * 1.5, dpr * 1.5);
+            }
+          }
+        }
+
+        if (impactFx) {
+          const fx = impactFx;
+          const age = (nowMs - fx.t0) / 1000;
+          const g = projectToScreen(m, [fx.x, fx.y, fx.z], w, h);
+          if (g) {
+            const gr = projectToScreen(m, [fx.x + fx.radiusW, fx.y, fx.z], w, h);
+            const pxR = gr ? Math.max(8, Math.hypot(gr[0] - g[0], gr[1] - g[1])) : 40;
+            if (age < 0.18) {
+              const fa = 1 - age / 0.18;
+              const flashR = pxR * (2.2 + fx.kind * 0.6);
+              const fg = ctx2.createRadialGradient(g[0], g[1], 0, g[0], g[1], flashR);
+              fg.addColorStop(0, `rgba(255,250,235,${0.9 * fa})`);
+              fg.addColorStop(0.4, fxColor(fx.kind, 0.5 * fa));
+              fg.addColorStop(1, "rgba(255,150,60,0)");
+              ctx2.fillStyle = fg;
+              ctx2.beginPath(); ctx2.arc(g[0], g[1], flashR, 0, Math.PI * 2); ctx2.fill();
+            }
+            if (age < 1.1) {
+              const p = age / 1.1; const fade = (1 - p) * (1 - p);
+              ctx2.strokeStyle = `rgba(255,220,180,${0.55 * fade})`;
+              ctx2.lineWidth = Math.max(1, dpr * 2.4 * (1 - p));
+              ctx2.beginPath();
+              ctx2.ellipse(g[0], g[1], pxR * (0.3 + p * 3.2), pxR * (0.3 + p * 3.2) * 0.38, -0.42, 0, Math.PI * 2);
+              ctx2.stroke();
+              ctx2.strokeStyle = `rgba(168,146,120,${0.3 * fade})`;
+              ctx2.lineWidth = Math.max(1, dpr * 5 * (1 - p));
+              ctx2.beginPath();
+              ctx2.ellipse(g[0], g[1], pxR * (0.2 + p * 2.3), pxR * (0.2 + p * 2.3) * 0.38, -0.42, 0, Math.PI * 2);
+              ctx2.stroke();
+            }
+          }
+        }
+
+        for (let di = debris.length - 1; di >= 0; di--) {
+          const d = debris[di];
+          d.x += d.vx * dt; d.y += d.vy * dt; d.z += d.vz * dt;
+          d.vy -= 3.2 * dt;
+          const age = (nowMs - d.t0) / 1000;
+          if (age > d.life || (d.vy < 0 && d.y <= elevAt(d.x, d.z) + 0.003)) {
+            debris.splice(di, 1);
+            continue;
+          }
+          const p2 = projectToScreen(m, [d.x, d.y, d.z], w, h);
+          if (!p2) continue;
+          const fade = 1 - age / d.life;
+          ctx2.fillStyle = fxColor(d.kind, 0.75 * fade);
+          const s2 = Math.max(1, d.size * dpr * (0.5 + fade * 0.5));
+          ctx2.fillRect(p2[0] - s2 / 2, p2[1] - s2 / 2, s2, s2);
+        }
+        ctx2.restore();
+      };
+
       const drawRain = (m: Mat4, w: number, h: number, vs: number) => {
         const rc = rainCanvasRef.current;
         if (!rc) return;
@@ -672,6 +783,7 @@ export default function Catchment() {
         if (!ctx2) return;
         ctx2.setTransform(1, 0, 0, 1, 0, 0);
         ctx2.clearRect(0, 0, w, h);
+        drawMeteorFx(ctx2, m, w, h, dpr);
         const rainAmt = rainRef.current;
         if (rainAmt < 0.0005 || reduced) return;
 
@@ -762,23 +874,48 @@ export default function Catchment() {
         };
         pickU.x = w[0]; pickU.z = w[2]; pickU.on = 1; // show a ring where water lands
       };
-      const launchMeteor = (clientX: number, clientY: number, w: Vec3) => {
-        const kind = (1 + Math.floor(Math.random() * 3)) as MeteorKind;
-        const radius = kind === 2 ? 8.5 : kind === 3 ? 7.0 : 5.5;
-        meteorRef.current = {
-          gx: ((w[0] + HALF) / (2 * HALF)) * (n - 1),
-          gz: ((w[2] + HALF) / (2 * HALF)) * (n - 1),
-          radius,
-          kind,
-        };
+      // Hold-to-charge: press picks a target and starts charging (the target
+      // ring grows), moving re-aims, release launches. Charge sets size AND
+      // class: a tap lobs a small stony rock, a long hold an iron heavyweight,
+      // a full charge a volatile firebringer.
+      const CHARGE_MS = 1400;
+      const chargeOf = (nowMs: number) =>
+        meteorCharge ? Math.min(1, (nowMs - meteorCharge.t0) / CHARGE_MS) : 0;
+      const kindOf = (t: number): MeteorKind => (t < 0.33 ? 1 : t < 0.72 ? 2 : 3);
+      const radiusOf = (t: number) => 5.5 + t * 9.0;
+
+      const beginCharge = (clientX: number, clientY: number) => {
+        const w = worldUnder(clientX, clientY);
+        if (!w) return;
+        meteorCharge = { t0: performance.now(), wx: w[0], wz: w[2] };
         pickU.x = w[0]; pickU.z = w[2]; pickU.on = 1;
-        const rect = canvas.getBoundingClientRect();
-        const id = ++meteorIdRef.current;
-        const angle = -36 + Math.random() * 20;
-        setMeteors((items) => [...items.slice(-5), { id, x: clientX - rect.left, y: clientY - rect.top, kind, angle }]);
-        window.setTimeout(() => {
-          setMeteors((items) => items.filter((item) => item.id !== id));
-        }, 900);
+      };
+      const aimCharge = (clientX: number, clientY: number) => {
+        if (!meteorCharge) return;
+        const w = worldUnder(clientX, clientY);
+        if (!w) return;
+        meteorCharge.wx = w[0]; meteorCharge.wz = w[2];
+        pickU.x = w[0]; pickU.z = w[2];
+      };
+      const releaseCharge = () => {
+        if (!meteorCharge) return;
+        const nowMs = performance.now();
+        const t = chargeOf(nowMs);
+        const kind = kindOf(t);
+        const { wx, wz } = meteorCharge;
+        meteorCharge = null;
+        const groundY = elevAt(wx, wz);
+        const to: Vec3 = [wx, groundY + 0.005, wz];
+        // approach from a random compass bearing, high and far out
+        const az = Math.random() * Math.PI * 2;
+        const from: Vec3 = [wx + Math.cos(az) * 2.8, groundY + 2.5, wz + Math.sin(az) * 2.8];
+        const flight = reduced ? 0 : 620 + t * 260;
+        pendingMeteor = {
+          tLaunch: nowMs, tImpact: nowMs + flight, from, to,
+          gx: ((wx + HALF) / (2 * HALF)) * (n - 1),
+          gz: ((wz + HALF) / (2 * HALF)) * (n - 1),
+          radius: radiusOf(t), kind, sizeT: t,
+        };
       };
 
       const onDown = (e: PointerEvent) => {
@@ -786,9 +923,11 @@ export default function Catchment() {
         dragging = true; lastX = e.clientX; lastY = e.clientY; downX = e.clientX; downY = e.clientY;
         try { canvas.setPointerCapture?.(e.pointerId); } catch { /* Synthetic pointer events may not have an active capture target. */ }
         if (modeRef.current === "pour") setPour(e.clientX, e.clientY);
+        if (modeRef.current === "meteor") beginCharge(e.clientX, e.clientY);
       };
       const onUp = (e: PointerEvent) => {
         dragging = false; pourRef.current.on = false;
+        if (meteorCharge) releaseCharge();
         try {
           if (canvas.hasPointerCapture?.(e.pointerId)) canvas.releasePointerCapture?.(e.pointerId);
         } catch { /* Ignore synthetic events that were never captured. */ }
@@ -797,6 +936,7 @@ export default function Catchment() {
         lastInteractTime = performance.now();
         if (!dragging) return;
         if (modeRef.current === "pour") { setPour(e.clientX, e.clientY); return; }
+        if (meteorCharge) { aimCharge(e.clientX, e.clientY); return; }
         camT.az -= (e.clientX - lastX) * 0.005;
         camT.el = Math.max(0.1, Math.min(1.45, camT.el + (e.clientY - lastY) * 0.005));
         lastX = e.clientX; lastY = e.clientY;
@@ -813,8 +953,7 @@ export default function Catchment() {
           return;
         }
         if (modeRef.current === "meteor") {
-          launchMeteor(e.clientX, e.clientY, w);
-          return;
+          return; // handled by the charge/release pointer flow
         }
         pickU.x = w[0]; pickU.z = w[2]; pickU.on = 1;
         const gx = ((w[0] + HALF) / (2 * HALF)) * (n - 1), gz = ((w[2] + HALF) / (2 * HALF)) * (n - 1);
@@ -984,6 +1123,42 @@ export default function Catchment() {
         if (!dragging && !reduced && (performance.now() - lastInteractTime > 7500)) camT.az += 0.0011;
         cam.az += (camT.az - cam.az) * 0.12; cam.el += (camT.el - cam.el) * 0.12; cam.dist += (camT.dist - cam.dist) * 0.12;
 
+        // --- meteor frame logic ------------------------------------------
+        const nowMs = performance.now();
+        if (meteorCharge) {
+          // target ring grows with charge and breathes while held
+          const t = chargeOf(nowMs);
+          pickU.r = radiusOf(t) * cellWorld * (1 + 0.06 * Math.sin(nowMs * 0.02));
+          pickU.on = 1;
+        } else if (modeRef.current !== "meteor") {
+          pickU.r = 0.05;
+        }
+        if (pendingMeteor && nowMs >= pendingMeteor.tImpact) {
+          const pm = pendingMeteor;
+          pendingMeteor = null;
+          meteorRef.current = { gx: pm.gx, gz: pm.gz, radius: pm.radius, kind: pm.kind };
+          impactFx = {
+            t0: nowMs, x: pm.to[0], y: pm.to[1], z: pm.to[2],
+            radiusW: pm.radius * cellWorld, kind: pm.kind,
+          };
+          shake.t0 = nowMs;
+          shake.amp = (0.012 + pm.sizeT * 0.03) * (pm.kind === 2 ? 1.35 : pm.kind === 3 ? 1.15 : 1);
+          pickU.on = 0; pickU.r = 0.05;
+          if (!reduced) {
+            const count = Math.round(14 + pm.radius * 2.5);
+            for (let di = 0; di < count; di++) {
+              const ang = Math.random() * Math.PI * 2;
+              const sp = (0.22 + Math.random() * 0.5) * (1 + pm.sizeT * 0.8);
+              debris.push({
+                x: pm.to[0], y: pm.to[1] + 0.02, z: pm.to[2],
+                vx: Math.cos(ang) * sp, vy: 0.45 + Math.random() * 0.85, vz: Math.sin(ang) * sp,
+                t0: nowMs, life: 0.8 + Math.random() * 0.9,
+                size: 1.4 + Math.random() * 2.6, kind: pm.kind,
+              });
+            }
+          }
+        }
+
         const vs = exagRef.current;
         simData[0] = n; simData[1] = 0.02; simData[2] = 1.0; simData[3] = HSCALE;
         // evap sets the equilibrium water film (≈ rain/evap): water runs off slopes and
@@ -1014,15 +1189,36 @@ export default function Catchment() {
 
         const proj = perspectiveZO((50 * Math.PI) / 180, w / h, 0.05, 20);
         const eye = orbitEye(target, cam.az, cam.el, cam.dist);
+        // impact shake: a short exponential-decay tremor on the camera
+        const shakeAge = nowMs - shake.t0;
+        if (!reduced && shakeAge < 650) {
+          const a = shake.amp * Math.exp(-shakeAge / 170);
+          eye[0] += Math.sin(nowMs * 0.11) * a;
+          eye[1] += Math.sin(nowMs * 0.157 + 1.3) * a * 0.6;
+          eye[2] += Math.cos(nowMs * 0.127) * a;
+        }
         const view = lookAt(eye, target, [0, 1, 0]);
         const mvp = multiply(proj, view); lastMVP = mvp;
         const sa = (sunRef.current * Math.PI) / 180, se = 0.62;
         ruData.set(mvp, 0);
         ruData[16] = Math.cos(se) * Math.cos(sa); ruData[17] = Math.sin(se); ruData[18] = Math.cos(se) * Math.sin(sa); ruData[19] = 0;
         ruData[20] = n; ruData[21] = vs; ruData[22] = HALF; ruData[23] = vs * 0.06;
-        ruData[24] = pickU.x; ruData[25] = pickU.z; ruData[26] = 0.05; ruData[27] = pickU.on;
+        ruData[24] = pickU.x; ruData[25] = pickU.z; ruData[26] = pickU.r; ruData[27] = pickU.on;
         ruData[28] = eye[0]; ruData[29] = eye[1]; ruData[30] = eye[2]; ruData[31] = 0.5;
         ruData[32] = HSCALE; ruData[33] = BASE_Y; ruData[34] = performance.now() / 1000; ruData[35] = windRef.current.speed;
+        // crater glow uniform: (x, z, kind*100 + age, radiusWorld); w<=0 = off
+        if (impactFx) {
+          const glowAge = (nowMs - impactFx.t0) / 1000;
+          if (glowAge > 8) {
+            impactFx = null;
+            ruData[36] = 0; ruData[37] = 0; ruData[38] = 0; ruData[39] = 0;
+          } else {
+            ruData[36] = impactFx.x; ruData[37] = impactFx.z;
+            ruData[38] = impactFx.kind * 100 + glowAge; ruData[39] = impactFx.radiusW;
+          }
+        } else {
+          ruData[36] = 0; ruData[37] = 0; ruData[38] = 0; ruData[39] = 0;
+        }
         device.queue.writeBuffer(ruBuf, 0, ruData);
 
         const enc = device.createCommandEncoder();
@@ -1115,25 +1311,6 @@ export default function Catchment() {
         style={{ display: "block", cursor: status === "running" ? (mode === "orbit" ? "grab" : "crosshair") : "default" }}
         aria-label="Interactive 3D catchment with live water and fire simulation." />
       <canvas ref={rainCanvasRef} className="cm-rain-canvas h-full w-full" aria-hidden="true" />
-      {meteors.map((meteor) => (
-        <span
-          key={meteor.id}
-          className="cm-meteor"
-          data-kind={meteor.kind}
-          style={{
-            "--mx": `${meteor.x}px`,
-            "--my": `${meteor.y}px`,
-            "--ma": `${meteor.angle}deg`,
-          } as CSSProperties}
-          aria-hidden="true"
-        >
-          <i />
-          <i />
-          <i />
-          <i />
-        </span>
-      ))}
-
       <div className="pointer-events-none absolute left-0 top-0 z-[5] p-6"
         style={{ opacity: everInteracted ? 0 : 1, transition: "opacity .7s ease" }}>
         <span className="mono-label">catchment · live</span>
@@ -1219,7 +1396,7 @@ export default function Catchment() {
               <p className="cm-hint">
                 {mode === "pour" ? "Drag the terrain to pour water."
                   : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
-                    : mode === "meteor" ? "Click to call a meteor — crater, splash, heat, and fire all feed the sim."
+                    : mode === "meteor" ? "Hold to charge, release to strike — bigger rocks hit harder: stony, iron, then volatile. Crater, shock and fire all feed the sim."
                   : "Drag to orbit · click to inspect."}
               </p>
             </>
