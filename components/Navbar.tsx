@@ -6,28 +6,6 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, useReducedMotion, useScroll } from "framer-motion";
 
-// Geodetic control-point symbol — the mark surveyors leave at a trig station.
-function BenchmarkGlyph({ className = "" }: { className?: string }) {
-  return (
-    <svg
-      aria-hidden
-      width="17"
-      height="17"
-      viewBox="0 0 18 18"
-      fill="none"
-      className={`shrink-0 ${className}`}
-    >
-      <circle cx="9" cy="9" r="5.2" stroke="currentColor" strokeWidth="1.2" />
-      <circle cx="9" cy="9" r="1.7" fill="currentColor" />
-      <path
-        d="M9 0.8V3.2M9 14.8V17.2M0.8 9H3.2M14.8 9H17.2"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
-    </svg>
-  );
-}
-
 const navItems = [
   { name: "About", path: "/about" },
   { name: "Work", path: "/projects" },
@@ -79,12 +57,9 @@ export default function Navbar() {
       <nav className="col-shell flex h-16 max-w-work items-center justify-between">
         <Link
           href="/"
-          className="group inline-flex items-center gap-2.5 font-display text-lg font-semibold tracking-tight transition-colors duration-500"
+          className="font-display text-lg font-semibold tracking-tight transition-colors duration-500"
           style={{ color: inDemo ? (dark ? DEMO_RED_DARK : DEMO_RED_LIGHT) : undefined }}
         >
-          <BenchmarkGlyph
-            className={`${inDemo ? "" : "text-flow"} transition-transform duration-500 ease-out group-hover:rotate-90 motion-reduce:transform-none`}
-          />
           Harvey Houlahan
         </Link>
 
