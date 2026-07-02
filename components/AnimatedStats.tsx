@@ -4,7 +4,7 @@ import { motion, useInView, useReducedMotion } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 
 export interface Stat {
-  value: number;
+  value?: number;
   label: string;
   suffix?: string;
   prefix?: string;
@@ -32,7 +32,7 @@ export default function AnimatedStats({ stats }: { stats: Stat[] }) {
             </div>
           ) : (
             <CountUpNumber
-              end={stat.value}
+              end={stat.value ?? 0}
               prefix={stat.prefix}
               suffix={stat.suffix}
               isInView={isInView}
@@ -59,7 +59,9 @@ function CountUpNumber({
   isInView: boolean;
 }) {
   const reduceMotion = useReducedMotion();
-  const [count, setCount] = useState(reduceMotion ? end : 0);
+  // Start at the real value so the server-rendered HTML (crawlers, link
+  // previews, no-JS) never shows a row of zeros; the count-up runs on view.
+  const [count, setCount] = useState(end);
 
   useEffect(() => {
     if (!isInView) return;
@@ -68,6 +70,7 @@ function CountUpNumber({
       return;
     }
 
+    setCount(0);
     const duration = 1600;
     const steps = 50;
     const increment = end / steps;

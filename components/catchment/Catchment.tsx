@@ -986,10 +986,12 @@ export default function Catchment() {
 
         const vs = exagRef.current;
         simData[0] = n; simData[1] = 0.02; simData[2] = 1.0; simData[3] = HSCALE;
-        // evap is the key to physical-looking water: a strong sink so rain runs off
-        // slopes and only collects where it genuinely ponds (valleys, basins, channels)
-        // instead of blanketing every cell. Equilibrium film ≈ rain/evap.
-        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainRef.current; simData[7] = 0.06;
+        // evap sets the equilibrium water film (≈ rain/evap): water runs off slopes and
+        // collects where it genuinely ponds (valleys, basins, channels). This MUST match
+        // the neural surrogate's trained evap (EVAP=0.012 in ml/train_surrogate.py) so
+        // PHYSICS and NEURAL are the same regime — otherwise the student would be
+        // compared against a teacher it never learned from.
+        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainRef.current; simData[7] = 0.012;
         const k = eroRef.current;
         simData[8] = 0.08 * k; simData[9] = 0.10 * k; simData[10] = 0.05 * k; simData[11] = 1.2;
         const pr = pourRef.current;

@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export async function POST(request: Request) {
   try {
-    console.log('Contact form API called');
-    console.log('API Key exists:', !!process.env.RESEND_API_KEY);
-    
+    // Instantiated per-request: the constructor throws without an API key,
+    // which would otherwise break `next build` in environments missing it.
+    if (!process.env.RESEND_API_KEY) {
+      return NextResponse.json(
+        { error: 'Email is not configured — email me directly instead.' },
+        { status: 503 }
+      );
+    }
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
     const body = await request.json();
     const { name, email, message } = body;
 

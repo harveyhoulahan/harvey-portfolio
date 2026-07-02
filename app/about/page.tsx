@@ -30,12 +30,7 @@ export default function About() {
           {profile.locationNext} · {profile.timezone} · remote
         </p>
         <div className="mt-6 flex flex-wrap gap-4">
-          <a
-            href={profile.calendly}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary"
-          >
+          <a href={profile.bookCall} className="btn-primary">
             Book an intro call
           </a>
           <a href={`mailto:${profile.email}`} className="btn-secondary">

@@ -34,12 +34,7 @@ export default function Hero() {
 
           {/* CTA */}
           <div className="mt-6 flex flex-wrap items-center gap-4">
-            <a
-              href={profile.calendly}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn-primary"
-            >
+            <a href={profile.bookCall} className="btn-primary">
               <Calendar size={16} />
               Book an intro call
             </a>

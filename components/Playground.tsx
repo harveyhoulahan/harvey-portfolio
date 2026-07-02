@@ -5,20 +5,20 @@ import Link from "next/link";
 // mode there (see Navbar).
 const DEMOS = [
   {
-    href: "/genesis",
-    kicker: "Flagship II",
-    title: "Genesis",
-    blurb:
-      "An artificial-life lab. Continuous cellular automata evolve live on your GPU — then summon a lifeform by describing it.",
-    meta: "WebGPU · Lenia · CLIP",
-  },
-  {
     href: "/catchment",
-    kicker: "Flagship I",
+    kicker: "01 · Neural Earth engine",
     title: "Catchment",
     blurb:
-      "A living catchment. Rain carves real terrain and fire runs with the wind, with a neural surrogate learning the physics.",
-    meta: "WebGPU · shallow-water · neural surrogate",
+      "A living catchment. Rain carves real terrain, fire runs with the wind — and a neural operator trained on the solver runs the same world. Flip physics vs neural and watch the error field live.",
+    meta: "WebGPU · shallow-water · neural operator",
+  },
+  {
+    href: "/genesis",
+    kicker: "02 · Artificial-life lab",
+    title: "Genesis",
+    blurb:
+      "Continuous cellular automata evolve live on your GPU — then summon a lifeform by describing it, with CLIP scoring and an evolutionary search doing the coaxing.",
+    meta: "WebGPU · Lenia · CLIP · CMA-ES",
   },
 ] as const;
 
@@ -28,8 +28,18 @@ export default function Playground() {
       <span className="mono-label">Playground · live demos</span>
       <h1 className="mt-3 font-display text-3xl md:text-4xl">Things that run in your browser</h1>
       <p className="mt-3 max-w-prose text-ink/65">
-        Two flagship simulations, GPU-native and entirely client-side — no servers, no API keys.
-        Pick one to dive in.
+        Two flagship simulations, GPU-native and entirely client-side — no
+        servers, no API keys, no libraries doing the heavy lifting. Raw WGSL
+        compute, including the neural network.{" "}
+        <a
+          href="https://github.com/harveyhoulahan/harvey-portfolio"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sage underline-offset-4 hover:underline"
+        >
+          Source on GitHub
+        </a>
+        .
       </p>
 
       <div className="mt-10 grid gap-5 md:grid-cols-2">

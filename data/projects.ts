@@ -25,19 +25,21 @@ export const caseStudies: CaseStudy[] = [
     id: "arbormeta",
     company: "ArborMeta",
     role: "Machine Learning Engineer",
-    period: "Byron Bay, NSW · 2025 – present",
+    period: "Byron Bay, NSW · 2026 – present",
     summary:
-      "The mapping platform that turns ecological field data into something government can act on.",
+      "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:
-      "Carbon and ecology data was scattered across field surveys and raw LiDAR. None of it sat in one place a policymaker could actually look at.",
+      "Carbon and ecology data was scattered across field surveys and raw LiDAR. None of it sat in one place a policymaker could actually look at — and none of it answered the question that matters: how much carbon, and is it growing?",
     approach: [
+      "Canopy-height and above-ground-carbon models from paired LiDAR captures — growth quantified between flights, parcel by parcel",
+      "Live fire-spread and ember mapping driven by wind fields",
+      "A multi-LOD PMTiles pipeline that keeps continental-scale datasets fast at every zoom level",
+      "A PostGIS spatial backend, with parsers that pull Fulcrum field surveys straight into the platform",
       "A map viewer that renders live survey data over satellite imagery",
-      "A tiling pipeline that keeps huge datasets fast at any zoom level",
-      "A backend over PostGIS for everything spatial",
-      "Parsers that pull field surveys straight into the platform",
     ],
     outcome: [
       "Used to advise federal and state government on carbon credit rules",
+      "Canopy growth and carbon change measured between repeat LiDAR captures — the numbers under the policy",
       "Field data from four countries, readable in one live interface",
     ],
     stack: [
@@ -131,8 +133,8 @@ export const caseStudies: CaseStudy[] = [
       "On-device ML flags fake tags and broken chains of custody",
     ],
     outcome: [
-      "Passport loads in under three seconds",
-      "Secured CEO buy-in",
+      "Scan to verified passport in under three seconds",
+      "Works with no connectivity — verification holds up in a warehouse or a paddock",
       "Launched a pilot with a partner brand",
     ],
     stack: ["Swift", "SwiftUI", "Core ML", "NFC", "Offline-first"],
@@ -200,6 +202,29 @@ export interface PersonalProject {
 
 // Things built outside of client work.
 export const personalProjects: PersonalProject[] = [
+  {
+    name: "Catchment — physics vs neural",
+    blurb:
+      "A browser-native Earth engine: shallow-water hydrology, erosion and wind-driven fire, all in raw WebGPU. Then the ML part — a convolutional neural operator trained against the solver itself (physics as teacher, pushforward-unrolled for rollout stability), exported to hand-written WGSL compute passes and raced against the real physics with a live error field. No servers, no runtime dependency.",
+    tags: ["WebGPU", "Neural Operators", "PyTorch", "WGSL", "Shallow-water"],
+    year: "2026",
+    links: [
+      { label: "Run it live", href: "/catchment" },
+      {
+        label: "Training code",
+        href: "https://github.com/harveyhoulahan/harvey-portfolio/tree/main/ml",
+        external: true,
+      },
+    ],
+  },
+  {
+    name: "Genesis — an artificial-life lab",
+    blurb:
+      "Lenia-class continuous cellular automata evolving live on the GPU, plus CLIP-guided evolutionary search (separable CMA-ES): describe a lifeform in plain English and the optimiser coaxes it out of the simulation. Entirely client-side — the foundation model runs in your browser.",
+    tags: ["WebGPU", "CLIP", "CMA-ES", "Artificial Life"],
+    year: "2026",
+    links: [{ label: "Run it live", href: "/genesis" }],
+  },
   {
     name: "Modaics",
     blurb:

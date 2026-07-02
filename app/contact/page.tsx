@@ -92,12 +92,7 @@ export default function Contact() {
             </ul>
           </div>
 
-          <a
-            href={profile.calendly}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary"
-          >
+          <a href={profile.bookCall} className="btn-primary">
             Book an intro call
           </a>
         </div>

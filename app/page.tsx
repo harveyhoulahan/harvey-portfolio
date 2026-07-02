@@ -4,7 +4,7 @@ import Hero from "@/components/Hero";
 import CaseStudyBlock from "@/components/CaseStudyBlock";
 import AnimatedStats from "@/components/AnimatedStats";
 import { TextShimmer } from "@/components/ui/text-shimmer";
-import { caseStudies } from "@/data/projects";
+import { caseStudies, papers } from "@/data/projects";
 import { about, profile, stats } from "@/data/metadata";
 
 export default function Home() {
@@ -45,6 +45,50 @@ export default function Home() {
           {caseStudies.map((study) => (
             <CaseStudyBlock key={study.id} study={study} />
           ))}
+        </div>
+      </section>
+
+      {/* Physics, learned — the ML evidence, above the fold of the footer */}
+      <section className="border-t border-hairline bg-surface">
+        <div className="mx-auto max-w-work px-6 py-16">
+          <span className="mono-label">Physics, learned</span>
+          <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <Link
+              href="/catchment"
+              className="group flex flex-col justify-between border border-hairline bg-concrete/40 p-6 transition-colors hover:border-sage"
+            >
+              <div>
+                <h3 className="font-display text-xl text-ink">
+                  A neural operator, racing its own teacher
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/70">
+                  Catchment runs a real shallow-water solver on your GPU — and a
+                  convolutional neural operator trained against that solver,
+                  executing as hand-written WGSL compute passes. Flip between
+                  physics and neural and watch the error field live.
+                </p>
+              </div>
+              <span className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-sage transition-transform group-hover:translate-x-1">
+                Run it in your browser →
+              </span>
+            </Link>
+            <a
+              href={papers[0].links[0].href}
+              className="group flex flex-col justify-between border border-hairline bg-concrete/40 p-6 transition-colors hover:border-sage"
+            >
+              <div>
+                <h3 className="font-display text-xl text-ink">
+                  1.75 → 1.18 val loss, fixed compute
+                </h3>
+                <p className="mt-3 text-sm leading-relaxed text-ink/70">
+                  {papers[0].summary}
+                </p>
+              </div>
+              <span className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-sage transition-transform group-hover:translate-x-1">
+                Read the report (PDF) →
+              </span>
+            </a>
+          </div>
         </div>
       </section>
 
