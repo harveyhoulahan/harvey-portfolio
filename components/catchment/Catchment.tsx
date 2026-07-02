@@ -12,7 +12,7 @@
  * a validated numpy reference. Raw WebGPU, dependency-free, graceful fallback.
  */
 
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 import { decodeDEM, sampleElev, type CatchmentDEM, type CatchmentDEMRaw } from "@/lib/catchment/dem";
 import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type Vec3, type Mat4 } from "@/lib/catchment/mat4";
 import {
@@ -1527,6 +1527,7 @@ export default function Catchment() {
   }, [mapFile]);
 
   return (
+    <>
     <div className="relative h-[calc(100svh-4rem)] w-full overflow-hidden bg-concrete">
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none"
         style={{ display: "block", cursor: status === "running" ? (mode === "orbit" ? "grab" : "crosshair") : "default" }}
@@ -1696,7 +1697,7 @@ export default function Catchment() {
       {status === "nogpu" && (
         <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-concrete/85 p-6 backdrop-blur-sm">
           <span className="mono-label">WebGPU required</span>
-          <p className="mt-2 max-w-prose text-sm text-ink/70">The live engine needs WebGPU — Chrome &amp; Edge, or Safari on iOS&nbsp;26 / macOS&nbsp;26+. You&apos;re seeing a static relief instead.</p>
+          <p className="mt-2 max-w-prose text-sm text-ink/70">The live engine needs WebGPU: Chrome &amp; Edge, or Safari on iOS&nbsp;26 / macOS&nbsp;26+. You&apos;re seeing a static relief instead.</p>
         </div>
       )}
       {status === "error" && (
@@ -1708,6 +1709,92 @@ export default function Catchment() {
       )}
       {/* faint affordance: controls live here, move to reveal */}
       {status === "running" && everInteracted && idle && <div className="cm-dot" />}
+    </div>
+
+    <CatchmentWriteup />
+    </>
+  );
+}
+
+/* ---- scroll-down research writeup (on-brand, concise) -------------------- */
+function CatchmentWriteup() {
+  return (
+    <section className="bg-concrete text-ink">
+      <div className="mx-auto max-w-prose px-6 py-20 md:py-28">
+        <p className="mb-4 font-mono text-xs uppercase tracking-[0.22em] text-sage">
+          Catchment · Flagship I · How it works
+        </p>
+        <h2 className="mb-5 font-display text-3xl leading-tight md:text-[2.5rem]">
+          A world that runs, burns and learns
+        </h2>
+        <p className="text-base leading-prose text-ink/80">
+          Catchment is a WebGPU Earth engine. A real patch of terrain, the Byron
+          hinterland, with working hydrology, erosion and fire, and a neural network
+          trained to imitate the solver it runs beside. Everything happens on your
+          own GPU, in hand-written WGSL compute shaders, with no server and no
+          graphics library. It is the physical counterpart to{" "}
+          <a href="/genesis" className="underline decoration-sand underline-offset-4 hover:text-sage">Genesis</a>,
+          which grows life instead of landscapes.
+        </p>
+
+        <Block kicker="The water">
+          Rain falls on a digital elevation model and a{" "}
+          <strong className="font-medium text-ink">shallow-water solver</strong> moves
+          it downhill: flux between cells, velocity, erosion, sediment transport,
+          deposition. Six compute passes per substep, several substeps per frame,
+          every cell updated in parallel. Water finds the creeks on its own because
+          the creeks are really there.
+        </Block>
+
+        <Block kicker="The fire">
+          Ignite a hillside and a fire front spreads cell to cell, pushed by wind,
+          pulled uphill by slope, starved by wet ground. Burnt fuel leaves a char
+          scar that fades as vegetation regrows. Water and fire genuinely fight:
+          heavy rain can put a front out, and a wind change can save a ridge.
+        </Block>
+
+        <Block kicker="The meteors">
+          Hold to charge, release to strike. Small stony rocks, iron heavyweights
+          that rebound a central peak, and volatile ones that arrive burning. Each
+          impact digs a real crater in the bedrock, throws ejecta rays, shakes the
+          camera and leaves a glow that cools from white through orange over a few
+          seconds. The sim keeps the wound: water pools in your craters and fire
+          runs along your scorch lines.
+        </Block>
+
+        <Block kicker="The neural operator">
+          The headline act. A small{" "}
+          <strong className="font-medium text-ink">convolutional network</strong> was
+          trained offline on rollouts exported from this exact solver, then
+          transcribed into WGSL so it runs as raw compute passes, no runtime, no
+          ONNX, no library. Flip to <strong className="font-medium text-ink">Neural</strong>{" "}
+          and the network predicts the water dynamics itself, seeded from physics
+          once at switch-on. The error field shows exactly where the student drifts
+          from its teacher, live, while both run.
+        </Block>
+
+        <Block kicker="Honest limits">
+          The network is a student, not a copy. It was trained for stability over
+          long rollouts and for conserving mass, not for per-frame perfection, so it
+          smooths what the solver sharpens. That gap is the point of the demo: you
+          can watch where learned physics holds and where it lets go.
+        </Block>
+
+        <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">
+          Tip: hold longer in <span className="text-sage">Meteor</span> mode for a
+          bigger class of rock. There are more worlds than the hinterland in the map
+          list, and one of them is not on the list.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
+  return (
+    <div className="mt-10">
+      <h3 className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-sage">{kicker}</h3>
+      <p className="text-base leading-prose text-ink/80">{children}</p>
     </div>
   );
 }

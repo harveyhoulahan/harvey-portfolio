@@ -54,7 +54,7 @@ export default function Navbar() {
 
   return (
     <header className={`sticky top-0 z-50 border-b transition-colors duration-500 ${headerCls}`}>
-      <nav className="col-shell flex h-16 max-w-work items-center justify-between">
+      <nav className="flex h-16 w-full items-center justify-between pl-[clamp(1.5rem,7vw,8rem)] pr-[clamp(1.5rem,4vw,3rem)]">
         <Link
           href="/"
           className="font-display text-lg font-semibold tracking-tight transition-colors duration-500"

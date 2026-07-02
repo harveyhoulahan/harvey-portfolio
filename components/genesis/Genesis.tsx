@@ -1587,55 +1587,63 @@ function GenesisWriteup() {
           Summoning swarms from a text prompt
         </h2>
         <p className="text-base leading-prose text-ink/80">
-          Genesis is a WebGPU particle-life lab where you describe a lifeform in plain English and a
-          foundation model plus an evolutionary search coax it out of a living swarm — entirely on
-          your own machine, no server. It is the generative, emergent counterpart to{" "}
+          Genesis is a WebGPU particle-life lab. You describe a lifeform in plain
+          English and a foundation model plus an evolutionary search coax it out of
+          a living swarm, entirely on your own machine, no server. It is the
+          generative counterpart to{" "}
           <a href="/catchment" className="underline decoration-sand underline-offset-4 hover:text-sage">Catchment</a>,
           which runs a physics engine on real terrain.
         </p>
 
         <Block kicker="The simulation">
-          <strong className="font-medium text-ink">Particle Life</strong> sets 2,400 agents of six
-          species loose under an asymmetric attraction matrix, extended here with flocking, a global
-          wind field, per-species force pulsing, and cyclic predation — waves of colour sweep the
-          swarm as species convert each other. Everything renders through an HDR trail buffer with
-          velocity-stretched, speed-heated sprites. Move the cursor to herd them; click to roll new
-          physics.
+          <strong className="font-medium text-ink">Particle Life</strong> sets 2,400
+          agents of six species loose under an asymmetric attraction matrix,
+          extended here with flocking, a global wind field, per-species force
+          pulsing and cyclic predation. Waves of colour sweep the swarm as species
+          convert each other. Everything renders through an HDR trail buffer with
+          velocity-stretched, speed-heated sprites. Move the cursor to herd them,
+          click to roll new physics.
         </Block>
 
         <Block kicker="Summon by prompt">
-          Type a description and an in-browser <strong className="font-medium text-ink">CLIP</strong> model
-          (running client-side on WebGPU) scores how much the swarm resembles your words.
-          The fitness is contrastive: each candidate is embedded from several views and moments,
-          and the prompt’s similarity is measured <em>against</em> a bank of generic descriptions,
-          so the search climbs on what is specific to your words rather than “glowing dots on
-          black”. A <strong className="font-medium text-ink">separable CMA-ES</strong> then breeds a
-          51-gene genome — the full attraction matrix, physics and palette — warm-started from a{" "}
-          <strong className="font-medium text-ink">trained prior</strong>: an offline pipeline evolves
-          genomes for dozens of concepts against the same CLIP model, and your prompt retrieves
-          the nearest ones in embedding space. An open-ended mode instead hunts for restless,
-          ever-changing motion. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
+          Type a description and an in-browser{" "}
+          <strong className="font-medium text-ink">CLIP</strong> model, running
+          client-side on WebGPU, scores how much the swarm resembles your words. The
+          fitness is contrastive: each candidate is embedded from several views and
+          moments, and the prompt’s similarity is measured <em>against</em> a bank
+          of generic descriptions, so the search climbs on what is specific to your
+          words rather than on glowing dots on black. A{" "}
+          <strong className="font-medium text-ink">separable CMA-ES</strong> then
+          breeds a 51-gene genome covering the full attraction matrix, the physics
+          and the palette, warm-started from a{" "}
+          <strong className="font-medium text-ink">trained prior</strong>: an
+          offline pipeline evolves genomes for dozens of concepts against the same
+          CLIP model, and your prompt retrieves the nearest ones in embedding
+          space. An open-ended mode instead hunts for restless, ever-changing
+          motion. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
           <em> Artificial Life</em>, 2025), realized here as something you can drive.
         </Block>
 
         <Block kicker="Making it feel alive">
-          The attraction matrix slowly drifts, thermal jitter keeps the swarm from settling, and a
-          cursor field lets you steer the agents in real time. Trails, streaks, wind, and predation
-          waves turn simple rules into motion that reads as organic — and every lever is a live slider.
+          The attraction matrix slowly drifts, thermal jitter keeps the swarm from
+          settling, and a cursor field lets you steer the agents in real time.
+          Trails, streaks, wind and predation waves turn simple rules into motion
+          that reads as organic, and every lever is a live slider.
         </Block>
 
         <Block kicker="Built blind, verified offline">
-          Raw WebGPU throughout, dependency-light, with graceful fallbacks so the page never
-          hard-fails. The simulation rules and the optimizer each have a pure reference validated
-          headlessly — bounded dynamics, no NaNs, emergent clustering, confirmed convergence —
-          before being transcribed to GPU shaders.
+          Raw WebGPU throughout, dependency-light, with graceful fallbacks so the
+          page never hard-fails. The simulation rules and the optimizer each have a
+          pure reference implementation validated headlessly, checking bounded
+          dynamics, no NaNs, emergent clustering and confirmed convergence, before
+          being transcribed to GPU shaders.
         </Block>
 
         <Block kicker="Honest limits">
-          The swarm is abstract: CLIP nudges colour, density, and motion toward a prompt’s vibe,
-          but the medium is particles and trails, not anatomy. That gap — emergent media judged by a
-          model trained on natural images — is the interesting tension, and it is true of the
-          original research too.
+          The swarm is abstract. CLIP nudges colour, density and motion toward the
+          vibe of a prompt, but the medium is particles and trails, not anatomy.
+          That gap, emergent media judged by a model trained on natural images, is
+          the interesting tension, and it is true of the original research too.
         </Block>
 
         <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">

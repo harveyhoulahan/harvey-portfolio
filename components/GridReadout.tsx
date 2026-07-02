@@ -49,22 +49,24 @@ export default function GridReadout() {
     : `${pos.lng.toFixed(4)}°E · ${pos.lat.toFixed(4)}°S`;
 
   return (
-    <button
-      type="button"
-      aria-hidden
-      tabIndex={-1}
-      onClick={() => setDms((v) => !v)}
-      className="absolute bottom-4 right-6 hidden cursor-crosshair items-center gap-2 font-mono text-[10px] tabular-nums tracking-[0.08em] text-ink/45 transition-colors hover:text-ink/70 md:flex"
-    >
-      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-        <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1" />
-        <path
-          d="M6 0v3M6 9v3M0 6h3M9 6h3"
-          stroke="currentColor"
-          strokeWidth="1"
-        />
-      </svg>
-      {txt}
-    </button>
+    <div className="mt-5 flex w-full justify-center md:mt-6">
+      <button
+        type="button"
+        aria-hidden
+        tabIndex={-1}
+        onClick={() => setDms((v) => !v)}
+        className="flex cursor-crosshair items-center gap-2 font-mono text-[10px] tabular-nums tracking-[0.08em] text-ink/45 transition-colors hover:text-ink/70"
+      >
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+          <circle cx="6" cy="6" r="4" stroke="currentColor" strokeWidth="1" />
+          <path
+            d="M6 0v3M6 9v3M0 6h3M9 6h3"
+            stroke="currentColor"
+            strokeWidth="1"
+          />
+        </svg>
+        {txt}
+      </button>
+    </div>
   );
 }

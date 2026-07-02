@@ -10,7 +10,6 @@ export default function Hero() {
       {/* Signature: live contour field the cursor perturbs (click for rain).
           Homepage only. */}
       <ContourField className="absolute inset-0 h-full w-full" />
-      <GridReadout />
 
       <div className="col-shell relative z-10 max-w-work pb-20 pt-16 md:pt-24">
         <div className="md:max-w-[min(42rem,calc(100%-min(38vw,420px)-2.5rem))]">
@@ -82,16 +81,22 @@ export default function Hero() {
           </div>
 
           {/* Mobile — map below copy */}
-          <div className="animate-enter mt-12 aspect-square w-full md:hidden">
-            <ByronMap />
+          <div className="animate-enter mt-12 w-full md:hidden">
+            <div className="aspect-square w-full">
+              <ByronMap />
+            </div>
+            <GridReadout />
           </div>
         </div>
       </div>
 
       {/* Desktop — map fixed on the right, nudged inward from the edge */}
-      <div className="pointer-events-none absolute inset-y-0 right-[clamp(4rem,14vw,11rem)] z-10 hidden w-[min(38vw,420px)] items-center md:flex">
-        <div className="pointer-events-auto h-[min(38vw,420px)] w-full animate-enter">
-          <ByronMap />
+      <div className="pointer-events-none absolute inset-y-0 right-[clamp(4rem,14vw,11rem)] z-10 hidden w-[min(38vw,420px)] flex-col justify-center md:flex">
+        <div className="pointer-events-auto w-full animate-enter">
+          <div className="aspect-square w-full">
+            <ByronMap />
+          </div>
+          <GridReadout />
         </div>
       </div>
     </section>
