@@ -239,7 +239,7 @@ export default function EmbeddingAtlas() {
     const W = cvs.width, H = cvs.height, pad = 8;
     const ctx = cvs.getContext("2d")!;
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#EFECE5"; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#E2E7E0"; ctx.fillRect(0, 0, W, H);
     if (scatterPts.current.length === 0) {
       const stride = Math.max(1, Math.floor(emb.landIdx.length / 1400));
       scatterPts.current = emb.landIdx.filter((_, k) => k % stride === 0).map((i) => {
@@ -258,8 +258,8 @@ export default function EmbeddingAtlas() {
       const c = projectCell(emb, pca, l.cell);
       const x = pad + c[0] * (W - 2 * pad), y = H - pad - c[1] * (H - 2 * pad);
       ctx.beginPath(); ctx.arc(x, y, 3.4, 0, Math.PI * 2);
-      ctx.fillStyle = l.cls ? "#4A6741" : "#C4A882";
-      ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = "#F7F5F0"; ctx.stroke();
+      ctx.fillStyle = l.cls ? "#14655A" : "#B23A18";
+      ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = "#ECEFEA"; ctx.stroke();
     }
   }, [emb, pca, prob, labels, thresh]);
 
@@ -295,7 +295,7 @@ export default function EmbeddingAtlas() {
     const { west, south, east, north } = terr.bounds;
     const map = new maplibregl.Map({
       container: mapDiv.current,
-      style: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#EFECE5" } }] },
+      style: { version: 8, sources: {}, layers: [{ id: "bg", type: "background", paint: { "background-color": "#E2E7E0" } }] },
       bounds: [west, south, east, north],
       fitBoundsOptions: { padding: 20 },
       attributionControl: false, dragRotate: false, pitchWithRotate: false,
@@ -389,8 +389,8 @@ export default function EmbeddingAtlas() {
   return (
     <section className="mx-auto max-w-work px-6 py-12">
       <style>{`
-        .ea-pos{width:12px;height:12px;border-radius:50%;background:#4A6741;box-shadow:0 0 0 3px rgba(247,245,240,.95),0 0 0 4px rgba(74,103,65,.5);cursor:pointer}
-        .ea-neg{width:12px;height:12px;border-radius:50%;background:#F7F5F0;border:2px solid #C4A882;box-shadow:0 0 0 2px rgba(247,245,240,.8);cursor:pointer}
+        .ea-pos{width:12px;height:12px;border-radius:50%;background:#14655A;box-shadow:0 0 0 3px rgba(236,239,234,.95),0 0 0 4px rgba(20,101,90,.5);cursor:pointer}
+        .ea-neg{width:12px;height:12px;border-radius:50%;background:#ECEFEA;border:2px solid #B23A18;box-shadow:0 0 0 2px rgba(236,239,234,.8);cursor:pointer}
       `}</style>
 
       <span className="mono-label">Live demo · geospatial foundation models</span>
@@ -408,12 +408,12 @@ export default function EmbeddingAtlas() {
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <span className="mono-label !text-ink/50">Map a concept:</span>
         {PRESETS.map((p) => (
-          <button key={p.name} onClick={() => applyPreset(p.name)} className="stack-tag transition-colors hover:border-sage hover:text-sage">
+          <button key={p.name} onClick={() => applyPreset(p.name)} className="stack-tag transition-colors hover:border-flow hover:text-flow">
             {p.name}
           </button>
         ))}
         {labels.length > 0 && (
-          <button onClick={() => setLabels([])} className="stack-tag !border-sand text-ink/60 transition-colors hover:text-ink">
+          <button onClick={() => setLabels([])} className="stack-tag !border-infra text-ink/60 transition-colors hover:text-ink">
             Clear ✕
           </button>
         )}
@@ -421,19 +421,19 @@ export default function EmbeddingAtlas() {
 
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[11px] text-ink/55">
         <span>Click the map to add examples:</span>
-        <button onClick={() => setMode(1)} className={`inline-flex items-center gap-1.5 ${mode === 1 ? "text-sage" : "hover:text-ink"}`}>
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-sage" /> positive ({posCount})
+        <button onClick={() => setMode(1)} className={`inline-flex items-center gap-1.5 ${mode === 1 ? "text-flow" : "hover:text-ink"}`}>
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-flow" /> positive ({posCount})
         </button>
         <button onClick={() => setMode(0)} className={`inline-flex items-center gap-1.5 ${mode === 0 ? "text-ink" : "hover:text-ink"}`}>
-          <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-sand bg-concrete" /> negative ({negCount})
+          <span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-infra bg-paper" /> negative ({negCount})
         </button>
         <label className="inline-flex items-center gap-2">
-          <input type="checkbox" checked={showPred} onChange={(e) => setShowPred(e.target.checked)} className="accent-sage" />
+          <input type="checkbox" checked={showPred} onChange={(e) => setShowPred(e.target.checked)} className="accent-flow" />
           show prediction
         </label>
         <label className="inline-flex items-center gap-2">
           threshold
-          <input type="range" min={0.3} max={0.85} step={0.01} value={thresh} onChange={(e) => setThresh(+e.target.value)} className="accent-sage" />
+          <input type="range" min={0.3} max={0.85} step={0.01} value={thresh} onChange={(e) => setThresh(+e.target.value)} className="accent-flow" />
         </label>
       </div>
 
@@ -441,20 +441,20 @@ export default function EmbeddingAtlas() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_300px]">
         <div className="relative">
           {status === "loading" && (
-            <div className="flex h-[440px] w-full items-center justify-center border border-hairline bg-surface sm:h-[500px]">
+            <div className="flex h-[440px] w-full items-center justify-center border border-contour bg-terrace sm:h-[500px]">
               <span className="mono-label animate-pulse">Loading embedding field…</span>
             </div>
           )}
           {status === "error" && (
-            <div className="flex h-[440px] w-full flex-col items-center justify-center gap-3 border border-hairline bg-surface text-center sm:h-[500px]">
+            <div className="flex h-[440px] w-full flex-col items-center justify-center gap-3 border border-contour bg-terrace text-center sm:h-[500px]">
               <span className="mono-label">Couldn&apos;t load model assets</span>
               <button onClick={() => location.reload()} className="btn-secondary text-sm">Retry</button>
             </div>
           )}
 
           {status === "ready" && useMap && (
-            <div className="relative h-[440px] w-full overflow-hidden border border-hairline sm:h-[500px]">
-              <div ref={mapDiv} className="h-full w-full" style={{ background: "#EFECE5" }} aria-hidden />
+            <div className="relative h-[440px] w-full overflow-hidden border border-contour sm:h-[500px]">
+              <div ref={mapDiv} className="h-full w-full" style={{ background: "#E2E7E0" }} aria-hidden />
               <canvas ref={overlay} className="pointer-events-none absolute inset-0 h-full w-full" aria-label="Embedding field map. Click to label examples; the trained class is shaded green." />
             </div>
           )}
@@ -471,7 +471,7 @@ export default function EmbeddingAtlas() {
           )}
 
           {hover && (
-            <div className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] whitespace-nowrap border border-hairline bg-concrete/95 px-2 py-1 font-mono text-[11px] text-ink shadow-sm" style={{ left: hover.x, top: hover.y }}>
+            <div className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] whitespace-nowrap border border-contour bg-paper/95 px-2 py-1 font-mono text-[11px] text-ink shadow-sm" style={{ left: hover.x, top: hover.y }}>
               {hover.text}
             </div>
           )}
@@ -483,13 +483,13 @@ export default function EmbeddingAtlas() {
         </div>
 
         {/* side: latent space + teaching */}
-        <aside className="border-t border-hairline pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+        <aside className="border-t border-contour pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
           <span className="mono-label">Latent space (PCA)</span>
           <canvas
             ref={scatterCanvas}
             width={264}
             height={180}
-            className="mt-3 w-full border border-hairline"
+            className="mt-3 w-full border border-contour"
             aria-label="Scatter plot of every cell in the model's embedding space, coloured by the current prediction."
           />
           <p className="mt-2 text-[12px] leading-relaxed text-ink/55">
@@ -498,7 +498,7 @@ export default function EmbeddingAtlas() {
             generalises across the whole map.
           </p>
 
-          <p className="mt-5 border-t border-hairline pt-4 text-[13px] leading-relaxed text-ink/55">
+          <p className="mt-5 border-t border-contour pt-4 text-[13px] leading-relaxed text-ink/55">
             Foundation models (AlphaEarth Foundations, Clay, Prithvi, SatCLIP)
             pre-compute embeddings for all of Earth so downstream maps need only a
             handful of labels instead of millions. This is a hand-built miniature of
@@ -523,7 +523,7 @@ function StaticAtlas({
       ref={canvasRef}
       width={TILE}
       height={TILE}
-      className="aspect-square w-full cursor-crosshair border border-hairline"
+      className="aspect-square w-full cursor-crosshair border border-contour"
       style={{ display: "block" }}
       aria-label="Embedding field map. Tap to label examples; the trained class is shaded green."
       onClick={(ev) => {

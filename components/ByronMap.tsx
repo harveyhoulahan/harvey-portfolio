@@ -1,11 +1,11 @@
 "use client";
 
 /*
- * Signature element: a real map of Byron Bay, rendered as a purple/blue duotone.
+ * Signature element: a real map of Byron Bay, rendered as a caldera-teal duotone.
  *
  * Basemap is Esri World Imagery (free, no API key, CORS-enabled, reliable), so
  * the actual coastline / Cape Byron / beaches are recognisable. The imagery is
- * desaturated and a violet -> blue gradient is blended over it (mix-blend-mode:
+ * desaturated and a deep-teal gradient is blended over it (mix-blend-mode:
  * color) for the signature duotone. If WebGL or the tiles are unavailable we
  * fall back to a static coordinate card so the hero never shows an empty box.
  */
@@ -92,13 +92,13 @@ export default function ByronMap() {
   if (err) {
     return (
       <div
-        className="relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden border border-hairline text-center"
-        style={{ background: "#0e1232" }}
+        className="relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden border border-contour text-center"
+        style={{ background: "#0b1512" }}
       >
-        <span className="mono-label" style={{ color: "rgba(219,228,255,0.85)" }}>
+        <span className="mono-label" style={{ color: "rgba(214,236,229,0.85)" }}>
           Byron Bay, NSW
         </span>
-        <span className="mt-2 font-mono text-sm" style={{ color: "rgba(219,228,255,0.55)" }}>
+        <span className="mt-2 font-mono text-sm" style={{ color: "rgba(214,236,229,0.55)" }}>
           {profile.coordinates.label}
         </span>
       </div>
@@ -109,8 +109,8 @@ export default function ByronMap() {
     <div
       ref={wrap}
       aria-label="Map of Byron Bay, New South Wales"
-      className="relative h-full min-h-[260px] w-full overflow-hidden border border-hairline"
-      style={{ background: "#0e1232", isolation: "isolate" }}
+      className="relative h-full min-h-[260px] w-full overflow-hidden border border-contour"
+      style={{ background: "#0b1512", isolation: "isolate" }}
     >
       {/* desaturated satellite basemap */}
       <div
@@ -118,12 +118,12 @@ export default function ByronMap() {
         className="h-full w-full"
         style={{ filter: "grayscale(1) contrast(1.05) brightness(1.05)" }}
       />
-      {/* purple/blue duotone — imposes hue, keeps satellite luminance */}
+      {/* caldera-teal duotone — imposes hue, keeps satellite luminance */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(135deg, #3a2f7a 0%, #2c43b0 52%, #3aa6e6 100%)",
+            "linear-gradient(135deg, #0e2b26 0%, #14655a 52%, #6fb8aa 100%)",
           mixBlendMode: "color",
         }}
       />
@@ -132,7 +132,7 @@ export default function ByronMap() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(135deg, rgba(120,140,255,0.18) 0%, transparent 45%)",
+            "linear-gradient(135deg, rgba(126,206,188,0.16) 0%, transparent 45%)",
           mixBlendMode: "screen",
         }}
       />
@@ -141,26 +141,26 @@ export default function ByronMap() {
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "radial-gradient(120% 95% at 50% 38%, transparent 55%, rgba(8,10,40,0.55) 100%)",
+            "radial-gradient(120% 95% at 50% 38%, transparent 55%, rgba(6,16,13,0.55) 100%)",
         }}
       />
       {/* Byron Bay marker (crisp, above the blend layers) */}
       <div ref={marker} className="pointer-events-none absolute left-0 top-0 z-10">
         <span
-          className="block h-3 w-3 rounded-full"
+          className="block h-3 w-3"
           style={{
-            background: "#e4ebff",
+            background: "#ff8a5c",
             boxShadow:
-              "0 0 0 4px rgba(156,182,255,0.35), 0 0 16px rgba(156,182,255,0.85)",
+              "0 0 0 4px rgba(255,138,92,0.30), 0 0 16px rgba(255,138,92,0.80)",
           }}
         />
       </div>
       <div
         className="pointer-events-none absolute bottom-3 left-3 z-10 font-mono text-[11px] uppercase tracking-[0.18em]"
-        style={{ color: "rgba(219,228,255,0.92)" }}
+        style={{ color: "rgba(214,236,229,0.92)" }}
       >
         Byron Bay · {profile.coordinates.label}
-        <span style={{ color: "rgba(219,228,255,0.5)" }}> · Esri</span>
+        <span style={{ color: "rgba(214,236,229,0.5)" }}> · Esri</span>
       </div>
     </div>
   );

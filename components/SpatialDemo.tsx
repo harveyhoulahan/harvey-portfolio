@@ -290,7 +290,7 @@ export default function SpatialDemo() {
       style: {
         version: 8,
         sources: {},
-        layers: [{ id: "bg", type: "background", paint: { "background-color": "#EFECE5" } }],
+        layers: [{ id: "bg", type: "background", paint: { "background-color": "#E2E7E0" } }],
       },
       bounds: [west, south, east, north],
       fitBoundsOptions: { padding: 20 },
@@ -407,12 +407,12 @@ export default function SpatialDemo() {
   return (
     <section className="mx-auto max-w-work px-6 py-12">
       <style>{`
-        .td-marker{width:13px;height:13px;border-radius:50%;background:#4A6741;
-          box-shadow:0 0 0 3px rgba(247,245,240,.95),0 0 0 5px rgba(74,103,65,.4);
+        .td-marker{width:13px;height:13px;border-radius:50%;background:#14655A;
+          box-shadow:0 0 0 3px rgba(236,239,234,.95),0 0 0 5px rgba(20,101,90,.4);
           animation:td-pulse 2.4s ease-out infinite;animation-delay:var(--d,0ms);}
-        @keyframes td-pulse{0%{box-shadow:0 0 0 3px rgba(247,245,240,.95),0 0 0 5px rgba(74,103,65,.55)}
-          70%{box-shadow:0 0 0 3px rgba(247,245,240,.95),0 0 0 18px rgba(74,103,65,0)}
-          100%{box-shadow:0 0 0 3px rgba(247,245,240,.95),0 0 0 18px rgba(74,103,65,0)}}
+        @keyframes td-pulse{0%{box-shadow:0 0 0 3px rgba(236,239,234,.95),0 0 0 5px rgba(20,101,90,.55)}
+          70%{box-shadow:0 0 0 3px rgba(236,239,234,.95),0 0 0 18px rgba(20,101,90,0)}
+          100%{box-shadow:0 0 0 3px rgba(236,239,234,.95),0 0 0 18px rgba(20,101,90,0)}}
         @media (prefers-reduced-motion: reduce){.td-marker{animation:none!important}}
       `}</style>
 
@@ -435,15 +435,15 @@ export default function SpatialDemo() {
           placeholder="steep north-facing slopes near water"
           autoComplete="off"
           spellCheck={false}
-          className="w-full border border-hairline bg-surface px-4 py-3 font-mono text-sm text-ink outline-none transition-colors focus:border-sage"
+          className="w-full border border-contour bg-terrace px-4 py-3 font-mono text-sm text-ink outline-none transition-colors focus:border-flow"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           {EXAMPLES.map((ex) => (
             <button
               key={ex}
               onClick={() => setQuery(ex)}
-              className={`stack-tag transition-colors hover:border-sage hover:text-sage ${
-                query === ex ? "border-sage text-sage" : ""
+              className={`stack-tag transition-colors hover:border-flow hover:text-flow ${
+                query === ex ? "border-flow text-flow" : ""
               }`}
             >
               {ex}
@@ -456,12 +456,12 @@ export default function SpatialDemo() {
       <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="relative">
           {status === "loading" && (
-            <div className="flex h-[440px] w-full items-center justify-center border border-hairline bg-surface sm:h-[500px]">
+            <div className="flex h-[440px] w-full items-center justify-center border border-contour bg-terrace sm:h-[500px]">
               <span className="mono-label animate-pulse">Loading terrain…</span>
             </div>
           )}
           {status === "error" && (
-            <div className="flex h-[440px] w-full flex-col items-center justify-center gap-3 border border-hairline bg-surface text-center sm:h-[500px]">
+            <div className="flex h-[440px] w-full flex-col items-center justify-center gap-3 border border-contour bg-terrace text-center sm:h-[500px]">
               <span className="mono-label">Couldn&apos;t load terrain data</span>
               <button onClick={() => location.reload()} className="btn-secondary text-sm">Retry</button>
             </div>
@@ -469,8 +469,8 @@ export default function SpatialDemo() {
 
           {/* MAP MODE: map div + aligned overlay canvas */}
           {status === "ready" && useMap && (
-            <div className="relative h-[440px] w-full overflow-hidden border border-hairline sm:h-[500px]">
-              <div ref={mapDiv} className="h-full w-full" style={{ background: "#EFECE5" }} aria-hidden />
+            <div className="relative h-[440px] w-full overflow-hidden border border-contour sm:h-[500px]">
+              <div ref={mapDiv} className="h-full w-full" style={{ background: "#E2E7E0" }} aria-hidden />
               <canvas
                 ref={overlay}
                 className="pointer-events-none absolute inset-0 h-full w-full"
@@ -486,7 +486,7 @@ export default function SpatialDemo() {
               width={TILE}
               height={TILE}
               aria-label="Terrain map. Stronger matches for your query are shaded green."
-              className="aspect-square w-full border border-hairline"
+              className="aspect-square w-full border border-contour"
               style={{ display: "block" }}
             />
           )}
@@ -494,7 +494,7 @@ export default function SpatialDemo() {
           {/* hover inspector */}
           {hover && (
             <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] whitespace-nowrap border border-hairline bg-concrete/95 px-2 py-1 font-mono text-[11px] text-ink shadow-sm"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[140%] whitespace-nowrap border border-contour bg-paper/95 px-2 py-1 font-mono text-[11px] text-ink shadow-sm"
               style={{ left: hover.x, top: hover.y }}
             >
               {hover.text}
@@ -507,8 +507,8 @@ export default function SpatialDemo() {
               {result.top.slice(0, 6).map((idx, i) => {
                 const [lng, lat] = cellLngLat(terrain, idx);
                 return (
-                  <li key={idx} className="border border-hairline bg-surface px-3 py-2 font-mono text-[11px] text-ink/80">
-                    <span className="text-sage">#{i + 1}</span> {lat.toFixed(3)}, {lng.toFixed(3)}
+                  <li key={idx} className="border border-contour bg-terrace px-3 py-2 font-mono text-[11px] text-ink/80">
+                    <span className="text-flow">#{i + 1}</span> {lat.toFixed(3)}, {lng.toFixed(3)}
                   </li>
                 );
               })}
@@ -524,7 +524,7 @@ export default function SpatialDemo() {
                   className="h-2 w-28 rounded-full"
                   style={{
                     background:
-                      "linear-gradient(90deg, rgba(196,168,130,0) 0%, rgba(196,168,130,.8) 35%, #4A6741 100%)",
+                      "linear-gradient(90deg, rgba(178,58,24,0) 0%, rgba(178,58,24,.8) 35%, #14655A 100%)",
                   }}
                 />
                 <span className="font-mono text-[11px] text-ink/45">strong match</span>
@@ -544,7 +544,7 @@ export default function SpatialDemo() {
         </div>
 
         {/* explainer */}
-        <aside className="border-t border-hairline pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+        <aside className="border-t border-contour pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
           <span className="mono-label">How it reads your query</span>
           {noMatch ? (
             <p className="mt-3 text-sm text-ink/60">
@@ -561,7 +561,7 @@ export default function SpatialDemo() {
                       key={i}
                       title={m.fuzzy ? `≈ ${m.key}` : m.key}
                       className={`stack-tag !py-0.5 !text-[11px] ${
-                        m.negated ? "border-sand text-ink/50 line-through" : "border-sage text-sage"
+                        m.negated ? "border-infra text-ink/50 line-through" : "border-flow text-flow"
                       }`}
                     >
                       {m.token}
@@ -571,9 +571,9 @@ export default function SpatialDemo() {
               )}
 
               {result && ranked.length > 0 && (
-                <div className="mt-4 flex items-center gap-5 border-y border-hairline py-3 font-mono text-[11px]">
+                <div className="mt-4 flex items-center gap-5 border-y border-contour py-3 font-mono text-[11px]">
                   <div>
-                    <span className="text-base font-medium text-sage">
+                    <span className="text-base font-medium text-flow">
                       {Math.round(result.best * 100)}%
                     </span>{" "}
                     <span className="text-ink/45">best match</span>
@@ -601,12 +601,12 @@ export default function SpatialDemo() {
                         <span className="text-ink/70">{pos ? meta.pos : meta.neg}</span>
                         <span className="text-ink/40">{weight.toFixed(1)}</span>
                       </div>
-                      <div className="mt-1 h-1.5 w-full bg-surface">
+                      <div className="mt-1 h-1.5 w-full bg-terrace">
                         <div
                           className="h-full"
                           style={{
                             width: `${pct}%`,
-                            background: pos ? "#4A6741" : "#C4A882",
+                            background: pos ? "#14655A" : "#B23A18",
                             marginLeft: pos ? 0 : `${100 - pct}%`,
                           }}
                         />
@@ -617,19 +617,19 @@ export default function SpatialDemo() {
               </div>
 
               {pin && (
-                <div className="mt-5 border-t border-hairline pt-4">
+                <div className="mt-5 border-t border-contour pt-4">
                   <div className="flex items-baseline justify-between">
                     <span className="mono-label">Inspected cell</span>
                     <button
                       onClick={() => setPinned(null)}
-                      className="font-mono text-[11px] text-ink/40 hover:text-sage"
+                      className="font-mono text-[11px] text-ink/40 hover:text-flow"
                     >
                       clear
                     </button>
                   </div>
                   <p className="mt-2 font-mono text-[11px] text-ink/60">
                     {pin.ll[1].toFixed(3)}, {pin.ll[0].toFixed(3)} · {pin.elevM} m ·{" "}
-                    <span className="text-sage">
+                    <span className="text-flow">
                       {Number.isNaN(pin.score) ? "—" : `${Math.round(pin.score * 100)}% match`}
                     </span>
                   </p>
@@ -645,7 +645,7 @@ export default function SpatialDemo() {
                           className="flex items-center justify-between font-mono text-[11px]"
                         >
                           <span className="text-ink/70">{label}</span>
-                          <span className={good ? "text-sage" : bad ? "text-sand" : "text-ink/35"}>
+                          <span className={good ? "text-flow" : bad ? "text-infra" : "text-ink/35"}>
                             {contrib > 0 ? "+" : ""}
                             {contrib.toFixed(2)}
                           </span>
@@ -662,7 +662,7 @@ export default function SpatialDemo() {
             </>
           )}
 
-          <p className="mt-6 border-t border-hairline pt-4 text-[13px] leading-relaxed text-ink/55">
+          <p className="mt-6 border-t border-contour pt-4 text-[13px] leading-relaxed text-ink/55">
             Your sentence is embedded into eight interpretable terrain axes, then
             every grid cell is ranked by similarity to that vector — the same
             language-to-features bridge I build for spatial data pipelines.

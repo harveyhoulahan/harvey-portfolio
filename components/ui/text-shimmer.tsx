@@ -29,7 +29,7 @@ export function TextShimmer({
       className={cn(
         "relative inline-block bg-[length:250%_100%,auto] bg-clip-text",
         // Light architectural palette: muted ink base swept by a sage highlight.
-        "text-transparent [--base-color:#9b978d] [--base-gradient-color:#4A6741]",
+        "text-transparent [--base-color:#9b978d] [--base-gradient-color:#14655A]",
         "[--bg:linear-gradient(90deg,#0000_calc(50%-var(--spread)),var(--base-gradient-color),#0000_calc(50%+var(--spread)))] [background-repeat:no-repeat,padding-box]",
         className
       )}

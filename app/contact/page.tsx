@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ContourMotif from "@/components/ContourMotif";
 import { profile } from "@/data/metadata";
 
 export default function Contact() {
@@ -42,18 +43,22 @@ export default function Contact() {
   };
 
   const inputClass =
-    "w-full border border-hairline bg-concrete px-4 py-3 text-ink outline-none transition-colors focus:border-sage placeholder:text-ink/40";
+    "w-full border border-contour bg-paper px-4 py-3 text-ink outline-none transition-colors focus:border-flow placeholder:text-ink/40";
 
   return (
     <div className="py-20 md:py-28">
-      <div className="col-shell max-w-work">
+      <div className="col-shell relative max-w-work">
+        <ContourMotif
+          variant="channels"
+          className="contour-motif pointer-events-none absolute -top-8 right-6 hidden h-40 w-52 text-ink/10 md:block"
+        />
         <span className="mono-label">{profile.availability}</span>
         <h1 className="mt-5 font-display">Get in touch.</h1>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
           Contract engagements in climate tech, carbon MRV, biodiversity
           monitoring, precision agriculture and environmental data
           infrastructure. {profile.locationNow}{" "}
-          <span className="text-sand">→</span>{" "}
+          <span className="text-infra">→</span>{" "}
           {profile.locationNext} · {profile.timezone} · remote.
         </p>
       </div>
@@ -65,7 +70,7 @@ export default function Contact() {
             <span className="mono-label text-ink/60">Direct</span>
             <ul className="mt-4 space-y-3 font-mono text-sm">
               <li>
-                <a href={`mailto:${profile.email}`} className="hover:text-sage">
+                <a href={`mailto:${profile.email}`} className="hover:text-flow">
                   {profile.email}
                 </a>
               </li>
@@ -74,7 +79,7 @@ export default function Contact() {
                   href={profile.social.linkedin}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sage"
+                  className="hover:text-flow"
                 >
                   LinkedIn {profile.social.linkedinHandle}
                 </a>
@@ -84,7 +89,7 @@ export default function Contact() {
                   href={profile.social.github}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hover:text-sage"
+                  className="hover:text-flow"
                 >
                   GitHub /{profile.social.githubHandle}
                 </a>
@@ -132,14 +137,16 @@ export default function Contact() {
           <button
             type="submit"
             disabled={status === "sending"}
-            className="btn-primary w-full justify-center disabled:opacity-50"
+            className={`btn-primary w-full justify-center disabled:opacity-80 ${
+              status === "sending" ? "btn-sending" : ""
+            }`}
           >
             {status === "sending" && "Sending…"}
             {status === "sent" && "Message sent"}
             {(status === "idle" || status === "error") && "Send message"}
           </button>
           {status === "sent" && (
-            <p className="font-mono text-sm text-sage">
+            <p className="font-mono text-sm text-flow">
               Thanks — I&apos;ll get back to you soon.
             </p>
           )}
