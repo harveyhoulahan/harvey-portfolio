@@ -678,7 +678,9 @@ export const RENDER_TERRAIN_WGSL = /* wgsl */ `
 // meteor strike; drives the incandescent crater glow that cools over ~6s.
 // radiusWorld <= 0 means no live impact.
 // env = (cloudOffsetX, cloudOffsetZ, cloudAmount, _) — wind-driven cloud shadows.
-struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32> };
+// stormu = (worldX, worldZ, sigmaWorld, strength) — the drifting storm cell darkens
+// the ground beneath it like a real rain column.
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32>, stormu: vec4<f32> };
 @group(0) @binding(0) var<uniform> ru: RU;
 @group(0) @binding(1) var<storage, read> bed: array<f32>;
 @group(0) @binding(2) var<storage, read> nrm: array<vec4<f32>>;
@@ -782,17 +784,20 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let wdep = waterAt(in.world.x, in.world.z);
   let wet = smoothstep(0.004, 0.09, wdep) * (1.0 - in.info.x);
   base = mix(base, base * vec3<f32>(0.55, 0.68, 0.72), wet * 0.55);
-  // cast shadows + sky occlusion from the live surface, clouds drift on the wind
+  // cast shadows + sky occlusion from the live surface, clouds drift on the wind,
+  // and the storm cell drops a travelling column of gloom
   let sao = shadowAt(in.world.x, in.world.z);
   let cloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z);
-  let sunVis = mix(sao.x, sao.x * cloud, 1.0 - in.eco.z); // fire glows through cloud shade
+  let dsx = in.world.xz - ru.stormu.xy;
+  let stormD = ru.stormu.w * exp(-dot(dsx, dsx) / (2.0 * ru.stormu.z * ru.stormu.z + 1e-5));
+  let sunVis = mix(sao.x, sao.x * cloud, 1.0 - in.eco.z) * (1.0 - stormD * 0.55);
   // procedural detail normal: fBm gradient perturbation, stronger on rock, damped on wet ground
   let dg = vgrad(in.world.xz * 26.0) * 0.30 + vgrad(in.world.xz * 71.0 + vec2<f32>(3.7, 9.1)) * 0.16;
   let Nd = normalize(N + vec3<f32>(dg.x, 0.0, dg.y) * (0.35 + slope * 0.85) * (1.0 - wet * 0.7));
   let ndlD = clamp(dot(Nd, L), 0.0, 1.0);
   let amb = mix(srgbToLinear(vec3<f32>(0.34, 0.33, 0.30)), srgbToLinear(vec3<f32>(0.52, 0.55, 0.60)), N.y * 0.5 + 0.5);
   let sunCol = srgbToLinear(vec3<f32>(1.0, 0.96, 0.88));
-  var col = base * (amb * (0.35 + 0.65 * sao.y) + sunCol * ndlD * 0.95 * sunVis);
+  var col = base * (amb * (0.35 + 0.65 * sao.y) * (1.0 - stormD * 0.25) + sunCol * ndlD * 0.95 * sunVis);
   // wet ground and tideline sand catch a low specular sheen
   let Vt = normalize(ru.cam.xyz - in.world);
   let Ht = normalize(L + Vt);
@@ -913,7 +918,7 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
 /* Lively water: depth-graded colour, animated ripples, sun sparkle, fresnel rim,
  * and foam/streaks on fast-moving water. misc.z carries time (seconds). */
 export const RENDER_WATER_WGSL = /* wgsl */ `
-struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32> };
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32>, stormu: vec4<f32> };
 @group(0) @binding(0) var<uniform> ru: RU;
 @group(0) @binding(1) var<storage, read> bed: array<f32>;
 @group(0) @binding(2) var<storage, read> wat: array<f32>;
@@ -1007,46 +1012,81 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let H = normalize(L + V);
 
   if (isOcean) {
-    let N = normalize(in.onrm);
     let tt = ru.misc.z;
-    // depth-graded body colour with slow large-scale "current" variation
+    // per-pixel wave field: the vertex stage displaces the coarse mesh, but the
+    // normal is re-evaluated analytically per fragment (plus micro-ripple detail)
+    // so the sea stays crisp instead of interpolating across 160² vertices
+    let ow = oceanWave(in.world.xz, tt);
+    let h = ow.w;
+    let mg = vgrad(in.world.xz * 92.0 + vec2<f32>(tt * 0.9, -tt * 0.7)) * 0.05
+           + vgrad(in.world.xz * 37.0 - vec2<f32>(tt * 0.5, tt * 0.35)) * 0.05;
+    let N = normalize(ow.xyz + vec3<f32>(mg.x, 0.0, mg.y));
+
+    // true water column from the live seafloor — continuous shallows that follow
+    // the underwater topography all the way to the waterline
+    let n2 = u32(ru.params.x);
+    let hf = ru.params.z;
+    let fc = clamp((in.world.x + hf) / (2.0 * hf) * f32(n2 - 1u), 0.0, f32(n2) - 1.001);
+    let fr = clamp((in.world.z + hf) / (2.0 * hf) * f32(n2 - 1u), 0.0, f32(n2) - 1.001);
+    let c0 = i32(floor(fc)); let r0 = i32(floor(fr));
+    let tc = fc - floor(fc); let trr = fr - floor(fr);
+    let bedY = mix(mix(bedAtCell(r0, c0, n2), bedAtCell(r0, c0 + 1, n2), tc),
+                   mix(bedAtCell(r0 + 1, c0, n2), bedAtCell(r0 + 1, c0 + 1, n2), tc), trr)
+               / ru.misc.x * ru.params.y;
+    let waterCol = max(ru.params.w - bedY, 0.0);
+    let shallowF = exp(-waterCol * 60.0);   // 1 at the waterline → 0 in the deep
+
+    // lighting environment: terrain shadows reach over the water, clouds drift,
+    // and the storm cell drops its column of gloom on the sea too
+    let sao = shadowAt(in.world.x, in.world.z);
+    let ocloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z * 0.7);
+    let dsx = in.world.xz - ru.stormu.xy;
+    let stormD = ru.stormu.w * exp(-dot(dsx, dsx) / (2.0 * ru.stormu.z * ru.stormu.z + 1e-5));
+    let sunV = sao.x * ocloud * (1.0 - stormD * 0.55);
+
+    // body colour: deep→mid by swell height + slow current variation, greening
+    // through turquoise over the shoals, sand ghosting through the last metres
     let cvar = vnoise(in.world.xz * 1.3 + vec2<f32>(tt * 0.03, -tt * 0.02)) - 0.5;
-    // cohesive ocean body — same turquoise→deep-blue family as the inland water,
-    // so the open sea reads as one continuous ocean rather than steel + navy patches
-    let deepC = srgbToLinear(vec3<f32>(0.04, 0.20, 0.39));
-    let midC = srgbToLinear(vec3<f32>(0.10, 0.40, 0.52));
-    var col = mix(deepC, midC, clamp(0.45 + in.depth * 16.0 + cvar * 0.35, 0.0, 1.0));
-    // shallows: as the sea thins over the sand it greens toward turquoise
-    let shore = in.shore;
-    let shallowC = srgbToLinear(vec3<f32>(0.26, 0.60, 0.61));
-    col = mix(col, shallowC, smoothstep(0.0, 1.0, shore) * 0.78);
-    // fresnel sky reflection — kept gentle and cool so it tints the swell rather than
-    // washing it to pale steel (the old clash was reflection vs body, not two blues)
+    let deepC = srgbToLinear(vec3<f32>(0.03, 0.17, 0.36));
+    let midC = srgbToLinear(vec3<f32>(0.09, 0.38, 0.50));
+    var col = mix(deepC, midC, clamp(0.42 + h * 14.0 + cvar * 0.30, 0.0, 1.0));
+    let shallowC = srgbToLinear(vec3<f32>(0.30, 0.63, 0.62));
+    let sandC = srgbToLinear(vec3<f32>(0.58, 0.66, 0.58));
+    col = mix(col, shallowC, smoothstep(0.10, 0.75, shallowF));
+    col = mix(col, sandC, smoothstep(0.75, 0.97, shallowF) * 0.55);
+    col = col * (0.62 + 0.38 * sunV);
+    // fresnel sky reflection, damped over the shallows so the sand stays readable
     let refl = reflect(-V, N);
     let horizon = srgbToLinear(vec3<f32>(0.62, 0.76, 0.82));
     let zenith = srgbToLinear(vec3<f32>(0.40, 0.58, 0.74));
-    let skyCol = mix(horizon, zenith, clamp(refl.y * 0.5 + 0.5, 0.0, 1.0));
+    let skyCol = mix(horizon, zenith, clamp(refl.y * 0.5 + 0.5, 0.0, 1.0)) * (1.0 - stormD * 0.30);
     let fres = 0.02 + 0.98 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
-    col = mix(col, skyCol, clamp(fres, 0.0, 0.5));
+    col = mix(col, skyCol, clamp(fres, 0.0, 0.55) * (1.0 - 0.5 * smoothstep(0.6, 0.95, shallowF)));
     // subsurface scattering — translucent green glow on lit, steep wave backs
-    let sss = pow(max(0.0, dot(V, -L)), 2.0) * smoothstep(0.0, 0.012, in.depth) * 0.7;
+    let sss = pow(max(0.0, dot(V, -L)), 2.0) * smoothstep(0.0, 0.014, h) * 0.6 * sunV;
     col = col + srgbToLinear(vec3<f32>(0.08, 0.40, 0.32)) * sss;
-    // sun glint (sharp + low so bloom sparkles instead of blowing out); cloud
-    // shadows drift across the swell with the wind
-    let ocloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z * 0.7);
-    col = col * (0.88 + 0.12 * ocloud);
-    let spec = pow(max(dot(N, H), 0.0), 380.0) * ocloud;
-    col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.86)) * spec * 0.5;
-    // foam: crest tops × patchy advected noise (random, not uniform)
-    let crest = smoothstep(0.009, 0.015, in.depth);
-    let foamN = smoothstep(0.5, 0.92, vnoise(in.world.xz * 16.0 + vec2<f32>(tt * 0.5, tt * 0.3)));
-    col = mix(col, srgbToLinear(vec3<f32>(0.88, 0.93, 0.95)), clamp(crest * (0.35 + 0.5 * foamN), 0.0, 0.8));
-    // surf: a foam line that swells up the sand on the wave, then drains back
-    let surfWave = sin(in.world.x * 5.5 + in.world.z * 5.5 - tt * 1.5) * 0.5 + 0.5;
-    let surf = smoothstep(0.45, 0.95, shore) * (0.35 + 0.65 * smoothstep(0.3, 0.95, surfWave));
-    col = mix(col, srgbToLinear(vec3<f32>(0.93, 0.96, 0.97)), clamp(surf, 0.0, 0.9));
-    // the very edge thins toward transparent so the wet sand reads through the wash
-    let alpha = mix(0.96, 0.74, smoothstep(0.7, 1.0, shore));
+    // sun glint: a sharp sparkle for bloom + a faint broad sheen
+    let ndh = max(dot(N, H), 0.0);
+    col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.86)) * (pow(ndh, 420.0) * 0.9 + pow(ndh, 48.0) * 0.08) * sunV;
+
+    // foam, three regimes:
+    // 1. crest foam — only genuinely steep wave tops, broken by advected noise
+    let fN = vnoise(in.world.xz * 26.0 + vec2<f32>(tt * 0.45, tt * 0.3));
+    let crest = smoothstep(0.019, 0.030, h) * smoothstep(0.55, 0.9, fN);
+    // 2. breakers — swell lines whiten as the floor shoals and ride shoreward
+    //    (phase locked to the water column, so lines follow the bathymetry)
+    let bk = sin(waterCol * 230.0 + tt * 2.6 + (in.world.x + in.world.z) * 2.1) * 0.5 + 0.5;
+    let bkN = smoothstep(0.35, 0.75, vnoise(in.world.xz * 14.0 + vec2<f32>(tt * 0.2, -tt * 0.15)));
+    let breaking = pow(bk, 3.0) * smoothstep(0.30, 0.72, shallowF) * (1.0 - smoothstep(0.90, 0.99, shallowF)) * bkN;
+    // 3. contact wash — a lapping bright line exactly where sea meets sand, which
+    //    also hides the polygonal intersection of the two meshes
+    let lapN = 0.7 + 0.3 * vnoise(in.world.xz * 55.0 - vec2<f32>(tt * 0.6, tt * 0.4));
+    let contact = smoothstep(0.010, 0.0025, waterCol) * lapN;
+    let foam = clamp(crest * 0.55 + max(breaking * 0.85, contact), 0.0, 1.0);
+    col = mix(col, srgbToLinear(vec3<f32>(0.92, 0.95, 0.95)) * (0.55 + 0.45 * sunV), foam);
+    // deep sea opaque; shallows translucent so the seabed reads through; foam solid
+    var alpha = mix(0.97, 0.55, smoothstep(0.55, 0.95, shallowF));
+    alpha = clamp(alpha + foam * 0.45, 0.0, 0.97);
     return vec4<f32>(displayColor(col) * alpha, alpha);
   }
 
@@ -1061,10 +1101,12 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let p = in.world.xz;
   let fdir = in.v / max(spd, 0.0001);
 
-  // shadows + drifting clouds shade the water like the ground around it
+  // shadows + drifting clouds + the storm column shade the water like the ground
   let sao = shadowAt(in.world.x, in.world.z);
   let cloud = cloudShade(p, ru.env.xy, ru.env.z * 0.8);
-  let sunVis = sao.x * cloud;
+  let dsx = p - ru.stormu.xy;
+  let stormD = ru.stormu.w * exp(-dot(dsx, dsx) / (2.0 * ru.stormu.z * ru.stormu.z + 1e-5));
+  let sunVis = sao.x * cloud * (1.0 - stormD * 0.55);
 
   // flow mapping: two noise-gradient samples advected along the velocity with
   // opposite phase, cross-faded so the ripples travel without visible reset
@@ -1181,7 +1223,8 @@ fn fs(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
 `;
 
 /* Fullscreen sky/atmosphere: warm-pale horizon → soft-blue zenith + a sun glow at
- * the projected sun position. sky.sun=(uvx,uvy,visible,_); sky.params=(aspect,time,_,_). */
+ * the projected sun position. sky.sun=(uvx,uvy,visible,_);
+ * sky.params=(aspect,time,storminess,_) — storminess greys the sky and mutes the sun. */
 export const RENDER_SKY_WGSL = /* wgsl */ `
 struct SkyU { sun: vec4<f32>, params: vec4<f32> };
 @group(0) @binding(0) var<uniform> sky: SkyU;
@@ -1203,11 +1246,15 @@ fn fs(in: VO) -> @location(0) vec4<f32> {
   let zenith = srgbToLinear(vec3<f32>(0.52, 0.64, 0.80));
   var col = mix(horizon, mid, smoothstep(0.0, 0.45, uv.y));
   col = mix(col, zenith, smoothstep(0.4, 1.0, uv.y));
+  // storm: the whole sky greys toward overcast and the sun dims behind it
+  let overcast = clamp(sky.params.z, 0.0, 1.0);
+  col = mix(col, srgbToLinear(vec3<f32>(0.64, 0.66, 0.68)), overcast * 0.45);
   if (sky.sun.z > 0.5) {
     let a = max(sky.params.x, 0.001);
     let d = length((uv - sky.sun.xy) * vec2<f32>(a, 1.0));
-    col = col + srgbToLinear(vec3<f32>(1.0, 0.92, 0.76)) * exp(-d * 7.0) * 0.85;
-    col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.88)) * smoothstep(0.028, 0.0, d);
+    let dim = 1.0 - overcast * 0.6;
+    col = col + srgbToLinear(vec3<f32>(1.0, 0.92, 0.76)) * exp(-d * 7.0) * 0.85 * dim;
+    col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.88)) * smoothstep(0.028, 0.0, d) * dim;
   }
   return vec4<f32>(displayColor(col), 1.0);
 }

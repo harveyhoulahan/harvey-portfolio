@@ -382,12 +382,12 @@ export default function Catchment() {
       const heatBuf = zeroBuf(total * 4);
 
       // SimU is 11 vec4s (176 B): +storm (drifting rain cell) and +aux (sun angles
-      // for the shadow pass). RU is 11 vec4s too: +impact (crater glow) and +env
-      // (cloud-shadow drift). Skirt declares a shorter struct — binding a larger
-      // buffer is fine.
+      // for the shadow pass). RU is 12 vec4s (192 B): +impact (crater glow), +env
+      // (cloud-shadow drift), +stormu (storm gloom). Skirt declares a shorter
+      // struct — binding a larger buffer is fine.
       const simBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const ruBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const simData = new Float32Array(44), ruData = new Float32Array(44);
+      const ruBuf = device.createBuffer({ size: 192, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const simData = new Float32Array(44), ruData = new Float32Array(48);
 
       const cs = (code: string) => device.createShaderModule({ code });
       let mods: any;
@@ -1268,6 +1268,12 @@ export default function Catchment() {
         ruData[40] = cloudOff.x; ruData[41] = cloudOff.z;
         ruData[42] = 0.35 + Math.min(1, rainNow / 0.02) * 0.3 + sAmt * 0.25;
         ruData[43] = 0;
+        // stormu: the cell's world position + footprint; strength fades out when
+        // there's no rain to fall, so the gloom only appears under real weather
+        ruData[44] = (stormPos.x / (n - 1)) * 2 * HALF - HALF;
+        ruData[45] = (stormPos.z / (n - 1)) * 2 * HALF - HALF;
+        ruData[46] = (STORM_SIGMA / (n - 1)) * 2 * HALF;
+        ruData[47] = sAmt * Math.min(1, rainNow / 0.004);
         device.queue.writeBuffer(ruBuf, 0, ruData);
 
         const enc = device.createCommandEncoder();
@@ -1322,6 +1328,7 @@ export default function Catchment() {
           const sb = new Float32Array(8);
           if (sclip[3] > 0) { sb[0] = (sclip[0] / sclip[3]) * 0.5 + 0.5; sb[1] = (sclip[1] / sclip[3]) * 0.5 + 0.5; sb[2] = 1; }
           sb[4] = w / h; sb[5] = performance.now() / 1000;
+          sb[6] = sAmt * Math.min(1, rainNow / 0.004); // overcast follows the storm
           device.queue.writeBuffer(skyBuf, 0, sb);
           rp.setPipeline(skyPipe); rp.setBindGroup(0, bgSky); rp.draw(3);
         }
