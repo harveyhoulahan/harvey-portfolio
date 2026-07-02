@@ -18,6 +18,7 @@ import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type 
 import {
   ADDRAIN_WGSL, FLUX_WGSL, WATERVEL_WGSL, ERODE_WGSL, TRANSPORT_WGSL, FINALIZE_WGSL,
   NORMALS_WGSL, SHADOWAO_WGSL, RENDER_TERRAIN_WGSL, RENDER_WATER_WGSL, RENDER_SKIRT_WGSL,
+  RENDER_OCEANWALL_WGSL,
   SPREAD_WGSL, BURN_WGSL, METEOR_WGSL,
   NEURAL_ASSEMBLE_WGSL, NEURAL_CONV_WGSL, NEURAL_APPLY_WGSL, RENDER_SKY_WGSL,
   POST_BRIGHT_WGSL, POST_BLUR_WGSL, POST_COMPOSITE_WGSL,
@@ -382,12 +383,12 @@ export default function Catchment() {
       const heatBuf = zeroBuf(total * 4);
 
       // SimU is 11 vec4s (176 B): +storm (drifting rain cell) and +aux (sun angles
-      // for the shadow pass). RU is 11 vec4s too: +impact (crater glow) and +env
-      // (cloud-shadow drift). Skirt declares a shorter struct — binding a larger
-      // buffer is fine.
+      // for the shadow pass). RU is 12 vec4s (192 B): +impact (crater glow), +env
+      // (cloud-shadow drift), +stormu (storm gloom). Skirt declares a shorter
+      // struct — binding a larger buffer is fine.
       const simBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const ruBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const simData = new Float32Array(44), ruData = new Float32Array(44);
+      const ruBuf = device.createBuffer({ size: 192, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const simData = new Float32Array(44), ruData = new Float32Array(48);
 
       const cs = (code: string) => device.createShaderModule({ code });
       let mods: any;
@@ -536,6 +537,7 @@ export default function Catchment() {
         pendingMeteor = null;
         impactFx = null;
         debris.length = 0;
+        bolt = null;
         pickU.on = 0;
         setPick(null);
       };
@@ -654,6 +656,10 @@ export default function Catchment() {
       const stormPos = { x: n * 0.35, z: n * 0.42 };
       const cloudOff = { x: 0, z: 0 };
       let lastWeatherMs = performance.now();
+      // lightning: occasional strikes under an active storm; each bolt also pokes
+      // the fire sim through the existing ignite path (rain-soaked ground resists)
+      let bolt: { t0: number; pts: Vec3[]; branches: Vec3[][] } | null = null;
+      let nextBoltMs = performance.now() + 3000;
 
       const elevAt = (wx: number, wz: number) => {
         const gx = ((wx + HALF) / (2 * HALF)) * (n - 1), gz = ((wz + HALF) / (2 * HALF)) * (n - 1);
@@ -791,6 +797,116 @@ export default function Catchment() {
         ctx2.restore();
       };
 
+      // Build one lightning bolt: a fractal main channel wandering down from the
+      // cloud base to a strike point sampled inside the storm cell, plus a few
+      // short branches. World-space, so it sticks to the terrain under orbit.
+      const spawnBolt = (nowMs: number) => {
+        const gx = Math.min(n - 3, Math.max(2, stormPos.x + (Math.random() * 2 - 1) * STORM_SIGMA));
+        const gz = Math.min(n - 3, Math.max(2, stormPos.z + (Math.random() * 2 - 1) * STORM_SIGMA));
+        const wx = (gx / (n - 1)) * 2 * HALF - HALF;
+        const wz = (gz / (n - 1)) * 2 * HALF - HALF;
+        const gy = elevAt(wx, wz);
+        const topY = gy + 1.35 + Math.random() * 0.45;
+        const pts: Vec3[] = [];
+        const branches: Vec3[][] = [];
+        let px = wx + (Math.random() - 0.5) * 0.5;
+        let pz = wz + (Math.random() - 0.5) * 0.5;
+        const SEG = 15;
+        for (let i = 0; i <= SEG; i++) {
+          const f = i / SEG;
+          const y = topY + (gy - topY) * f;
+          px += (wx - px) * 0.3 + (Math.random() - 0.5) * 0.075 * (1 - f * 0.5);
+          pz += (wz - pz) * 0.3 + (Math.random() - 0.5) * 0.075 * (1 - f * 0.5);
+          pts.push([px, y, pz]);
+          if (i > 3 && i < SEG - 2 && branches.length < 3 && Math.random() < 0.22) {
+            const bp: Vec3[] = [[px, y, pz]];
+            let bx = px, bz = pz, by = y;
+            const dx = (Math.random() - 0.5) * 0.12, dz = (Math.random() - 0.5) * 0.12;
+            for (let b = 0; b < 4; b++) {
+              bx += dx + (Math.random() - 0.5) * 0.05;
+              bz += dz + (Math.random() - 0.5) * 0.05;
+              by -= 0.05 + Math.random() * 0.07;
+              bp.push([bx, by, bz]);
+            }
+            branches.push(bp);
+          }
+        }
+        pts[pts.length - 1] = [wx, gy, wz]; // ground contact exactly at the strike point
+        bolt = { t0: nowMs, pts, branches };
+        igniteRef.current = { gx, gz };     // a strike can start a fire — wet ground resists
+      };
+
+      // Storm overlay: the hanging rain curtain under the cell, and lightning
+      // (sky flash → branched bolt → ground glow), all projected via the live MVP.
+      const drawStormFx = (ctx2: CanvasRenderingContext2D, m: Mat4, w: number, h: number, dpr: number) => {
+        if (reduced) return;
+        const nowMs = performance.now();
+        const strength = stormRef.current * Math.min(1, rainRef.current / 0.004);
+        if (strength > 0.05) {
+          const swx = (stormPos.x / (n - 1)) * 2 * HALF - HALF;
+          const swz = (stormPos.z / (n - 1)) * 2 * HALF - HALF;
+          const gy = elevAt(swx, swz);
+          const top = projectToScreen(m, [swx, gy + 1.1, swz], w, h);
+          const bot = projectToScreen(m, [swx, gy, swz], w, h);
+          const edge = projectToScreen(m, [swx + (STORM_SIGMA / (n - 1)) * 2 * HALF, gy, swz], w, h);
+          if (top && bot) {
+            const rx = edge ? Math.max(30, Math.hypot(edge[0] - bot[0], edge[1] - bot[1]) * 1.4) : w * 0.2;
+            const cy = (top[1] + bot[1]) / 2;
+            const ry = Math.abs(bot[1] - top[1]) / 2 + rx * 0.2;
+            const grad = ctx2.createRadialGradient(bot[0], cy, 0, bot[0], cy, Math.max(rx, ry));
+            grad.addColorStop(0, `rgba(96,110,126,${0.15 * strength})`);
+            grad.addColorStop(0.7, `rgba(96,110,126,${0.07 * strength})`);
+            grad.addColorStop(1, "rgba(96,110,126,0)");
+            ctx2.save();
+            ctx2.fillStyle = grad;
+            ctx2.beginPath(); ctx2.ellipse(bot[0], cy, rx, ry, 0, 0, Math.PI * 2); ctx2.fill();
+            ctx2.restore();
+          }
+        }
+        if (strength > 0.3 && nowMs >= nextBoltMs) {
+          spawnBolt(nowMs);
+          nextBoltMs = nowMs + 1800 + (Math.random() * 6500) / (0.35 + strength);
+        }
+        if (!bolt) return;
+        const age = (nowMs - bolt.t0) / 1000;
+        const LIFE = 0.34;
+        if (age > LIFE) { bolt = null; return; }
+        const fade = 1 - age / LIFE;
+        const a = fade * (0.7 + 0.3 * Math.sin(age * 110 + 1.2)); // strobing decay
+        ctx2.save();
+        ctx2.globalCompositeOperation = "lighter";
+        if (age < 0.09) { // the whole sky answers first
+          ctx2.fillStyle = `rgba(214,224,244,${0.16 * (1 - age / 0.09) * Math.min(1, strength + 0.4)})`;
+          ctx2.fillRect(0, 0, w, h);
+        }
+        const drawPath = (pts: Vec3[], core: number, glowA: number) => {
+          ctx2.beginPath();
+          let started = false;
+          for (const pt of pts) {
+            const s = projectToScreen(m, pt, w, h);
+            if (!s) { started = false; continue; }
+            if (!started) { ctx2.moveTo(s[0], s[1]); started = true; }
+            else ctx2.lineTo(s[0], s[1]);
+          }
+          ctx2.lineWidth = core * 3.2; ctx2.strokeStyle = `rgba(150,170,235,${glowA * 0.45})`; ctx2.stroke();
+          ctx2.lineWidth = core; ctx2.strokeStyle = `rgba(244,248,255,${glowA})`; ctx2.stroke();
+        };
+        ctx2.lineCap = "round"; ctx2.lineJoin = "round";
+        drawPath(bolt.pts, dpr * 1.9, 0.9 * a);
+        for (const br of bolt.branches) drawPath(br, dpr * 1.1, 0.5 * a);
+        const gs = projectToScreen(m, bolt.pts[bolt.pts.length - 1], w, h);
+        if (gs) { // strike-point glow lights the ground
+          const gr = dpr * 26 * (0.6 + fade);
+          const rg = ctx2.createRadialGradient(gs[0], gs[1], 0, gs[0], gs[1], gr);
+          rg.addColorStop(0, `rgba(255,252,240,${0.75 * a})`);
+          rg.addColorStop(0.4, `rgba(190,205,250,${0.35 * a})`);
+          rg.addColorStop(1, "rgba(190,205,250,0)");
+          ctx2.fillStyle = rg;
+          ctx2.beginPath(); ctx2.arc(gs[0], gs[1], gr, 0, Math.PI * 2); ctx2.fill();
+        }
+        ctx2.restore();
+      };
+
       const drawRain = (m: Mat4, w: number, h: number, vs: number) => {
         const rc = rainCanvasRef.current;
         if (!rc) return;
@@ -801,6 +917,7 @@ export default function Catchment() {
         ctx2.setTransform(1, 0, 0, 1, 0, 0);
         ctx2.clearRect(0, 0, w, h);
         drawMeteorFx(ctx2, m, w, h, dpr);
+        drawStormFx(ctx2, m, w, h, dpr);
         const rainAmt = rainRef.current;
         if (rainAmt < 0.0005 || reduced) return;
 
@@ -811,6 +928,10 @@ export default function Catchment() {
         const active = Math.floor(rainDrops.length * (0.14 + intensity * 0.84));
         const now = performance.now() * 0.001;
         const sAmt = stormRef.current;
+        // gusting: the whole rain field leans harder in slow pulses, and each drop
+        // sways on its own phase — rain reads as weather, not falling pixels
+        const gustPhase = now * 1.1;
+        const gust = 1 + (Math.sin(gustPhase * 1.3) + Math.sin(gustPhase * 2.9 + 1.7)) * 0.18 * Math.min(1.5, 0.4 + wind.speed * 0.5);
         ctx2.lineCap = "round";
 
         for (let k = 0; k < active; k++) {
@@ -831,10 +952,11 @@ export default function Catchment() {
           const phase = (drop.seed + now * drop.speed * fall * (0.8 + wind.speed * 0.06)) % 1;
           const surfaceY = drop.ocean ? vs * 0.06 : sampleElev(dem, drop.gx, drop.gz) * vs;
           const groundY = surfaceY + 0.004;
-          const lean = (0.03 + wind.speed * 0.02) * phase;
+          const lean = (0.03 + wind.speed * 0.02) * phase * gust;
+          const sway = Math.sin(now * 2.3 + drop.seed * 21.0) * 0.008 * gust; // per-drop wobble, perpendicular to the wind
           const skyY = groundY + 0.42 + intensity * 0.18 + depth * 0.14;
           const tipY = groundY + (skyY - groundY) * (1 - phase);
-          const tip: Vec3 = [drop.x - wx * lean, tipY, drop.z - wz * lean];
+          const tip: Vec3 = [drop.x - wx * lean - wz * sway, tipY, drop.z - wz * lean + wx * sway];
           const fallLen = drop.length * (0.5 + depth * 0.7 + intensity * 0.2);
           const tail: Vec3 = [
             tip[0] - wx * (drop.length * (0.16 + wind.speed * 0.08)),
@@ -861,7 +983,7 @@ export default function Catchment() {
           grad.addColorStop(0.55, `rgba(88,110,134,${headA * 0.5})`);
           grad.addColorStop(1, `rgba(96,120,146,${headA})`);
           ctx2.strokeStyle = grad;
-          ctx2.lineWidth = Math.max(0.6, dpr * (0.55 + depth * 0.65 + intensity * 0.25));
+          ctx2.lineWidth = Math.max(0.6, dpr * (0.55 + depth * 0.65 + intensity * 0.25) * (0.8 + drop.seed * 0.4));
           ctx2.beginPath();
           ctx2.moveTo(sx, sy);
           ctx2.lineTo(b[0], b[1]);
@@ -1039,6 +1161,46 @@ export default function Catchment() {
       const skirtBuf = mkBuf(new Uint32Array(sk), ST);
       const skirtCount = sk.length;
       const BGskirt = device.createBindGroup({ layout: P.skirt.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: ruBuf } }, { binding: 1, resource: { buffer: bedBuf } }, { binding: 2, resource: { buffer: skirtBuf } }] });
+
+      // ---- Ocean cross-section wall (gated: failure ⇒ the sea just isn't capped).
+      // A translucent vertical face along the whole perimeter from the waving sea
+      // surface down to the seabed; land-height columns are degenerate and vanish.
+      let wallPipe: any = null, bgWall: any = null, wallCount = 0;
+      try {
+        const wallMod = cs(RENDER_OCEANWALL_WGSL);
+        wallPipe = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module: wallMod, entryPoint: "vs" },
+          fragment: {
+            module: wallMod, entryPoint: "fs",
+            targets: [{
+              format,
+              blend: {
+                color: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+                alpha: { srcFactor: "one", dstFactor: "one-minus-src-alpha", operation: "add" },
+              },
+            }],
+          },
+          primitive: { topology: "triangle-list", cullMode: "none" },
+          multisample: { count: SAMPLE_COUNT },
+          depthStencil: { format: "depth24plus", depthWriteEnabled: false, depthCompare: "less" },
+        });
+        const wv: number[] = [];
+        const wpack = (cell: number, band: number) => cell | (band << 28);
+        const wstrip = (a: number, b: number) => {
+          wv.push(wpack(a, 0), wpack(a, 1), wpack(b, 0), wpack(b, 0), wpack(a, 1), wpack(b, 1));
+        };
+        for (let c = 0; c < n - 1; c++) wstrip(c, c + 1);                               // north
+        for (let c = 0; c < n - 1; c++) wstrip((n - 1) * n + c, (n - 1) * n + c + 1);   // south
+        for (let r = 0; r < n - 1; r++) wstrip(r * n, (r + 1) * n);                     // west
+        for (let r = 0; r < n - 1; r++) wstrip(r * n + (n - 1), (r + 1) * n + (n - 1)); // east
+        const wallBuf = mkBuf(new Uint32Array(wv), ST);
+        wallCount = wv.length;
+        bgWall = device.createBindGroup({
+          layout: wallPipe.getBindGroupLayout(0),
+          entries: [ruBuf, bedBuf, wallBuf].map((buffer, binding) => ({ binding, resource: { buffer } })),
+        });
+      } catch (e) { console.warn("[catchment] ocean wall unavailable:", e); wallPipe = null; }
 
       // ---- M4: neural surrogate (GPU inference). Fully gated + isolated: if a
       // valid catchment-surrogate-v2 model is absent or anything fails, the
@@ -1268,6 +1430,12 @@ export default function Catchment() {
         ruData[40] = cloudOff.x; ruData[41] = cloudOff.z;
         ruData[42] = 0.35 + Math.min(1, rainNow / 0.02) * 0.3 + sAmt * 0.25;
         ruData[43] = 0;
+        // stormu: the cell's world position + footprint; strength fades out when
+        // there's no rain to fall, so the gloom only appears under real weather
+        ruData[44] = (stormPos.x / (n - 1)) * 2 * HALF - HALF;
+        ruData[45] = (stormPos.z / (n - 1)) * 2 * HALF - HALF;
+        ruData[46] = (STORM_SIGMA / (n - 1)) * 2 * HALF;
+        ruData[47] = sAmt * Math.min(1, rainNow / 0.004);
         device.queue.writeBuffer(ruBuf, 0, ruData);
 
         const enc = device.createCommandEncoder();
@@ -1322,6 +1490,7 @@ export default function Catchment() {
           const sb = new Float32Array(8);
           if (sclip[3] > 0) { sb[0] = (sclip[0] / sclip[3]) * 0.5 + 0.5; sb[1] = (sclip[1] / sclip[3]) * 0.5 + 0.5; sb[2] = 1; }
           sb[4] = w / h; sb[5] = performance.now() / 1000;
+          sb[6] = sAmt * Math.min(1, rainNow / 0.004); // overcast follows the storm
           device.queue.writeBuffer(skyBuf, 0, sb);
           rp.setPipeline(skyPipe); rp.setBindGroup(0, bgSky); rp.draw(3);
         }
@@ -1331,6 +1500,7 @@ export default function Catchment() {
         rp.setPipeline(P.water);
         rp.setBindGroup(0, (neuralOK && neuralOnRef.current && bgWaterNeural) ? bgWaterNeural : BG.water);
         rp.setIndexBuffer(indexBuf, "uint32"); rp.drawIndexed(idx.length);
+        if (wallPipe && bgWall) { rp.setPipeline(wallPipe); rp.setBindGroup(0, bgWall); rp.draw(wallCount); }
         rp.end();
 
         if (bloomOK && bgBright && bgComp) {
