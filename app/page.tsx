@@ -98,10 +98,6 @@ export default function Home() {
             {profile.availability}
           </span>
           <h2 className="mt-4 font-display">Let&apos;s build something.</h2>
-          <p className="mx-auto mt-5 max-w-prose text-ink/70">
-            Climate, carbon, biodiversity, agriculture — the real-world problems
-            where I do my best work.
-          </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Link href="/playground" className="btn-primary">
               Live demos <ArrowRight size={15} />

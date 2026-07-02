@@ -8,7 +8,7 @@ export default function Footer() {
   return (
     <footer className="border-t border-contour">
       <ElevationProfile />
-      <div className="col-shell max-w-work py-14">
+      <div className="mx-auto max-w-work px-6 py-14">
         <div className="flex flex-col gap-10 md:flex-row md:items-end md:justify-between">
           <div className="max-w-prose">
             <span className="mono-label">{profile.availability}</span>

@@ -1,13 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useSpring,
-} from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 
 interface SkillGroup {
@@ -31,145 +25,8 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
 
   const total = groups.reduce((n, g) => n + g.skills.length, 0);
 
-  // Soft bubble — drifts behind copy; trail, swell, and click ripples.
-  const mx = useMotionValue(-200);
-  const my = useMotionValue(-200);
-  const sx = useSpring(mx, { stiffness: 220, damping: 26 });
-  const sy = useSpring(my, { stiffness: 220, damping: 26 });
-  const tx = useSpring(mx, { stiffness: 55, damping: 16 });
-  const ty = useSpring(my, { stiffness: 55, damping: 16 });
-  const rotRaw = useMotionValue(0);
-  const rot = useSpring(rotRaw, { stiffness: 50, damping: 14 });
-  const scRaw = useMotionValue(1);
-  const sc = useSpring(scRaw, { stiffness: 200, damping: 22 });
-  const opRaw = useMotionValue(0);
-  const op = useSpring(opRaw, { stiffness: 140, damping: 28 });
-  const lastPos = useRef<[number, number] | null>(null);
-
-  const [bursts, setBursts] = useState<{ id: number; x: number; y: number }[]>(
-    []
-  );
-  const burstId = useRef(0);
-
-  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (reduceMotion) return;
-    mx.set(e.clientX);
-    my.set(e.clientY);
-    opRaw.set(1);
-
-    const last = lastPos.current;
-    let dist = 0;
-    if (last) {
-      dist = Math.hypot(e.clientX - last[0], e.clientY - last[1]);
-      rotRaw.set(rotRaw.get() + Math.min(14, dist) * 0.22);
-    }
-    lastPos.current = [e.clientX, e.clientY];
-
-    const el = e.target as HTMLElement;
-    scRaw.set(
-      el.closest("button, a, [data-skill]")
-        ? 1.32
-        : 1 + Math.min(0.22, dist * 0.011)
-    );
-  };
-  const onLeave = () => {
-    opRaw.set(0);
-    lastPos.current = null;
-  };
-  const onDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (reduceMotion) return;
-    const id = ++burstId.current;
-    setBursts((b) => [...b.slice(-3), { id, x: e.clientX, y: e.clientY }]);
-    scRaw.set(scRaw.get() + 0.12);
-    window.setTimeout(
-      () => setBursts((b) => b.filter((x) => x.id !== id)),
-      900
-    );
-  };
-
   return (
-    <div
-      ref={sectionRef}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      onMouseDown={onDown}
-      className="relative overflow-hidden py-20 md:cursor-none md:py-28"
-    >
-      {!reduceMotion && (
-        <>
-          {/* lagging outer haze */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none fixed left-0 top-0 z-[4] hidden h-[22rem] w-[22rem] rounded-full md:block"
-            style={{
-              x: tx,
-              y: ty,
-              rotate: rot,
-              scale: sc,
-              opacity: op,
-              translateX: "-50%",
-              translateY: "-50%",
-              background:
-                "radial-gradient(circle, rgba(20, 101, 90, 0.22) 0%, rgba(20, 101, 90, 0.1) 32%, rgba(20, 101, 90, 0.03) 58%, rgba(20, 101, 90, 0) 78%)",
-              filter: "blur(18px)",
-            }}
-          />
-          {/* main bubble */}
-          <motion.div
-            aria-hidden
-            className="pointer-events-none fixed left-0 top-0 z-[5] hidden h-64 w-64 rounded-full md:block"
-            style={{
-              x: sx,
-              y: sy,
-              rotate: rot,
-              scale: sc,
-              opacity: op,
-              translateX: "-50%",
-              translateY: "-50%",
-              background:
-                "radial-gradient(circle, rgba(111, 184, 170, 0.32) 0%, rgba(20, 101, 90, 0.22) 22%, rgba(20, 101, 90, 0.1) 42%, rgba(20, 101, 90, 0.03) 62%, rgba(20, 101, 90, 0) 82%)",
-              boxShadow: "0 0 64px rgba(20, 101, 90, 0.14)",
-              backdropFilter: "blur(12px)",
-              WebkitBackdropFilter: "blur(12px)",
-              filter: "blur(4px)",
-            }}
-          />
-        </>
-      )}
-
-      {/* click ripples — soft green pulses */}
-      {!reduceMotion &&
-        bursts.map((b) =>
-          [0, 1, 2].map((ring) => (
-            <motion.span
-              key={`${b.id}-${ring}`}
-              aria-hidden
-              className="pointer-events-none fixed left-0 top-0 z-[6] hidden rounded-full md:block"
-              initial={{ width: 20, height: 20, opacity: 0.45 }}
-              animate={{
-                width: 70 + ring * 50,
-                height: 70 + ring * 50,
-                opacity: 0,
-              }}
-              transition={{
-                duration: 0.8,
-                delay: ring * 0.08,
-                ease: [0.16, 1, 0.3, 1],
-              }}
-              style={{
-                left: b.x,
-                top: b.y,
-                x: "-50%",
-                y: "-50%",
-                position: "fixed",
-                background:
-                  "radial-gradient(circle, rgba(20, 101, 90, 0.18) 0%, rgba(20, 101, 90, 0) 70%)",
-                filter: "blur(6px)",
-              }}
-            />
-          ))
-        )}
-
+    <div ref={sectionRef} className="relative overflow-hidden py-20 md:py-28">
       <div className="relative z-10">
         <div className="col-shell max-w-work">
         <span className="mono-label">Stack</span>
@@ -184,9 +41,8 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
           />
         </h1>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
-          The tools I reach for when shipping production geospatial ML
-          infrastructure. {total} across {groups.length} disciplines —{" "}
-          <span className="text-ink/60">filter to explore.</span>
+          Languages, tools, and frameworks I reach for across spatial work,
+          simulation, and ML.
         </p>
 
         {/* Filter chips */}
@@ -262,7 +118,6 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
                   {group.skills.map((skill) => (
                     <motion.span
                       key={skill}
-                      data-skill
                       variants={{
                         hidden: { opacity: 0, y: 8 },
                         show: { opacity: 1, y: 0 },

@@ -5,7 +5,7 @@ export const profile = {
   name: "Harvey Houlahan",
   title: "Spatial · Simulation · ML Engineer",
   descriptor:
-    "Geospatial ML, GPU simulation and neural surrogates — for climate, carbon & nature tech.",
+    "Spatial ML and GPU simulation for climate, carbon & nature tech.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",
