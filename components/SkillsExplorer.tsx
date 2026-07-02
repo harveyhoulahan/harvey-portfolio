@@ -20,38 +20,6 @@ const headingStyles = {
   color: { from: "#161F1B", to: "#14655A" },
 } as const;
 
-// The wind rose — a hand-cut eight-spoke compass asterisk that rides with the
-// cursor. Cardinal spokes in channel teal, intercardinals in CIR rust, a
-// benchmark square at centre. It rolls like a wheel as you move (rotation is
-// driven by distance travelled), swells slightly with speed, blooms over
-// anything interactive, and kicks a burst of contour rings on click.
-function WindRose() {
-  return (
-    <svg width="36" height="36" viewBox="0 0 32 32" fill="none" aria-hidden>
-      <g className="text-flow" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
-        <path d="M16 2.5V10" />
-        <path d="M16 22v7.5" />
-        <path d="M2.5 16H10" />
-        <path d="M22 16h7.5" />
-      </g>
-      <g className="text-infra" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-        <path d="M6.8 6.8l4.3 4.3" />
-        <path d="M20.9 20.9l4.3 4.3" />
-        <path d="M25.2 6.8l-4.3 4.3" />
-        <path d="M11.1 20.9l-4.3 4.3" />
-      </g>
-      <rect
-        className="text-infra"
-        x="14.2"
-        y="14.2"
-        width="3.6"
-        height="3.6"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
@@ -63,54 +31,56 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
 
   const total = groups.reduce((n, g) => n + g.skills.length, 0);
 
-  // Cursor follower in fixed viewport coordinates — 1:1 under the pointer,
-  // no rect math, immune to scroll. Tight spring so it feels attached.
-  const mx = useMotionValue(-100);
-  const my = useMotionValue(-100);
-  const sx = useSpring(mx, { stiffness: 900, damping: 55 });
-  const sy = useSpring(my, { stiffness: 900, damping: 55 });
+  // Soft bubble — drifts behind copy; trail, swell, and click ripples.
+  const mx = useMotionValue(-200);
+  const my = useMotionValue(-200);
+  const sx = useSpring(mx, { stiffness: 220, damping: 26 });
+  const sy = useSpring(my, { stiffness: 220, damping: 26 });
+  const tx = useSpring(mx, { stiffness: 55, damping: 16 });
+  const ty = useSpring(my, { stiffness: 55, damping: 16 });
   const rotRaw = useMotionValue(0);
-  const rot = useSpring(rotRaw, { stiffness: 70, damping: 16 });
+  const rot = useSpring(rotRaw, { stiffness: 50, damping: 14 });
   const scRaw = useMotionValue(1);
-  const sc = useSpring(scRaw, { stiffness: 320, damping: 22 });
+  const sc = useSpring(scRaw, { stiffness: 200, damping: 22 });
   const opRaw = useMotionValue(0);
-  const op = useSpring(opRaw, { stiffness: 260, damping: 30 });
+  const op = useSpring(opRaw, { stiffness: 140, damping: 28 });
   const lastPos = useRef<[number, number] | null>(null);
+
+  const [bursts, setBursts] = useState<{ id: number; x: number; y: number }[]>(
+    []
+  );
+  const burstId = useRef(0);
 
   const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (reduceMotion) return;
     mx.set(e.clientX);
     my.set(e.clientY);
     opRaw.set(1);
+
     const last = lastPos.current;
     let dist = 0;
     if (last) {
       dist = Math.hypot(e.clientX - last[0], e.clientY - last[1]);
-      rotRaw.set(rotRaw.get() + Math.min(28, dist) * 0.9);
+      rotRaw.set(rotRaw.get() + Math.min(14, dist) * 0.22);
     }
     lastPos.current = [e.clientX, e.clientY];
+
     const el = e.target as HTMLElement;
-    // Bloom over interactive things; otherwise swell a touch with speed.
     scRaw.set(
-      el.closest("button, a") ? 1.6 : 1 + Math.min(0.35, dist * 0.015)
+      el.closest("button, a, [data-skill]")
+        ? 1.32
+        : 1 + Math.min(0.22, dist * 0.011)
     );
   };
   const onLeave = () => {
     opRaw.set(0);
     lastPos.current = null;
   };
-
-  // Click burst: expanding contour rings from the point of impact, and the
-  // rose kicks a half-turn-ish with spring overshoot.
-  const [bursts, setBursts] = useState<{ id: number; x: number; y: number }[]>(
-    []
-  );
-  const burstId = useRef(0);
   const onDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (reduceMotion) return;
     const id = ++burstId.current;
     setBursts((b) => [...b.slice(-3), { id, x: e.clientX, y: e.clientY }]);
-    rotRaw.set(rotRaw.get() + 135);
+    scRaw.set(scRaw.get() + 0.12);
     window.setTimeout(
       () => setBursts((b) => b.filter((x) => x.id !== id)),
       900
@@ -123,45 +93,67 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
       onMouseMove={onMove}
       onMouseLeave={onLeave}
       onMouseDown={onDown}
-      className="relative overflow-hidden py-20 md:py-28"
+      className="relative overflow-hidden py-20 md:cursor-none md:py-28"
     >
       {!reduceMotion && (
-        <motion.div
-          aria-hidden
-          className="pointer-events-none fixed left-0 top-0 z-40 hidden md:block"
-          style={{
-            x: sx,
-            y: sy,
-            rotate: rot,
-            scale: sc,
-            opacity: op,
-            translateX: "-50%",
-            translateY: "-50%",
-          }}
-        >
-          <WindRose />
-        </motion.div>
+        <>
+          {/* lagging outer haze */}
+          <motion.div
+            aria-hidden
+            className="pointer-events-none fixed left-0 top-0 z-[4] hidden h-[22rem] w-[22rem] rounded-full md:block"
+            style={{
+              x: tx,
+              y: ty,
+              rotate: rot,
+              scale: sc,
+              opacity: op,
+              translateX: "-50%",
+              translateY: "-50%",
+              background:
+                "radial-gradient(circle, rgba(20, 101, 90, 0.22) 0%, rgba(20, 101, 90, 0.1) 32%, rgba(20, 101, 90, 0.03) 58%, rgba(20, 101, 90, 0) 78%)",
+              filter: "blur(18px)",
+            }}
+          />
+          {/* main bubble */}
+          <motion.div
+            aria-hidden
+            className="pointer-events-none fixed left-0 top-0 z-[5] hidden h-64 w-64 rounded-full md:block"
+            style={{
+              x: sx,
+              y: sy,
+              rotate: rot,
+              scale: sc,
+              opacity: op,
+              translateX: "-50%",
+              translateY: "-50%",
+              background:
+                "radial-gradient(circle, rgba(111, 184, 170, 0.32) 0%, rgba(20, 101, 90, 0.22) 22%, rgba(20, 101, 90, 0.1) 42%, rgba(20, 101, 90, 0.03) 62%, rgba(20, 101, 90, 0) 82%)",
+              boxShadow: "0 0 64px rgba(20, 101, 90, 0.14)",
+              backdropFilter: "blur(12px)",
+              WebkitBackdropFilter: "blur(12px)",
+              filter: "blur(4px)",
+            }}
+          />
+        </>
       )}
 
-      {/* Contour rings radiating from each click, like a dropped station. */}
+      {/* click ripples — soft green pulses */}
       {!reduceMotion &&
         bursts.map((b) =>
           [0, 1, 2].map((ring) => (
             <motion.span
               key={`${b.id}-${ring}`}
               aria-hidden
-              className={`pointer-events-none fixed left-0 top-0 z-30 hidden rounded-full border md:block ${
-                ring === 1 ? "border-infra/70" : "border-flow/60"
-              }`}
-              initial={{ width: 10, height: 10, opacity: 0.85 }}
+              className="pointer-events-none fixed left-0 top-0 z-[6] hidden rounded-full md:block"
+              initial={{ width: 20, height: 20, opacity: 0.45 }}
               animate={{
-                width: 90 + ring * 55,
-                height: 90 + ring * 55,
+                width: 70 + ring * 50,
+                height: 70 + ring * 50,
                 opacity: 0,
               }}
               transition={{
-                duration: 0.75,
-                delay: ring * 0.09,
+                duration: 0.8,
+                delay: ring * 0.08,
                 ease: [0.16, 1, 0.3, 1],
               }}
               style={{
@@ -170,6 +162,9 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
                 x: "-50%",
                 y: "-50%",
                 position: "fixed",
+                background:
+                  "radial-gradient(circle, rgba(20, 101, 90, 0.18) 0%, rgba(20, 101, 90, 0) 70%)",
+                filter: "blur(6px)",
               }}
             />
           ))
@@ -267,6 +262,7 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
                   {group.skills.map((skill) => (
                     <motion.span
                       key={skill}
+                      data-skill
                       variants={{
                         hidden: { opacity: 0, y: 8 },
                         show: { opacity: 1, y: 0 },
