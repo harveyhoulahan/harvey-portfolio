@@ -117,7 +117,7 @@ function parseHash(): { substrate?: Substrate; params: Partial<Params> } {
   if (typeof window === "undefined") return out;
   const sp = new URLSearchParams(window.location.hash.replace(/^#/, ""));
   const s = sp.get("s");
-  if (s === "lenia" || s === "life" || s === "particle") out.substrate = s;
+  if (s === "particle") out.substrate = s;
   for (const k of PARAM_KEYS) {
     const v = sp.get(k);
     if (v != null && Number.isFinite(+v)) out.params[k] = +v;
@@ -254,7 +254,6 @@ export default function Genesis() {
   const [status, setStatus] = useState<Status>("loading");
   const [err, setErr] = useState<string>("");
   const [paused, setPaused] = useState(false);
-  const [substrate, setSubstrate] = useState<Substrate>("particle");
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [panelOpen, setPanelOpen] = useState(true);
   const [advanced, setAdvanced] = useState(false);
@@ -291,13 +290,9 @@ export default function Genesis() {
   const paramsRef = useRef<Params>(DEFAULTS);
   const didInit = useRef(false);
   useEffect(() => { pausedRef.current = paused; }, [paused]);
-  useEffect(() => {
-    if (substrateRef.current !== substrate) { substrateRef.current = substrate; switchRef.current = true; }
-  }, [substrate]);
   // apply permalink once on mount (after hydration, so SSR markup matches)
   useEffect(() => {
     const h = parseHash();
-    if (h.substrate) setSubstrate(h.substrate);
     if (Object.keys(h.params).length) {
       const merged = { ...DEFAULTS, ...h.params };
       paramsRef.current = merged;
@@ -309,8 +304,8 @@ export default function Genesis() {
   useEffect(() => {
     paramsRef.current = params;
     if (!didInit.current) return;
-    try { window.history.replaceState(null, "", buildHash(substrate, params)); } catch { /* noop */ }
-  }, [params, substrate]);
+    try { window.history.replaceState(null, "", buildHash("particle", params)); } catch { /* noop */ }
+  }, [params]);
 
   // setters that update both the React state (UI) and the live ref (render loop)
   const setParam = (k: keyof Params, v: number) => {
@@ -378,11 +373,7 @@ export default function Genesis() {
       if (tag === "INPUT" || tag === "TEXTAREA" || e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
       buf = (buf + e.key.toLowerCase()).slice(-16);
       const fire = (label: string, fn: () => void) => { fn(); setEgg(label); window.setTimeout(() => setEgg(""), 2400); buf = ""; };
-      if (buf.endsWith("conway")) fire("⬛ conway — game of life", () => setSubstrate("life"));
-      else if (buf.endsWith("swarm")) fire("✦ swarm — particle life", () => setSubstrate("particle"));
-      else if (buf.endsWith("lenia")) fire("◍ lenia", () => setSubstrate("lenia"));
-      else if (buf.endsWith("mainrun")) fire("↯ mainrun", () => { setSubstrate("lenia"); applyPreset(EGG_MAINRUN); });
-      else if (buf.endsWith("catchment")) fire("≈ catchment", () => { setSubstrate("particle"); applyPreset(EGG_CATCHMENT); });
+      if (buf.endsWith("catchment")) fire("≈ catchment", () => applyPreset(EGG_CATCHMENT));
       else if (buf.endsWith("surprise")) fire("✦ surprise me", () => runSearchRef.current?.("open"));
     };
     window.addEventListener("keydown", onKey);
@@ -1428,12 +1419,10 @@ export default function Genesis() {
           genesis · ii
         </div>
         <h1 style={{ fontSize: 27, margin: "7px 0 5px", fontWeight: 600, letterSpacing: -0.3, color: "#FBFAF7" }}>
-          An artificial-life lab
+          Particle Life
         </h1>
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
-          {substrate === "lenia" && (<>A continuous cellular automaton on your GPU. Click to seed life.</>)}
-          {substrate === "life" && (<>Conway&rsquo;s Game of Life on the GPU. Click to spark cells.</>)}
-          {substrate === "particle" && (<>{PN.toLocaleString()} agents, {PL.K} species — flocking, wind, predation waves. Move to herd them; click for new physics.</>)}
+          {PN.toLocaleString()} agents, {PL.K} species — flocking, wind, predation waves. Move to herd them; click for new physics.
         </p>
       </div>
 
@@ -1503,16 +1492,10 @@ export default function Genesis() {
             </button>
           </div>
 
-          <div style={seg}>
-            <button onClick={() => setSubstrate("particle")} style={segBtn(substrate === "particle")}>Particles</button>
-            <button onClick={() => setSubstrate("lenia")} style={segBtn(substrate === "lenia")}>Lenia</button>
-            <button onClick={() => setSubstrate("life")} style={segBtn(substrate === "life")}>Life</button>
-          </div>
-
           {panelOpen && (
             <>
               <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 9 }}>
-                {MACROS[substrate].map((m) => {
+                {MACROS.particle.map((m) => {
                   const t = m.read(params);
                   return (
                     <Slider key={m.key} label={m.label} min={0} max={1} step={0.01}
@@ -1522,11 +1505,11 @@ export default function Genesis() {
                 })}
               </div>
 
-              {PRESETS[substrate] && (
+              {PRESETS.particle && (
                 <div style={{ marginTop: 12 }}>
                   <div style={presetLabel}>presets</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
-                    {Object.entries(PRESETS[substrate]!).map(([name, obj]) => (
+                    {Object.entries(PRESETS.particle!).map(([name, obj]) => (
                       <button key={name} style={chip} onClick={() => applyPreset(obj)}>{name}</button>
                     ))}
                   </div>
@@ -1538,7 +1521,7 @@ export default function Genesis() {
               </button>
               {advanced && (
                 <div style={{ marginTop: 9, display: "flex", flexDirection: "column", gap: 9 }}>
-                  {SLIDERS[substrate].map(([key, label, min, max, step]) => (
+                  {SLIDERS.particle.map(([key, label, min, max, step]) => (
                     <Slider key={key} label={label} min={min} max={max} step={step}
                       value={params[key]} onChange={(v) => setParam(key, v)} />
                   ))}
@@ -1547,9 +1530,7 @@ export default function Genesis() {
 
               <div style={{ display: "flex", gap: 6, marginTop: 13 }}>
                 <button onClick={() => setPaused((p) => !p)} style={btn}>{paused ? "Play" : "Pause"}</button>
-                <button onClick={() => { resetRef.current = true; }} style={btn}>
-                  {substrate === "particle" ? "New world" : "Reset"}
-                </button>
+                <button onClick={() => { resetRef.current = true; }} style={btn}>New world</button>
                 <button onClick={copyLink} style={btn}>{copied ? "Copied ✓" : "Copy link"}</button>
               </div>
             </>
@@ -1603,30 +1584,28 @@ function GenesisWriteup() {
           Genesis · Flagship II · How it works
         </p>
         <h2 className="mb-5 font-display text-3xl leading-tight md:text-[2.5rem]">
-          Summoning artificial life, live in the browser
+          Summoning swarms from a text prompt
         </h2>
         <p className="text-base leading-prose text-ink/80">
-          Genesis is a WebGPU laboratory where you describe a lifeform in plain English and a
-          foundation model plus an evolutionary search coax it out of a living simulation —
-          entirely on your own machine, no server. It is the generative, emergent counterpart to{" "}
+          Genesis is a WebGPU particle-life lab where you describe a lifeform in plain English and a
+          foundation model plus an evolutionary search coax it out of a living swarm — entirely on
+          your own machine, no server. It is the generative, emergent counterpart to{" "}
           <a href="/catchment" className="underline decoration-sand underline-offset-4 hover:text-sage">Catchment</a>,
-          which simulates physics with a trained neural surrogate.
+          which runs a physics engine on real terrain.
         </p>
 
-        <Block kicker="The substrates">
-          Three artificial-life systems run on the GPU, full-screen. <strong className="font-medium text-ink">Lenia</strong> is
-          a continuous cellular automaton — a smooth field grown by a ring-kernel convolution
-          into drifting, self-organizing creatures. <strong className="font-medium text-ink">Particle Life</strong> sets
-          2,400 agents of six species loose under an asymmetric attraction matrix, extended here
-          with flocking, a global wind field, per-species force pulsing and cyclic predation —
-          waves of colour sweep the swarm as species convert each other. Everything renders
-          through an HDR trail buffer with velocity-stretched, speed-heated sprites.{" "}
-          <strong className="font-medium text-ink">Conway’s Game of Life</strong> rounds out the set.
+        <Block kicker="The simulation">
+          <strong className="font-medium text-ink">Particle Life</strong> sets 2,400 agents of six
+          species loose under an asymmetric attraction matrix, extended here with flocking, a global
+          wind field, per-species force pulsing, and cyclic predation — waves of colour sweep the
+          swarm as species convert each other. Everything renders through an HDR trail buffer with
+          velocity-stretched, speed-heated sprites. Move the cursor to herd them; click to roll new
+          physics.
         </Block>
 
         <Block kicker="Summon by prompt">
           Type a description and an in-browser <strong className="font-medium text-ink">CLIP</strong> model
-          (running client-side on WebGPU) scores how much the simulation resembles your words.
+          (running client-side on WebGPU) scores how much the swarm resembles your words.
           The fitness is contrastive: each candidate is embedded from several views and moments,
           and the prompt’s similarity is measured <em>against</em> a bank of generic descriptions,
           so the search climbs on what is specific to your words rather than “glowing dots on
@@ -1635,16 +1614,14 @@ function GenesisWriteup() {
           <strong className="font-medium text-ink">trained prior</strong>: an offline pipeline evolves
           genomes for dozens of concepts against the same CLIP model, and your prompt retrieves
           the nearest ones in embedding space. An open-ended mode instead hunts for restless,
-          ever-changing life. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
+          ever-changing motion. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
           <em> Artificial Life</em>, 2025), realized here as something you can drive.
         </Block>
 
         <Block kicker="Making it feel alive">
-          A plain cellular automaton freezes into a static lattice, so Genesis adds coupled
-          variables that break symmetry, inject energy and drift over time: a breathing
-          metabolism, sparse energy births, and an advection flow that lets creatures travel and
-          wander. Particle Life gains a slowly drifting rule-matrix, thermal jitter, and a cursor
-          field — hover and the swarm reacts to you. Every one of these is a live slider.
+          The attraction matrix slowly drifts, thermal jitter keeps the swarm from settling, and a
+          cursor field lets you steer the agents in real time. Trails, streaks, wind, and predation
+          waves turn simple rules into motion that reads as organic — and every lever is a live slider.
         </Block>
 
         <Block kicker="Built blind, verified offline">
@@ -1655,15 +1632,14 @@ function GenesisWriteup() {
         </Block>
 
         <Block kicker="Honest limits">
-          The substrates are abstract: CLIP nudges color, density, scale and arrangement toward a
-          prompt’s vibe, but Lenia speaks in rings and blobs, not insect anatomy. Particle Life
-          resembles creatures and swarms best. That gap — emergent media judged by a model trained
-          on natural images — is the interesting tension, and it is true of the original research too.
+          The swarm is abstract: CLIP nudges colour, density, and motion toward a prompt’s vibe,
+          but the medium is particles and trails, not anatomy. That gap — emergent media judged by a
+          model trained on natural images — is the interesting tension, and it is true of the
+          original research too.
         </Block>
 
         <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">
-          Tip: type <span className="text-sage">conway</span>, <span className="text-sage">swarm</span>,{" "}
-          <span className="text-sage">mainrun</span>, <span className="text-sage">catchment</span> or{" "}
+          Tip: type <span className="text-sage">catchment</span> or{" "}
           <span className="text-sage">surprise</span> anywhere on the page.
         </p>
       </div>

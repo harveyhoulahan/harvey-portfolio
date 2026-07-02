@@ -20,8 +20,10 @@ export const profile = {
 
   // Contact
   email: "harveyhoulahan@outlook.com",
-  // Booking CTA — a plain mailto until a real Calendly/Cal.com link exists.
-  // Never ship a placeholder URL here: it is the primary CTA on three pages.
+  // Resume — served from /public/resume/
+  resume: "/resume/HJH-cv.pdf",
+  resumeFilename: "Harvey-Houlahan-CV.pdf",
+  // Booking CTA — used on About and Contact
   bookCall:
     "mailto:harveyhoulahan@outlook.com?subject=Intro%20call&body=Hi%20Harvey%20%E2%80%94%20found%20you%20via%20hjhportfolio.com.%20Keen%20to%20chat%20about%3A%20",
   social: {

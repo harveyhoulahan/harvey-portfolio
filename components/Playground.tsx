@@ -20,8 +20,8 @@ const DEMOS = [
     kicker: "02 · Artificial-life lab",
     title: "Genesis",
     blurb:
-      "Continuous cellular automata evolve live on your GPU — then summon a lifeform by describing it, with CLIP scoring and an evolutionary search doing the coaxing.",
-    meta: "WebGPU · Lenia · CLIP · CMA-ES",
+      "Thousands of agents flock, chase, and predate on your GPU — then summon a swarm by describing it, with CLIP scoring and an evolutionary search doing the coaxing.",
+    meta: "WebGPU · particle life · CLIP · CMA-ES",
     motif: "rings" as const,
   },
 ] as const;

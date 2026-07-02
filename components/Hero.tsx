@@ -1,4 +1,4 @@
-import { ArrowUpRight, Calendar } from "lucide-react";
+import { ArrowUpRight, Download } from "lucide-react";
 import ByronMap from "@/components/ByronMap";
 import ContourField from "@/components/ContourField";
 import GridReadout from "@/components/GridReadout";
@@ -41,9 +41,13 @@ export default function Hero() {
 
             {/* CTA */}
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <a href={profile.bookCall} className="btn-primary">
-                <Calendar size={16} />
-                Book an intro call
+              <a
+                href={profile.resume}
+                download={profile.resumeFilename}
+                className="btn-primary"
+              >
+                <Download size={16} />
+                Download resume
               </a>
               <a href={`mailto:${profile.email}`} className="btn-secondary">
                 Email me
