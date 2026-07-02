@@ -38,12 +38,23 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
 from PIL import Image
+
+# Windows consoles default to cp1252, which can't encode the arrows/dots/quotes
+# used in progress output below; force UTF-8 so a print() never crashes the run
+# after all the real work (evolving + saving every concept) already succeeded.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 # ---------------------------------------------------------------------------
 # Constants mirrored from the browser (see file docstring for sources)

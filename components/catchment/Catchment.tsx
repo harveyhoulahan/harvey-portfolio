@@ -17,7 +17,7 @@ import { decodeDEM, sampleElev, type CatchmentDEM, type CatchmentDEMRaw } from "
 import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type Vec3, type Mat4 } from "@/lib/catchment/mat4";
 import {
   ADDRAIN_WGSL, FLUX_WGSL, WATERVEL_WGSL, ERODE_WGSL, TRANSPORT_WGSL, FINALIZE_WGSL,
-  NORMALS_WGSL, RENDER_TERRAIN_WGSL, RENDER_WATER_WGSL, RENDER_SKIRT_WGSL,
+  NORMALS_WGSL, SHADOWAO_WGSL, RENDER_TERRAIN_WGSL, RENDER_WATER_WGSL, RENDER_SKIRT_WGSL,
   SPREAD_WGSL, BURN_WGSL, METEOR_WGSL,
   NEURAL_ASSEMBLE_WGSL, NEURAL_CONV_WGSL, NEURAL_APPLY_WGSL, RENDER_SKY_WGSL,
   POST_BRIGHT_WGSL, POST_BLUR_WGSL, POST_COMPOSITE_WGSL,
@@ -149,6 +149,7 @@ export default function Catchment() {
   const [exag, setExag] = useState(DEFAULT_VSCALE);
   const [rain, setRain] = useState(0.003);
   const [ero, setEro] = useState(0.6);
+  const [storm, setStorm] = useState(0); // 0 = steady drizzle, 1 = one wind-driven storm cell
   const [mode, setMode] = useState<Mode>("orbit");
   const [pick, setPick] = useState<Pick>(null);
   const [collapsed, setCollapsed] = useState(true); // opens minimised — one tap to expand
@@ -175,6 +176,7 @@ export default function Catchment() {
   const visibleMaps = maps.filter((m) => !m.secret || secretUnlocked);
 
   const sunRef = useRef(135), exagRef = useRef(DEFAULT_VSCALE), rainRef = useRef(0.003), eroRef = useRef(0.6);
+  const stormRef = useRef(0);
   const modeRef = useRef<Mode>("orbit");
   const pourRef = useRef({ gx: 0, gz: 0, on: false });
   const resetRef = useRef(false);
@@ -190,6 +192,7 @@ export default function Catchment() {
   useEffect(() => { exagRef.current = exag; }, [exag]);
   useEffect(() => { rainRef.current = rain; }, [rain]);
   useEffect(() => { eroRef.current = ero; }, [ero]);
+  useEffect(() => { stormRef.current = storm; }, [storm]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { windRef.current = { deg: windDeg, speed: windSpeed }; }, [windDeg, windSpeed]);
   // Load the map manifest once (a future-proof world list; secret worlds gated below).
@@ -361,6 +364,7 @@ export default function Catchment() {
       const oceanBuf = mkBuf(oceanU, SIM_ST);
       const flagsBuf = mkBuf(flags, SIM_ST);
       const nrmBuf = zeroBuf(total * 16);
+      const shadowBuf = zeroBuf(total * 8); // per-cell (sunVisibility, skyAO)
 
       // M3 ecology: fuel (vegetation) init from slope — gentle ground carries more.
       const fuelInit = new Float32Array(total);
@@ -377,11 +381,13 @@ export default function Catchment() {
       const charBuf = zeroBuf(total * 4);
       const heatBuf = zeroBuf(total * 4);
 
-      const simBuf = device.createBuffer({ size: 144, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      // 160 bytes = 10 vec4s: the render uniform grew an impact slot for the
-      // meteor crater glow (terrain shader reads it; skirt/water ignore it).
-      const ruBuf = device.createBuffer({ size: 160, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-      const simData = new Float32Array(36), ruData = new Float32Array(40);
+      // SimU is 11 vec4s (176 B): +storm (drifting rain cell) and +aux (sun angles
+      // for the shadow pass). RU is 11 vec4s too: +impact (crater glow) and +env
+      // (cloud-shadow drift). Skirt declares a shorter struct — binding a larger
+      // buffer is fine.
+      const simBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const ruBuf = device.createBuffer({ size: 176, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+      const simData = new Float32Array(44), ruData = new Float32Array(44);
 
       const cs = (code: string) => device.createShaderModule({ code });
       let mods: any;
@@ -389,7 +395,8 @@ export default function Catchment() {
         mods = {
           addRain: cs(ADDRAIN_WGSL), flux: cs(FLUX_WGSL), waterVel: cs(WATERVEL_WGSL),
           erode: cs(ERODE_WGSL), transport: cs(TRANSPORT_WGSL), finalize: cs(FINALIZE_WGSL),
-          normals: cs(NORMALS_WGSL), terrain: cs(RENDER_TERRAIN_WGSL), water: cs(RENDER_WATER_WGSL),
+          normals: cs(NORMALS_WGSL), shadow: cs(SHADOWAO_WGSL),
+          terrain: cs(RENDER_TERRAIN_WGSL), water: cs(RENDER_WATER_WGSL),
           skirt: cs(RENDER_SKIRT_WGSL), spread: cs(SPREAD_WGSL), burn: cs(BURN_WGSL),
           meteor: cs(METEOR_WGSL),
         };
@@ -404,7 +411,8 @@ export default function Catchment() {
         P = {
           addRain: cpipe(mods.addRain), flux: cpipe(mods.flux), waterVel: cpipe(mods.waterVel),
           erode: cpipe(mods.erode), transport: cpipe(mods.transport), finalize: cpipe(mods.finalize),
-          normals: cpipe(mods.normals), spread: cpipe(mods.spread), burn: cpipe(mods.burn), meteor: cpipe(mods.meteor),
+          normals: cpipe(mods.normals), shadow: cpipe(mods.shadow),
+          spread: cpipe(mods.spread), burn: cpipe(mods.burn), meteor: cpipe(mods.meteor),
           terrain: device.createRenderPipeline({
             layout: "auto",
             vertex: { module: mods.terrain, entryPoint: "vs" },
@@ -450,11 +458,12 @@ export default function Catchment() {
         transport: bg(P.transport, [simBuf, sedABuf, velBuf, sedBBuf]),
         finalize: bg(P.finalize, [simBuf, oceanBuf, bed0Buf, bedBuf, watBuf, sedABuf, sedBBuf]),
         normals: bg(P.normals, [simBuf, bedBuf, nrmBuf]),
+        shadow: bg(P.shadow, [simBuf, bedBuf, watBuf, shadowBuf]),
         spread: bg(P.spread, [simBuf, fireBuf, bedBuf, heatBuf, fuelBuf, watBuf, oceanBuf]),
         burn: bg(P.burn, [simBuf, heatBuf, fuelBuf, fireBuf, charBuf, watBuf, oceanBuf]),
         meteor: bg(P.meteor, [simBuf, bedBuf, watBuf, velBuf, fuelBuf, fireBuf, charBuf, oceanBuf]),
-        terrain: bg(P.terrain, [ruBuf, bedBuf, nrmBuf, flagsBuf, sedABuf, fuelBuf, charBuf, fireBuf]),
-        water: bg(P.water, [ruBuf, bedBuf, watBuf, flagsBuf, velBuf]),
+        terrain: bg(P.terrain, [ruBuf, bedBuf, nrmBuf, flagsBuf, sedABuf, fuelBuf, charBuf, fireBuf, shadowBuf, watBuf]),
+        water: bg(P.water, [ruBuf, bedBuf, watBuf, flagsBuf, velBuf, sedABuf, shadowBuf]),
       };
 
       let colorTex: any = null, depthTex: any = null, attachmentW = 0, attachmentH = 0;
@@ -638,6 +647,14 @@ export default function Catchment() {
       const shake = { t0: -1e6, amp: 0 };
       let lastFxTime = performance.now();
 
+      // --- weather state ----------------------------------------------------
+      // The storm cell drifts with the wind (wrapping the domain); clouds scroll
+      // the same way. Both are visual + forcing only — no new dynamics.
+      const STORM_SIGMA = n * 0.09;
+      const stormPos = { x: n * 0.35, z: n * 0.42 };
+      const cloudOff = { x: 0, z: 0 };
+      let lastWeatherMs = performance.now();
+
       const elevAt = (wx: number, wz: number) => {
         const gx = ((wx + HALF) / (2 * HALF)) * (n - 1), gz = ((wz + HALF) / (2 * HALF)) * (n - 1);
         const c = Math.max(0, Math.min(n - 1, Math.round(gx))), r = Math.max(0, Math.min(n - 1, Math.round(gz)));
@@ -793,10 +810,20 @@ export default function Catchment() {
         const intensity = Math.min(1, rainAmt / 0.02);
         const active = Math.floor(rainDrops.length * (0.14 + intensity * 0.84));
         const now = performance.now() * 0.001;
+        const sAmt = stormRef.current;
         ctx2.lineCap = "round";
 
         for (let k = 0; k < active; k++) {
           const drop = rainDrops[(k * 37) % rainDrops.length];
+          // storm mode: the overlay rain concentrates under the drifting cell,
+          // matching where the sim is actually receiving the water
+          let wgt = 1;
+          if (sAmt > 0.01) {
+            const ddx = drop.gx - stormPos.x, ddz = drop.gz - stormPos.z;
+            const g = Math.exp(-(ddx * ddx + ddz * ddz) / (2 * STORM_SIGMA * STORM_SIGMA));
+            wgt = Math.min(1.6, (1 - sAmt * 0.85) + sAmt * g * 3.2);
+            if (wgt < 0.08) continue;
+          }
           // depth layering: seed sorts drops near→far. Near drops fall faster, streak
           // longer and brighter; far drops are short, faint and slow → parallax depth.
           const depth = drop.seed;                                  // 0 far .. 1 near
@@ -828,7 +855,7 @@ export default function Catchment() {
           // so each drop reads as a soft streak of falling water, not a hard scratch
           // a slate blue-grey, dark enough to read against the bright sky yet still
           // cool over the terrain; alpha pushed up so the rain is clearly present
-          const headA = (0.30 + intensity * 0.4) * (0.5 + depth * 0.5) * (0.5 + Math.sin(phase * Math.PI) * 0.5);
+          const headA = (0.30 + intensity * 0.4) * (0.5 + depth * 0.5) * (0.5 + Math.sin(phase * Math.PI) * 0.5) * Math.min(1, wgt);
           const grad = ctx2.createLinearGradient(sx, sy, b[0], b[1]);
           grad.addColorStop(0, "rgba(82,104,128,0)");
           grad.addColorStop(0.55, `rgba(88,110,134,${headA * 0.5})`);
@@ -1059,7 +1086,7 @@ export default function Catchment() {
             // input off-distribution.)
             const bgAsm = bg(Pn.asm, [auBuf, neuralWatBuf, bed0Buf, featA]);
             const bgApply = bg(Pn.apply, [puBuf, fluxBufN, neuralWatBuf, oceanBuf]);
-            bgWaterNeural = bg(P.water, [ruBuf, bedBuf, neuralWatBuf, flagsBuf, velBuf]);
+            bgWaterNeural = bg(P.water, [ruBuf, bedBuf, neuralWatBuf, flagsBuf, velBuf, sedABuf, shadowBuf]);
             const WGc = Math.ceil(total / 64);
             runNeural = (encoder: any) => {
               const ab = new ArrayBuffer(16); new Uint32Array(ab)[0] = n; const af = new Float32Array(ab); af[2] = HSCALE; af[3] = rainRef.current;
@@ -1160,13 +1187,29 @@ export default function Catchment() {
         }
 
         const vs = exagRef.current;
+        const sa = (sunRef.current * Math.PI) / 180, se = 0.62;
+        // weather drift: the storm cell and the cloud-shadow field both ride the wind
+        const wdRad = (windRef.current.deg * Math.PI) / 180;
+        const wxv = Math.cos(wdRad), wzv = Math.sin(wdRad);
+        const wdt = Math.min(0.05, (nowMs - lastWeatherMs) / 1000);
+        lastWeatherMs = nowMs;
+        const driftCells = 2.0 + windRef.current.speed * 6.0;   // cells/sec across the grid
+        stormPos.x = ((stormPos.x + (wxv * driftCells + 1.5 * Math.sin(nowMs * 0.00021)) * wdt) % n + n) % n;
+        stormPos.z = ((stormPos.z + (wzv * driftCells + 1.5 * Math.cos(nowMs * 0.00017)) * wdt) % n + n) % n;
+        cloudOff.x += wxv * (0.02 + windRef.current.speed * 0.05) * wdt;
+        cloudOff.z += wzv * (0.02 + windRef.current.speed * 0.05) * wdt;
+        const sAmt = stormRef.current;
+        const rainNow = rainRef.current;
         simData[0] = n; simData[1] = 0.02; simData[2] = 1.0; simData[3] = HSCALE;
         // evap sets the equilibrium water film (≈ rain/evap): water runs off slopes and
         // collects where it genuinely ponds (valleys, basins, channels). This MUST match
         // the neural surrogate's trained evap (EVAP=0.012 in ml/train_surrogate.py) so
         // PHYSICS and NEURAL are the same regime — otherwise the student would be
         // compared against a teacher it never learned from.
-        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainRef.current; simData[7] = 0.012;
+        // storm redistributes the same rain budget: the uniform share shrinks and the
+        // difference falls as a drifting Gaussian cell (amp precomputed here so the
+        // kernel stays a single exp). Neural mode keeps its trained uniform-rain regime.
+        simData[4] = 9.81; simData[5] = 1.0; simData[6] = rainNow * (1 - 0.8 * sAmt); simData[7] = 0.012;
         const k = eroRef.current;
         simData[8] = 0.08 * k; simData[9] = 0.10 * k; simData[10] = 0.05 * k; simData[11] = 1.2;
         const pr = pourRef.current;
@@ -1185,6 +1228,9 @@ export default function Catchment() {
         simData[35] = met ? met.kind : ig ? 1 : 0;
         igniteRef.current = null;
         meteorRef.current = null;
+        simData[36] = stormPos.x; simData[37] = stormPos.z; simData[38] = STORM_SIGMA;
+        simData[39] = Math.min(0.12, rainNow * 0.8 * sAmt * (total / (2 * Math.PI * STORM_SIGMA * STORM_SIGMA)));
+        simData[40] = sa; simData[41] = se; simData[42] = 0; simData[43] = 0;
         device.queue.writeBuffer(simBuf, 0, simData);
 
         const proj = perspectiveZO((50 * Math.PI) / 180, w / h, 0.05, 20);
@@ -1199,7 +1245,6 @@ export default function Catchment() {
         }
         const view = lookAt(eye, target, [0, 1, 0]);
         const mvp = multiply(proj, view); lastMVP = mvp;
-        const sa = (sunRef.current * Math.PI) / 180, se = 0.62;
         ruData.set(mvp, 0);
         ruData[16] = Math.cos(se) * Math.cos(sa); ruData[17] = Math.sin(se); ruData[18] = Math.cos(se) * Math.sin(sa); ruData[19] = 0;
         ruData[20] = n; ruData[21] = vs; ruData[22] = HALF; ruData[23] = vs * 0.06;
@@ -1219,6 +1264,10 @@ export default function Catchment() {
         } else {
           ruData[36] = 0; ruData[37] = 0; ruData[38] = 0; ruData[39] = 0;
         }
+        // env: cloud-shadow drift offset + coverage (clouds thicken with rain/storm)
+        ruData[40] = cloudOff.x; ruData[41] = cloudOff.z;
+        ruData[42] = 0.35 + Math.min(1, rainNow / 0.02) * 0.3 + sAmt * 0.25;
+        ruData[43] = 0;
         device.queue.writeBuffer(ruBuf, 0, ruData);
 
         const enc = device.createCommandEncoder();
@@ -1241,6 +1290,8 @@ export default function Catchment() {
           cp.setPipeline(P.meteor); cp.setBindGroup(0, BG.meteor); cp.dispatchWorkgroups(WG);
         }
         cp.setPipeline(P.normals); cp.setBindGroup(0, BG.normals); cp.dispatchWorkgroups(WG);
+        // soft sun-shadows + sky AO from the live (eroding, water-laden) surface
+        cp.setPipeline(P.shadow); cp.setBindGroup(0, BG.shadow); cp.dispatchWorkgroups(WG);
         cp.end();
 
         // neural surrogate steps its own water state forward — run SUBSTEPS times to
@@ -1367,6 +1418,8 @@ export default function Catchment() {
                 <>
                   <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
                     value={rain} onChange={(e) => setRain(+e.target.value)} />
+                  <Ctl label="storm" display={storm < 0.05 ? "steady" : `${Math.round(storm * 100)}`} min={0} max={1} step={0.05}
+                    value={storm} onChange={(e) => setStorm(+e.target.value)} />
                   <Ctl label="erosion" display={`${Math.round((ero / 1.5) * 100)}`} min={0} max={1.5} step={0.02}
                     value={ero} onChange={(e) => setEro(+e.target.value)} />
                 </>

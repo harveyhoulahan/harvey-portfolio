@@ -20,6 +20,7 @@ const HEADER = /* wgsl */ `
 struct SimU {
   dims: vec4<f32>, phys: vec4<f32>, ero: vec4<f32>, src: vec4<f32>, view: vec4<f32>,
   fire: vec4<f32>, fset: vec4<f32>, wind: vec4<f32>, ign: vec4<f32>,
+  storm: vec4<f32>, aux: vec4<f32>,
 };
 fn ix(r: u32, c: u32, n: u32) -> u32 { return r * n + c; }
 `;
@@ -32,8 +33,14 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let i = gid.x; let n = u32(u.dims.x); let total = n * n;
   if (i >= total) { return; }
   let dt = u.dims.y;
-  var W = wat[i] + u.phys.z * dt;
   let r = i / n; let c = i % n;
+  var W = wat[i] + u.phys.z * dt;
+  // drifting storm cell: a Gaussian rain source the wind carries across the map.
+  // The CPU pre-scales storm.w so total rainfall matches the uniform-rain budget.
+  if (u.storm.w > 0.0) {
+    let sdx = f32(c) - u.storm.x; let sdz = f32(r) - u.storm.y;
+    W = W + u.storm.w * exp(-(sdx * sdx + sdz * sdz) / (2.0 * u.storm.z * u.storm.z)) * dt;
+  }
   if (u.src.w > 0.0) {
     let dx = f32(c) - u.src.x; let dz = f32(r) - u.src.y;
     if (dx * dx + dz * dz < u.src.z * u.src.z) { W = W + u.src.w * dt; }
@@ -208,6 +215,77 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let dz = vec3<f32>(0.0, hd - hu, 2.0 * cell);
   let nv = normalize(cross(dz, dx));
   nrm[i] = vec4<f32>(nv, 1.0 - nv.y);
+}
+`;
+
+/* Per-cell soft sun-shadow + sky ambient-occlusion, re-derived every frame from
+ * the LIVE surface (eroding bedrock + water), so shadows track the Sun slider,
+ * carving rivers, meteor craters — everything. A heightfield raymarch toward the
+ * sun gives a distance-softened penumbra; a 6-direction horizon scan gives sky
+ * visibility. Output: shad[i] = (sunVisibility, skyAO), both 0..1.
+ * SimU.aux = (sunAzimuthRad, sunElevationRad, _, _). */
+export const SHADOWAO_WGSL = HEADER + /* wgsl */ `
+@group(0) @binding(0) var<uniform> u: SimU;
+@group(0) @binding(1) var<storage, read> bed: array<f32>;
+@group(0) @binding(2) var<storage, read> wat: array<f32>;
+@group(0) @binding(3) var<storage, read_write> shad: array<vec2<f32>>;
+
+fn hWorld(r: i32, c: i32, n: u32) -> f32 {
+  let rr = u32(clamp(r, 0, i32(n) - 1));
+  let cc = u32(clamp(c, 0, i32(n) - 1));
+  let j = rr * n + cc;
+  return (bed[j] + wat[j]) / u.dims.w * u.view.x;
+}
+
+fn hWorldF(fr: f32, fc: f32, n: u32) -> f32 {
+  let r0 = i32(floor(fr)); let c0 = i32(floor(fc));
+  let tr = fr - floor(fr); let tc = fc - floor(fc);
+  let a = hWorld(r0, c0, n); let b = hWorld(r0, c0 + 1, n);
+  let d = hWorld(r0 + 1, c0, n); let e = hWorld(r0 + 1, c0 + 1, n);
+  return mix(mix(a, b, tc), mix(d, e, tc), tr);
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let i = gid.x; let n = u32(u.dims.x); let total = n * n;
+  if (i >= total) { return; }
+  let cell = u.view.z;
+  let r = i32(i / n); let c = i32(i % n);
+  let h0 = hWorld(r, c, n) + 0.012; // lift start point to kill self-shadow acne
+
+  // sun shadow: march the heightfield toward the sun; occlusion softens with distance
+  let az = u.aux.x; let el = max(u.aux.y, 0.05);
+  let sdir = vec2<f32>(cos(az), sin(az)); // (dCol, dRow) — matches render sun.xz
+  let rise = tan(el);
+  var sun = 1.0;
+  var t = 1.6;
+  for (var s = 0; s < 26; s = s + 1) {
+    let fc = f32(c) + sdir.x * t;
+    let fr = f32(r) + sdir.y * t;
+    if (fc < 0.0 || fr < 0.0 || fc > f32(n) - 1.01 || fr > f32(n) - 1.01) { break; }
+    let hRay = h0 + rise * t * cell;
+    let occ = (hWorldF(fr, fc, n) - hRay) / (0.02 + t * cell * 0.18);
+    sun = min(sun, clamp(1.0 - occ, 0.0, 1.0));
+    t = t * 1.14 + 0.55;
+  }
+
+  // sky AO: mean sine-of-horizon over 6 bearings — valleys and gorges darken
+  var ao = 0.0;
+  for (var d2 = 0; d2 < 6; d2 = d2 + 1) {
+    let ang = f32(d2) * 1.0471976;
+    let dd = vec2<f32>(cos(ang), sin(ang));
+    var maxTan = 0.0;
+    var tt = 1.2;
+    for (var s3 = 0; s3 < 9; s3 = s3 + 1) {
+      let fc = clamp(f32(c) + dd.x * tt, 0.0, f32(n) - 1.01);
+      let fr = clamp(f32(r) + dd.y * tt, 0.0, f32(n) - 1.01);
+      maxTan = max(maxTan, (hWorldF(fr, fc, n) - h0) / (tt * cell));
+      tt = tt * 1.5 + 0.6;
+    }
+    ao = ao + maxTan / sqrt(1.0 + maxTan * maxTan);
+  }
+  let sky = clamp(1.0 - (ao / 6.0) * 0.85, 0.0, 1.0);
+  shad[i] = vec2<f32>(sun, sky);
 }
 `;
 
@@ -551,11 +629,56 @@ fn displayColor(linear: vec3<f32>) -> vec3<f32> {
 }
 `;
 
+/* Shared value-noise + gradient + cloud-shadow helpers for the render shaders. */
+const NOISE_HELPERS = /* wgsl */ `
+fn hash12(p: vec2<f32>) -> f32 {
+  var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
+  p3 = p3 + dot(p3, vec3<f32>(p3.y, p3.z, p3.x) + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+fn vnoise(p: vec2<f32>) -> f32 {
+  let i = floor(p); let f = fract(p); let u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2<f32>(1.0, 0.0)), u.x),
+             mix(hash12(i + vec2<f32>(0.0, 1.0)), hash12(i + vec2<f32>(1.0, 1.0)), u.x), u.y);
+}
+fn vgrad(p: vec2<f32>) -> vec2<f32> {
+  let e = 0.14;
+  return vec2<f32>(
+    vnoise(p + vec2<f32>(e, 0.0)) - vnoise(p - vec2<f32>(e, 0.0)),
+    vnoise(p + vec2<f32>(0.0, e)) - vnoise(p - vec2<f32>(0.0, e))) / (2.0 * e);
+}
+// Drifting cloud shadows: two octaves of value noise scrolled by the wind-driven
+// offset in ru.env.xy; amt fades the whole effect (0 = clear sky).
+fn cloudShade(p: vec2<f32>, off: vec2<f32>, amt: f32) -> f32 {
+  if (amt <= 0.002) { return 1.0; }
+  let cl = vnoise(p * 1.6 + off) * 0.65 + vnoise(p * 3.7 + off * 1.6 + vec2<f32>(19.7, 7.3)) * 0.35;
+  let sh = 1.0 - smoothstep(0.52, 0.80, cl) * 0.45;
+  return mix(1.0, sh, clamp(amt, 0.0, 1.0));
+}
+`;
+
+/* Bilinear (sunVisibility, skyAO) lookup from the SHADOWAO buffer. Callers must
+ * declare \`ru\` (with params = n,vscale,half,seaY) and \`shad\` at module scope. */
+const SHADOW_SAMPLE = /* wgsl */ `
+fn shadowAt(wx: f32, wz: f32) -> vec2<f32> {
+  let n = u32(ru.params.x);
+  let hf = ru.params.z;
+  let fc = clamp((wx + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.001);
+  let fr = clamp((wz + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.001);
+  let c0 = u32(floor(fc)); let r0 = u32(floor(fr));
+  let tc = fc - floor(fc); let tr = fr - floor(fr);
+  let a = shad[r0 * n + c0]; let b = shad[r0 * n + c0 + 1u];
+  let d = shad[(r0 + 1u) * n + c0]; let e = shad[(r0 + 1u) * n + c0 + 1u];
+  return mix(mix(a, b, tc), mix(d, e, tc), tr);
+}
+`;
+
 export const RENDER_TERRAIN_WGSL = /* wgsl */ `
 // impact = (worldX, worldZ, kind*100 + ageSeconds, radiusWorld) — the last
 // meteor strike; drives the incandescent crater glow that cools over ~6s.
 // radiusWorld <= 0 means no live impact.
-struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32> };
+// env = (cloudOffsetX, cloudOffsetZ, cloudAmount, _) — wind-driven cloud shadows.
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32> };
 @group(0) @binding(0) var<uniform> ru: RU;
 @group(0) @binding(1) var<storage, read> bed: array<f32>;
 @group(0) @binding(2) var<storage, read> nrm: array<vec4<f32>>;
@@ -564,7 +687,24 @@ struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>
 @group(0) @binding(5) var<storage, read> fuel: array<f32>;
 @group(0) @binding(6) var<storage, read> charr: array<f32>;
 @group(0) @binding(7) var<storage, read> fire: array<f32>;
+@group(0) @binding(8) var<storage, read> shad: array<vec2<f32>>;
+@group(0) @binding(9) var<storage, read> watT: array<f32>;
 ${COLOR_HELPERS}
+${NOISE_HELPERS}
+${SHADOW_SAMPLE}
+
+// bilinear water depth — wets the ground around pools and river channels
+fn waterAt(wx: f32, wz: f32) -> f32 {
+  let n = u32(ru.params.x);
+  let hf = ru.params.z;
+  let fc = clamp((wx + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.001);
+  let fr = clamp((wz + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.001);
+  let c0 = u32(floor(fc)); let r0 = u32(floor(fr));
+  let tc = fc - floor(fc); let tr = fr - floor(fr);
+  let a = watT[r0 * n + c0]; let b = watT[r0 * n + c0 + 1u];
+  let d = watT[(r0 + 1u) * n + c0]; let e = watT[(r0 + 1u) * n + c0 + 1u];
+  return mix(mix(a, b, tc), mix(d, e, tc), tr);
+}
 
 fn bedAtCell(r: i32, c: i32, n: u32) -> f32 {
   let rr = u32(clamp(r, 0, i32(n) - 1));
@@ -615,7 +755,6 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
 fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let N = normalize(in.normal);
   let L = normalize(ru.sun.xyz);
-  let ndl = clamp(dot(N, L), 0.0, 1.0);
   let slope = clamp((1.0 - N.y) * 1.6, 0.0, 1.0);
   let hN = clamp(in.world.y / ru.params.y, 0.0, 1.0);
   let veg = srgbToLinear(vec3<f32>(0.40, 0.48, 0.33));
@@ -637,13 +776,28 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     wetSheen = clamp(in.beach * (1.0 - aboveSea), 0.0, 1.0); // glossy band the tide keeps wet
   }
   if (in.info.x > 0.5) { base = srgbToLinear(vec3<f32>(0.05, 0.22, 0.48)); }
+  // macro albedo variation so broad faces read as ground, not flat paint
+  base = base * (0.93 + 0.14 * vnoise(in.world.xz * 6.3));
+  // ground wetness: darken + cool toward the wet-earth tone around live water
+  let wdep = waterAt(in.world.x, in.world.z);
+  let wet = smoothstep(0.004, 0.09, wdep) * (1.0 - in.info.x);
+  base = mix(base, base * vec3<f32>(0.55, 0.68, 0.72), wet * 0.55);
+  // cast shadows + sky occlusion from the live surface, clouds drift on the wind
+  let sao = shadowAt(in.world.x, in.world.z);
+  let cloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z);
+  let sunVis = mix(sao.x, sao.x * cloud, 1.0 - in.eco.z); // fire glows through cloud shade
+  // procedural detail normal: fBm gradient perturbation, stronger on rock, damped on wet ground
+  let dg = vgrad(in.world.xz * 26.0) * 0.30 + vgrad(in.world.xz * 71.0 + vec2<f32>(3.7, 9.1)) * 0.16;
+  let Nd = normalize(N + vec3<f32>(dg.x, 0.0, dg.y) * (0.35 + slope * 0.85) * (1.0 - wet * 0.7));
+  let ndlD = clamp(dot(Nd, L), 0.0, 1.0);
   let amb = mix(srgbToLinear(vec3<f32>(0.34, 0.33, 0.30)), srgbToLinear(vec3<f32>(0.52, 0.55, 0.60)), N.y * 0.5 + 0.5);
   let sunCol = srgbToLinear(vec3<f32>(1.0, 0.96, 0.88));
-  var col = base * (amb + sunCol * ndl * 0.85);
-  // wet sand near the tideline catches a low specular sheen
+  var col = base * (amb * (0.35 + 0.65 * sao.y) + sunCol * ndlD * 0.95 * sunVis);
+  // wet ground and tideline sand catch a low specular sheen
   let Vt = normalize(ru.cam.xyz - in.world);
   let Ht = normalize(L + Vt);
-  col = col + srgbToLinear(vec3<f32>(1.0, 0.98, 0.92)) * pow(max(dot(N, Ht), 0.0), 42.0) * wetSheen * 0.55;
+  let sheen = max(wetSheen, wet * 0.55);
+  col = col + srgbToLinear(vec3<f32>(1.0, 0.98, 0.92)) * pow(max(dot(Nd, Ht), 0.0), 42.0) * sheen * 0.55 * sunVis;
   // char scar
   col = mix(col, srgbToLinear(vec3<f32>(0.10, 0.09, 0.085)), clamp(in.eco.y, 0.0, 1.0) * 0.82);
   // fire emissive (flickers via time in misc.z)
@@ -667,8 +821,10 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
       col = col + hotCol * hot * boost * shimmer;
     }
   }
+  // aerial perspective: sky-tinted fog, thinner over high ground
   let dist = length(in.world - ru.cam.xyz);
-  col = mix(col, srgbToLinear(vec3<f32>(0.969, 0.961, 0.941)), smoothstep(3.0, 6.5, dist) * ru.cam.w);
+  let fogH = 1.0 - clamp(in.world.y * 0.8, 0.0, 0.35);
+  col = mix(col, srgbToLinear(vec3<f32>(0.90, 0.90, 0.88)), smoothstep(3.0, 6.5, dist) * ru.cam.w * fogH);
   if (ru.pick.w > 0.5) {
     let t = distance(in.world.xz, ru.pick.xy) / ru.pick.z;
     if (t < 1.0) { col = mix(col, srgbToLinear(vec3<f32>(0.29, 0.40, 0.16)), (1.0 - t) * 0.30); }
@@ -757,13 +913,17 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
 /* Lively water: depth-graded colour, animated ripples, sun sparkle, fresnel rim,
  * and foam/streaks on fast-moving water. misc.z carries time (seconds). */
 export const RENDER_WATER_WGSL = /* wgsl */ `
-struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32> };
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32> };
 @group(0) @binding(0) var<uniform> ru: RU;
 @group(0) @binding(1) var<storage, read> bed: array<f32>;
 @group(0) @binding(2) var<storage, read> wat: array<f32>;
 @group(0) @binding(3) var<storage, read> flags: array<u32>;
 @group(0) @binding(4) var<storage, read> vel: array<vec2<f32>>;
+@group(0) @binding(5) var<storage, read> sed: array<f32>;
+@group(0) @binding(6) var<storage, read> shad: array<vec2<f32>>;
 ${COLOR_HELPERS}
+${NOISE_HELPERS}
+${SHADOW_SAMPLE}
 
 fn bedAtCell(r: i32, c: i32, n: u32) -> f32 {
   let rr = u32(clamp(r, 0, i32(n) - 1));
@@ -786,18 +946,8 @@ struct VSOut {
   @location(3) v: vec2<f32>,
   @location(4) onrm: vec3<f32>,
   @location(5) shore: f32,   // ocean: 0 deep → 1 at the sand (drives shallows + surf)
+  @location(6) sedv: f32,    // suspended sediment — turbid floodwater
 };
-
-fn hash12(p: vec2<f32>) -> f32 {
-  var p3 = fract(vec3<f32>(p.x, p.y, p.x) * 0.1031);
-  p3 = p3 + dot(p3, vec3<f32>(p3.y, p3.z, p3.x) + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-fn vnoise(p: vec2<f32>) -> f32 {
-  let i = floor(p); let f = fract(p); let u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash12(i), hash12(i + vec2<f32>(1.0, 0.0)), u.x),
-             mix(hash12(i + vec2<f32>(0.0, 1.0)), hash12(i + vec2<f32>(1.0, 1.0)), u.x), u.y);
-}
 
 // §5 ocean — domain-warped, multi-octave turbulent swell (the real-time cousin of a
 // Tessendorf FFT ocean). Iterative warp + rotated octaves give a chaotic, non-
@@ -845,6 +995,7 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
   out.ocean = select(0.0, 1.0, isOcean);
   out.v = vel[vi];
   out.shore = select(0.0, f32((flags[vi] >> 2u) & 15u) / 15.0, isOcean);
+  out.sedv = sed[vi];
   return out;
 }
 
@@ -880,8 +1031,11 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     // subsurface scattering — translucent green glow on lit, steep wave backs
     let sss = pow(max(0.0, dot(V, -L)), 2.0) * smoothstep(0.0, 0.012, in.depth) * 0.7;
     col = col + srgbToLinear(vec3<f32>(0.08, 0.40, 0.32)) * sss;
-    // sun glint (sharp + low so bloom sparkles instead of blowing out)
-    let spec = pow(max(dot(N, H), 0.0), 380.0);
+    // sun glint (sharp + low so bloom sparkles instead of blowing out); cloud
+    // shadows drift across the swell with the wind
+    let ocloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z * 0.7);
+    col = col * (0.88 + 0.12 * ocloud);
+    let spec = pow(max(dot(N, H), 0.0), 380.0) * ocloud;
     col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.86)) * spec * 0.5;
     // foam: crest tops × patchy advected noise (random, not uniform)
     let crest = smoothstep(0.009, 0.015, in.depth);
@@ -896,30 +1050,65 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     return vec4<f32>(displayColor(col) * alpha, alpha);
   }
 
-  // ---- sim water (land): a feathered wet sheen at the rim deepening into pools ----
-  let edge = smoothstep(0.012, 0.07, in.depth);     // soft shoreline, no hard pixel cut
+  // ---- sim water (land) ---------------------------------------------------
+  // Beer–Lambert depth absorption, flow-mapped ripple normals advected by the
+  // real velocity field, suspended-sediment turbidity, shoreline + whitewater
+  // foam, and terrain shadows falling across the surface.
+  let edge = smoothstep(0.008, 0.055, in.depth);    // soft feathered shoreline
   if (edge <= 0.002) { discard; }
   let t = ru.misc.z;
   let spd = length(in.v);
   let p = in.world.xz;
-  let flow = normalize(in.v + vec2<f32>(0.0001, 0.0));
-  let fcoord = dot(p, flow) * 70.0 - t * 6.0;
-  var rn = vec2<f32>(0.0, 0.0);
-  rn += vec2<f32>(cos(dot(p, vec2<f32>(38.0, 11.0)) + t * 2.4), cos(dot(p, vec2<f32>(-13.0, 41.0)) - t * 2.0)) * 0.5;
-  rn += flow * cos(fcoord) * clamp(spd, 0.0, 1.5);
-  let N = normalize(vec3<f32>(rn.x * 0.07, 1.0, rn.y * 0.07));
-  // shallow water stays a quiet teal that lets the wet ground read through; pools deepen to blue
-  let shallow = srgbToLinear(vec3<f32>(0.11, 0.31, 0.35));
-  let deep = srgbToLinear(vec3<f32>(0.03, 0.18, 0.35));
-  var col = mix(shallow, deep, clamp(in.depth, 0.0, 1.0));
-  col = mix(col, srgbToLinear(vec3<f32>(0.34, 0.40, 0.40)), clamp(spd * 0.20, 0.0, 0.20));
-  let spec = pow(max(dot(N, H), 0.0), 90.0);
-  col += srgbToLinear(vec3<f32>(1.0, 0.98, 0.9)) * spec * 0.9;
+  let fdir = in.v / max(spd, 0.0001);
+
+  // shadows + drifting clouds shade the water like the ground around it
+  let sao = shadowAt(in.world.x, in.world.z);
+  let cloud = cloudShade(p, ru.env.xy, ru.env.z * 0.8);
+  let sunVis = sao.x * cloud;
+
+  // flow mapping: two noise-gradient samples advected along the velocity with
+  // opposite phase, cross-faded so the ripples travel without visible reset
+  let ph0 = fract(t * 0.6);
+  let ph1 = fract(t * 0.6 + 0.5);
+  let w0 = 1.0 - abs(2.0 * ph0 - 1.0);
+  let w1 = 1.0 - abs(2.0 * ph1 - 1.0);
+  let advect = fdir * min(spd, 1.6) * 2.4;
+  let uv = p * 42.0;
+  let g0 = vgrad(uv - advect * ph0);
+  let g1 = vgrad(uv * 1.17 + vec2<f32>(11.3, 23.1) - advect * ph1);
+  let amp = 0.05 + min(spd, 1.6) * 0.05 + smoothstep(0.0, 0.25, in.depth) * 0.025;
+  let rn = (g0 * w0 + g1 * w1) * amp;
+  let N = normalize(vec3<f32>(rn.x, 1.0, rn.y));
+
+  // Beer–Lambert: red absorbed first, deep water settles into the blue-green
+  let trans = exp(-in.depth * vec3<f32>(11.7, 4.05, 2.48));
+  let shallowT = srgbToLinear(vec3<f32>(0.30, 0.47, 0.47));
+  let deepC = srgbToLinear(vec3<f32>(0.016, 0.14, 0.30));
+  var col = mix(deepC, shallowT, trans);
+  // suspended sediment: eroding reaches run muddy, clear water stays blue
+  let turb = clamp(in.sedv * 2.6, 0.0, 0.75);
+  col = mix(col, srgbToLinear(vec3<f32>(0.46, 0.37, 0.26)), turb * 0.8);
+  // light: shaded water darkens, occluded gorges lose skylight
+  col = col * (0.55 + 0.45 * sunVis) * (0.60 + 0.40 * sao.y);
+  // fresnel sky reflection
   let fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-  col = mix(col, srgbToLinear(vec3<f32>(0.50, 0.70, 0.78)), fres * 0.30);
-  // transparent at the feathered rim (just a wet glint) → opaque where it ponds
-  var alpha = clamp(0.12 + in.depth * 0.9, 0.0, 0.92) * edge;
-  alpha = max(alpha, spec * 0.7 * edge);
+  col = mix(col, srgbToLinear(vec3<f32>(0.55, 0.68, 0.76)) * (0.6 + 0.4 * sunVis), fres * 0.38);
+  // sun sparkle (bloom feeds on this)
+  let spec = pow(max(dot(N, H), 0.0), 120.0) * sunVis;
+  col = col + srgbToLinear(vec3<f32>(1.0, 0.98, 0.9)) * spec * 1.1;
+  // foam: whitewater streaks stretched along fast flow + a lapping shoreline band
+  let fuv = vec2<f32>(dot(p, fdir), dot(p, vec2<f32>(-fdir.y, fdir.x)));
+  let streak = vnoise(fuv * vec2<f32>(6.0, 52.0) - vec2<f32>(t * (1.5 + spd * 2.5), 0.0));
+  let white = smoothstep(0.85, 1.9, spd) * smoothstep(0.45, 0.85, streak);
+  let shoreBand = smoothstep(0.006, 0.016, in.depth) * (1.0 - smoothstep(0.016, 0.05, in.depth));
+  let lapN = vnoise(p * 34.0 + vec2<f32>(t * 0.35, -t * 0.28));
+  let foam = clamp(white * 0.85 + shoreBand * smoothstep(0.35, 0.8, lapN) * 0.7, 0.0, 0.9);
+  col = mix(col, srgbToLinear(vec3<f32>(0.90, 0.94, 0.94)) * (0.5 + 0.5 * sunVis), foam);
+  // opacity follows transmittance — thin films glint, pools go opaque; turbidity
+  // and foam both cloud the water
+  var alpha = clamp(1.0 - (trans.x + trans.y + trans.z) / 3.0, 0.0, 1.0);
+  alpha = clamp(alpha * 0.92 + turb * 0.35 + foam * 0.4 + spec * 0.5, 0.0, 0.95) * edge;
+  alpha = max(alpha, 0.10 * edge);
   return vec4<f32>(displayColor(col) * alpha, alpha);
 }
 `;
@@ -979,7 +1168,15 @@ struct CU2 { intensity: f32, _a: f32, _b: f32, _c: f32 };
 fn fs(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
   let s = textureSample(sceneT, samp, uv).rgb;
   let b = textureSample(bloomT, samp, uv).rgb;
-  return vec4<f32>(s + b * cu.intensity, 1.0);
+  var c = s + b * cu.intensity;
+  // gentle palette grade: warm the highlights toward sand, cool the shadows
+  let luma = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+  c = mix(c, c * vec3<f32>(1.03, 1.005, 0.96), smoothstep(0.45, 1.0, luma) * 0.5);
+  c = mix(c, c * vec3<f32>(0.97, 1.0, 1.03), (1.0 - smoothstep(0.0, 0.4, luma)) * 0.4);
+  // quiet vignette to seat the diorama in the frame
+  let dv = uv - vec2<f32>(0.5, 0.5);
+  c = c * (1.0 - dot(dv, dv) * 0.30);
+  return vec4<f32>(c, 1.0);
 }
 `;
 
