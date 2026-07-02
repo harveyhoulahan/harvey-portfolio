@@ -120,3 +120,44 @@ trained neural surrogate; the other is emergent complexity steered by a foundati
 an evolutionary search. Both are full-screen, both run entirely on the visitor's GPU, both
 are grounded in 2025–26 research, and both are things almost nobody has built as an
 interactive web experience.
+
+---
+
+## M7 — Particles as hero: insane physics, HDR trails, trained summon prior
+
+Particle Life is now the flagship substrate (default tab, 2,400 agents). Shipped in this
+milestone. Defaults were tuned calm on load — forces, flocking, wind, pulse and predation
+all sit low-mid range, trails short, exposure modest — so the first impression is a living
+ecosystem rather than a strobe show; presets (Storm, Comets) and sliders still reach the
+extremes for anyone who wants that.
+
+**Physics (all evolvable, mirrored in `lib/genesis/particle-life.ts` ↔ WGSL):**
+- `align` — Vicsek flocking toward the local mean velocity (validated headlessly: velocity
+  coherence 0.129 vs 0.004 baseline over 300 steps).
+- `flow` — a global time-varying wind field the whole swarm rides.
+- `pulse` — per-species force modulation; species breathe out of phase.
+- `convert` — cyclic predation: type t is converted on contact by type (t+1)%K, producing
+  waves of colour sweeping the swarm. Types ping-pong (`typIn`→`typOut`) so it's race-free.
+
+**Graphics:** particles draw additively into an rgba16float trail texture (per-frame decay
+via a blend-constant fade pass), velocity-stretched sprites that heat toward white with
+speed, then a tone-mapped (1−e^−x·exposure) vignetted composite. `trail` and `stretch` are
+genes, so summons evolve their own look.
+
+**CLIP search upgrades (`lib/genesis/vision.ts`):**
+- Contrastive fitness: score = cos(view, prompt) − 0.5·max cos(view, null bank) — rewards
+  frames *specifically* like the prompt, not merely bright dots.
+- Multi-crop (full frame + 62% center zoom) embedded in one batched forward, × two moments.
+- CLIP judges the *composited* trails (the capture path renders the same HDR pipeline).
+- Latin-hypercube warm start over the 51-gene genome (36 matrix + 9 physics + 6 look).
+
+**Trained summon prior (`ml/genesis/train_summon_prior.py`):**
+An offline torch mirror of the sim + the same CLIP model (openai/clip-vit-base-patch32 =
+the browser's Xenova port) evolves genomes for ~48 concepts and writes
+`public/genesis/summon-prior.json` (concept text embedding + best genome). At summon time
+the browser retrieves the 3 nearest concepts to the prompt embedding and warm-starts
+CMA-ES from their genomes. Run with `npm run genesis:prior` (needs torch + transformers +
+pillow; resumes per-concept, `--gens 6 --warm 10 --n 1024` for a quick pass).
+
+⚠ Contract: `P_GENOME` in `Genesis.tsx`, `GENOME_SCALARS` in the trainer, and the prompt
+templates / null prompts in `vision.ts` are mirrored by hand — change them together.

@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "catchment:rollouts": "node scripts/catchment/generate-teacher-rollouts.mjs",
-    "catchment:train": "python3 scripts/catchment/train-surrogate.py"
+    "catchment:train": "python3 scripts/catchment/train-surrogate.py",
+    "genesis:prior": "python ml/genesis/train_summon_prior.py"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.65",

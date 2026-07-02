@@ -34,7 +34,7 @@ export default function AboutStory() {
         <span className="mono-label">About</span>
         <h1 className="mt-5 font-display">
           <TextCursorProximity
-            label="Spatial and ML engineer in climate tech."
+            label="ML systems engineer — spatial, simulation, applied AI."
             className="block"
             styles={headingStyles}
             falloff="gaussian"

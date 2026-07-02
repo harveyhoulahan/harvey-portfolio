@@ -41,8 +41,8 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
           />
         </h1>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
-          Languages, tools, and frameworks I reach for across spatial work,
-          simulation, and ML.
+          Languages, tools, and frameworks I reach for across applied ML/AI
+          systems, spatial work, and simulation.
         </p>
 
         {/* Filter chips */}

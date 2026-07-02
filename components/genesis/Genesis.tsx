@@ -16,12 +16,15 @@
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import {
   SIM_WGSL, LIFE_WGSL, ADVECT_WGSL, DECAY_WGSL, RENDER_WGSL,
-  PARTICLE_FORCE_WGSL, PARTICLE_RENDER_WGSL,
+  PARTICLE_FORCE_WGSL, PARTICLE_RENDER_WGSL, PARTICLE_FADE_WGSL, PARTICLE_COMPOSITE_WGSL,
   FIGHT_WGSL, FIGHT_RENDER_WGSL, FIGHT_ADVECT_WGSL,
 } from "@/lib/genesis/sim-shaders";
 import { buildKernel, seedScenario, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
 import { initParticles, randomMatrix, PARTICLE_DEFAULTS } from "@/lib/genesis/particle-life";
-import { loadVision, embedText, embedCanvas, embedPixels, cosine, resonance, type VisionStatus } from "@/lib/genesis/vision";
+import {
+  loadVision, embedText, embedCanvas, embedPixelsMulti, meanEmbed, matchScore, getNullBank,
+  cosine, resonance, type VisionStatus,
+} from "@/lib/genesis/vision";
 import { CMAES } from "@/lib/genesis/cmaes";
 import { useIdleUI } from "@/lib/useIdleUI";
 
@@ -40,12 +43,13 @@ const SWIRL = 0.18;      // rotational flow amplitude
 const THETA_JITTER = 0.04; // heading random-walk per step
 
 const PL = PARTICLE_DEFAULTS;
-const PN = 1800; // particle count
-const POINT_SIZE = 0.0055; // particle radius in NDC-x units
-const NOISE_AMP = 1.4;   // particle brownian jitter
+const PN = 2400; // particle count (O(N²) kernel; comfortable on any WebGPU device)
+const POINT_SIZE = 0.0048; // particle radius in NDC-x units
+const NOISE_AMP = 0.6;   // particle brownian jitter
 const CURSOR_STRENGTH = 2.6; // pointer attraction strength
 const MATRIX_DRIFT_RATE = 0.015; // per-update random walk of the attraction matrix
 const MATRIX_DRIFT_EVERY = 16;   // frames between matrix nudges
+const TRAIL_EXPOSURE = 1.0;      // tone-map exposure for the HDR trail composite
 
 type Status = "loading" | "ready" | "nogpu" | "error";
 type Substrate = "lenia" | "life" | "particle";
@@ -57,10 +61,17 @@ type Params = {
   mu: number; sigma: number; energy: number; drift: number; swirl: number;
   kR: number; kSigma: number; // kernel scale (creature size) + ring width (shape)
   leniaHue: number; leniaTint: number; // evolvable colour for Lenia
-  // Particle Life
+  // Particle Life — physics
   rMax: number; friction: number; forceFactor: number; noise: number; cursor: number; matDrift: number;
-  // Particle palette genome (evolved by the search so summons take on prompt colours)
+  beta: number;    // repulsion-core width (fraction of rMax)
+  align: number;   // flocking: steer toward local mean velocity
+  flow: number;    // global wind field strength
+  pulse: number;   // per-species force breathing
+  convert: number; // cyclic predation rate (colour waves)
+  // Particle Life — look genome (evolved so summons take on prompt colours/motion)
   hueBase: number; hueSpread: number; sat: number; val: number;
+  trail: number;   // trail persistence (0 = crisp dots, 1 = long comet trails)
+  stretch: number; // velocity-stretched sprites (motion streaks)
   // Game of Life
   lifeEvery: number;
 };
@@ -75,12 +86,28 @@ const DEFAULTS: Params = {
   leniaHue: 0.30, leniaTint: 0,
   rMax: PL.rMax, friction: PL.friction, forceFactor: PL.forceFactor,
   noise: NOISE_AMP, cursor: CURSOR_STRENGTH, matDrift: MATRIX_DRIFT_RATE,
-  hueBase: 0.08, hueSpread: 0.85, sat: 0.55, val: 0.92,
+  beta: PL.beta, align: PL.align, flow: PL.flow, pulse: PL.pulse, convert: PL.convert,
+  hueBase: 0.08, hueSpread: 0.85, sat: 0.48, val: 0.82,
+  trail: 0.28, stretch: 0.45,
   lifeEvery: LIFE_EVERY,
 };
 
-const COLOR_KEYS: (keyof Params)[] = ["hueBase", "hueSpread", "sat", "val"];
 const LENIA_COLOR_KEYS: (keyof Params)[] = ["leniaHue", "leniaTint"];
+
+/*
+ * The particle summon genome: 36 attraction-matrix genes (decoded a = 2g − 1)
+ * followed by these scalar genes decoded through the listed bounds. Order and
+ * bounds are mirrored EXACTLY in ml/genesis/train_summon_prior.py — the offline
+ * trainer evolves genomes in this same space and the browser warm-starts from
+ * them — so any change here must be made in both places.
+ */
+const P_GENOME: [keyof Params, number, number][] = [
+  ["rMax", 0.05, 0.25], ["friction", 0.40, 0.95], ["forceFactor", 1, 10], ["noise", 0, 4],
+  ["beta", 0.05, 0.45], ["align", 0, 2], ["flow", 0, 1.2], ["pulse", 0, 1], ["convert", 0, 0.35],
+  ["hueBase", 0, 1], ["hueSpread", 0, 1], ["sat", 0, 1], ["val", 0.4, 1],
+  ["trail", 0, 1], ["stretch", 0, 3],
+];
+const P_GENOME_LEN = PL.K * PL.K + P_GENOME.length; // 51
 
 const PARAM_KEYS = Object.keys(DEFAULTS) as (keyof Params)[];
 
@@ -112,9 +139,11 @@ const LENIA_PRESETS: Record<string, Partial<Params>> = {
   Pulsing:  { mu: 0.16, sigma: 0.019, energy: 0.013, drift: 0.20, swirl: 0.22 },
 };
 const PARTICLE_PRESETS: Record<string, Partial<Params>> = {
-  Cells:   { rMax: 0.10, friction: 0.84, forceFactor: 4.0, noise: 0.8 },
-  Chasers: { rMax: 0.14, friction: 0.70, forceFactor: 7.0, noise: 1.2 },
-  Swarm:   { rMax: 0.17, friction: 0.60, forceFactor: 6.0, noise: 1.8 },
+  Cells:    { rMax: 0.10, friction: 0.84, forceFactor: 4.0, noise: 0.8, align: 0.1, flow: 0.05, pulse: 0.1, convert: 0, trail: 0.35, stretch: 0.4 },
+  Chasers:  { rMax: 0.14, friction: 0.70, forceFactor: 7.0, noise: 1.2, align: 0.5, flow: 0.1, pulse: 0.3, convert: 0.04, trail: 0.6, stretch: 1.4 },
+  Storm:    { rMax: 0.16, friction: 0.55, forceFactor: 6.5, noise: 1.6, align: 1.4, flow: 1.0, pulse: 0.5, convert: 0.02, trail: 0.8, stretch: 2.2 },
+  Plague:   { rMax: 0.13, friction: 0.74, forceFactor: 6.0, noise: 1.0, align: 0.4, flow: 0.15, pulse: 0.7, convert: 0.25, trail: 0.5, stretch: 0.8 },
+  Comets:   { rMax: 0.12, friction: 0.62, forceFactor: 8.0, noise: 0.6, align: 0.9, flow: 0.5, pulse: 0.2, convert: 0, trail: 0.97, stretch: 2.8 },
 };
 
 // slider definitions per substrate: [param, label, min, max, step]
@@ -134,6 +163,13 @@ const SLIDERS: Record<Substrate, SliderDef[]> = {
     ["friction", "friction", 0.40, 0.95, 0.01],
     ["forceFactor", "force", 1, 10, 0.5],
     ["noise", "jitter", 0, 4, 0.1],
+    ["beta", "core · repulsion", 0.05, 0.45, 0.005],
+    ["align", "flocking", 0, 2, 0.05],
+    ["flow", "wind", 0, 1.2, 0.05],
+    ["pulse", "pulse", 0, 1, 0.05],
+    ["convert", "predation", 0, 0.35, 0.01],
+    ["trail", "trails", 0, 1, 0.02],
+    ["stretch", "streaks", 0, 3, 0.1],
     ["cursor", "cursor pull", -4, 6, 0.2],
     ["matDrift", "physics drift", 0, 0.06, 0.002],
   ],
@@ -152,11 +188,6 @@ const PRESETS: Partial<Record<Substrate, Record<string, Partial<Params>>>> = {
 const EGG_MAINRUN: Partial<Params> = { mu: 0.14, sigma: 0.015, kR: 16, kSigma: 0.12, energy: 0.003, drift: 0.46, swirl: 0.36 };
 const EGG_CATCHMENT: Partial<Params> = { rMax: 0.16, friction: 0.70, forceFactor: 6.0, noise: 1.0 };
 
-const P_SEARCH_KEYS: (keyof Params)[] = ["rMax", "friction", "forceFactor"];
-const boundsOf = (sub: Substrate, key: keyof Params): [number, number] => {
-  const d = SLIDERS[sub].find((s) => s[0] === key);
-  return d ? [d[2], d[3]] : [0, 1];
-};
 
 // Consolidated "macro" controls — one slider sweeps a curated path through two raw
 // params so the full effect range survives. forward maps macro t∈[0,1] → param patch;
@@ -189,11 +220,14 @@ const MACROS: Record<Substrate, MacroDef[]> = {
       forward: (t) => ({ rMax: mix(0.05, 0.25, t), forceFactor: mix(1, 10, t) }),
       read: (p) => unmix(0.05, 0.25, p.rMax) },
     { key: "life", label: "life",
-      forward: (t) => ({ friction: mix(0.95, 0.40, t), noise: mix(0, 4, t) }),
+      forward: (t) => ({ friction: mix(0.95, 0.40, t), noise: mix(0, 4, t), align: mix(0, 1.4, t) }),
       read: (p) => unmix(0, 4, p.noise) },
-    { key: "cursor", label: "cursor pull",
-      forward: (t) => ({ cursor: mix(-4, 6, t) }),
-      read: (p) => unmix(-4, 6, p.cursor) },
+    { key: "chaos", label: "chaos",
+      forward: (t) => ({ convert: mix(0, 0.3, t), pulse: mix(0, 0.9, t), flow: mix(0, 1.0, t) }),
+      read: (p) => unmix(0, 0.3, p.convert) },
+    { key: "glow", label: "glow",
+      forward: (t) => ({ trail: mix(0.1, 1, t), stretch: mix(0.2, 2.8, t) }),
+      read: (p) => unmix(0.1, 1, p.trail) },
   ],
   life: [
     { key: "lifeEvery", label: "pace",
@@ -220,7 +254,7 @@ export default function Genesis() {
   const [status, setStatus] = useState<Status>("loading");
   const [err, setErr] = useState<string>("");
   const [paused, setPaused] = useState(false);
-  const [substrate, setSubstrate] = useState<Substrate>("lenia");
+  const [substrate, setSubstrate] = useState<Substrate>("particle");
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [panelOpen, setPanelOpen] = useState(true);
   const [advanced, setAdvanced] = useState(false);
@@ -251,7 +285,7 @@ export default function Genesis() {
   const pausedRef = useRef(false);
   const seedRef = useRef<{ x: number; y: number } | null>(null);
   const resetRef = useRef(false);
-  const substrateRef = useRef<Substrate>("lenia");
+  const substrateRef = useRef<Substrate>("particle");
   const switchRef = useRef(false); // substrate changed -> reseed
   const mouseRef = useRef<{ x: number; y: number; active: boolean }>({ x: -1, y: -1, active: false });
   const paramsRef = useRef<Params>(DEFAULTS);
@@ -325,6 +359,7 @@ export default function Genesis() {
       await loadVision((label, frac) => setVisionMsg(`fetching ${label.split("/").pop()} · ${Math.round(frac * 100)}%`));
       setVisionMsg("embedding prompt…");
       textEmbedRef.current = await embedText(text);
+      await getNullBank(); // warm the contrastive null bank before the search starts
       setVisionStatus("ready"); setVisionMsg("");
       startMeter();
       runSearchRef.current?.("prompt"); // conjure: breed the substrate toward the words
@@ -384,11 +419,15 @@ export default function Genesis() {
         // size the backing store to the displayed size (DPR-capped) so the
         // field renders smooth + full-resolution rather than blocky.
         let pUniWrite: (() => void) | null = null;
+        let remakeTrail: (() => void) | null = null;
         const resize = () => {
           const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
           const w = Math.max(2, Math.floor(canvas.clientWidth * dpr));
           const h = Math.max(2, Math.floor(canvas.clientHeight * dpr));
-          if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w; canvas.height = h;
+            remakeTrail?.(); // HDR trail texture tracks the backing-store size
+          }
           pUniWrite?.(); // particle uniform carries aspect ratio
         };
         resize();
@@ -452,26 +491,36 @@ export default function Genesis() {
         const pstate = initParticles(PN, PL.K);
         const posBufs = [mkBuf(pstate.pos, ST), mkBuf(new Float32Array(2 * PN), ST)];
         const velBufs = [mkBuf(pstate.vel, ST), mkBuf(new Float32Array(2 * PN), ST)];
-        const typeBuf = device.createBuffer({ size: PN * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
-        new Uint32Array(typeBuf.getMappedRange()).set(pstate.type); typeBuf.unmap();
+        // types ping-pong alongside pos/vel (predation converts species race-free)
+        const mkTypeBuf = () => {
+          const b = device.createBuffer({ size: PN * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST, mappedAtCreation: true });
+          new Uint32Array(b.getMappedRange()).set(pstate.type); b.unmap();
+          return b;
+        };
+        const typeBufs = [mkTypeBuf(), mkTypeBuf()];
         let curMat = randomMatrix(PL.K); // the live attraction matrix (slowly drifts)
         const matBuf = mkBuf(curMat, GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST);
-        const pBuf = device.createBuffer({ size: 80, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+        const pBuf = device.createBuffer({ size: 112, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
         let pseed = 0;
-        pUniWrite = () => {
-          const aspect = canvas.width / Math.max(1, canvas.height);
-          const m = mouseRef.current;
-          const cx = m.active ? m.x : -1;
-          const cy = m.active ? m.y : -1;
+        const trailDecay = () => 0.80 + 0.17 * paramsRef.current.trail;
+        // capture=true renders for CLIP: square aspect, fuller points, no cursor
+        const writePUni = (seedVal: number, capture: boolean) => {
           const pr = paramsRef.current;
+          const aspect = capture ? 1 : canvas.width / Math.max(1, canvas.height);
+          const m = mouseRef.current;
+          const cx = !capture && m.active ? m.x : -1;
+          const cy = !capture && m.active ? m.y : -1;
           device.queue.writeBuffer(pBuf, 0, new Float32Array([
-            PN, PL.K, pr.rMax, PL.beta,                       // a
-            PL.dt, pr.friction, pr.forceFactor, pr.noise,     // b
-            aspect, POINT_SIZE, cx, cy,                       // c
-            pr.cursor, pseed, 0, 0,                           // d
-            pr.hueBase, pr.hueSpread, pr.sat, pr.val,         // e (palette genome)
+            PN, PL.K, pr.rMax, pr.beta,                          // a
+            PL.dt, pr.friction, pr.forceFactor, pr.noise,        // b
+            aspect, capture ? POINT_SIZE * 2.4 : POINT_SIZE, cx, cy, // c
+            capture ? 0 : pr.cursor, seedVal, seedVal * 0.016, pr.align, // d (seed, time, flocking)
+            pr.hueBase, pr.hueSpread, pr.sat, pr.val,            // e (palette genome)
+            pr.flow, pr.pulse, pr.convert, pr.stretch,           // f (behaviour genome)
+            trailDecay(), TRAIL_EXPOSURE, 0, 0,                  // g (composite)
           ]));
         };
+        pUniWrite = () => writePUni(pseed, false);
         pUniWrite();
 
         /* ---- pipelines -------------------------------------------------- */
@@ -482,8 +531,10 @@ export default function Genesis() {
         const renMod = device.createShaderModule({ code: RENDER_WGSL });
         const pForceMod = device.createShaderModule({ code: PARTICLE_FORCE_WGSL });
         const pRenderMod = device.createShaderModule({ code: PARTICLE_RENDER_WGSL });
+        const pFadeMod = device.createShaderModule({ code: PARTICLE_FADE_WGSL });
+        const pCompMod = device.createShaderModule({ code: PARTICLE_COMPOSITE_WGSL });
         // surface shader-compile errors early (blind-dev safety net)
-        for (const m of [simMod, lifeMod, advMod, decMod, renMod, pForceMod, pRenderMod]) {
+        for (const m of [simMod, lifeMod, advMod, decMod, renMod, pForceMod, pRenderMod, pFadeMod, pCompMod]) {
           const ci = await (m.getCompilationInfo?.() ?? Promise.resolve({ messages: [] }));
           const e = (ci.messages ?? []).filter((x: any) => x.type === "error");
           if (e.length) throw new Error(e.map((x: any) => x.message).join(" | "));
@@ -499,11 +550,13 @@ export default function Genesis() {
           primitive: { topology: "triangle-list" },
         });
         const pForcePipe = device.createComputePipeline({ layout: "auto", compute: { module: pForceMod, entryPoint: "main" } });
+        // particles draw additively into an HDR trail texture, not the swapchain
+        const TRAIL_FORMAT = "rgba16float";
         const pRenderPipe = device.createRenderPipeline({
           layout: "auto",
           vertex: { module: pRenderMod, entryPoint: "vs" },
           fragment: { module: pRenderMod, entryPoint: "fs", targets: [{
-            format,
+            format: TRAIL_FORMAT,
             blend: {
               color: { srcFactor: "one", dstFactor: "one", operation: "add" },
               alpha: { srcFactor: "one", dstFactor: "one", operation: "add" },
@@ -511,6 +564,27 @@ export default function Genesis() {
           }] },
           primitive: { topology: "triangle-list" },
         });
+        // fade pass: dst · blendConstant — the per-frame decay that makes trails
+        const pFadePipe = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module: pFadeMod, entryPoint: "vs" },
+          fragment: { module: pFadeMod, entryPoint: "fs", targets: [{
+            format: TRAIL_FORMAT,
+            blend: {
+              color: { srcFactor: "zero", dstFactor: "constant", operation: "add" },
+              alpha: { srcFactor: "zero", dstFactor: "constant", operation: "add" },
+            },
+          }] },
+          primitive: { topology: "triangle-list" },
+        });
+        // composite pass: tone-map the HDR trails onto the swapchain / capture tex
+        const pCompPipe = device.createRenderPipeline({
+          layout: "auto",
+          vertex: { module: pCompMod, entryPoint: "vs" },
+          fragment: { module: pCompMod, entryPoint: "fs", targets: [{ format }] },
+          primitive: { topology: "triangle-list" },
+        });
+        const trailSampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
 
         const cl = simPipe.getBindGroupLayout(0);
         const ll = lifePipe.getBindGroupLayout(0);
@@ -588,38 +662,45 @@ export default function Genesis() {
         // Particle Life bind groups (compute ping-pong + render)
         const pfl = pForcePipe.getBindGroupLayout(0);
         const prl = pRenderPipe.getBindGroupLayout(0);
-        const pcbg = [
-          device.createBindGroup({ layout: pfl, entries: [
-            { binding: 0, resource: { buffer: pBuf } },
-            { binding: 1, resource: { buffer: posBufs[0] } },
-            { binding: 2, resource: { buffer: velBufs[0] } },
-            { binding: 3, resource: { buffer: posBufs[1] } },
-            { binding: 4, resource: { buffer: velBufs[1] } },
-            { binding: 5, resource: { buffer: typeBuf } },
-            { binding: 6, resource: { buffer: matBuf } },
-          ]}),
-          device.createBindGroup({ layout: pfl, entries: [
-            { binding: 0, resource: { buffer: pBuf } },
-            { binding: 1, resource: { buffer: posBufs[1] } },
-            { binding: 2, resource: { buffer: velBufs[1] } },
-            { binding: 3, resource: { buffer: posBufs[0] } },
-            { binding: 4, resource: { buffer: velBufs[0] } },
-            { binding: 5, resource: { buffer: typeBuf } },
-            { binding: 6, resource: { buffer: matBuf } },
-          ]}),
-        ];
-        const prbg = [
-          device.createBindGroup({ layout: prl, entries: [
-            { binding: 0, resource: { buffer: pBuf } },
-            { binding: 1, resource: { buffer: posBufs[0] } },
-            { binding: 2, resource: { buffer: typeBuf } },
-          ]}),
-          device.createBindGroup({ layout: prl, entries: [
-            { binding: 0, resource: { buffer: pBuf } },
-            { binding: 1, resource: { buffer: posBufs[1] } },
-            { binding: 2, resource: { buffer: typeBuf } },
-          ]}),
-        ];
+        const mkForceBG = (i: number) => device.createBindGroup({ layout: pfl, entries: [
+          { binding: 0, resource: { buffer: pBuf } },
+          { binding: 1, resource: { buffer: posBufs[i] } },
+          { binding: 2, resource: { buffer: velBufs[i] } },
+          { binding: 3, resource: { buffer: posBufs[1 - i] } },
+          { binding: 4, resource: { buffer: velBufs[1 - i] } },
+          { binding: 5, resource: { buffer: typeBufs[i] } },
+          { binding: 6, resource: { buffer: typeBufs[1 - i] } },
+          { binding: 7, resource: { buffer: matBuf } },
+        ]});
+        const mkRenderBG = (i: number) => device.createBindGroup({ layout: prl, entries: [
+          { binding: 0, resource: { buffer: pBuf } },
+          { binding: 1, resource: { buffer: posBufs[i] } },
+          { binding: 2, resource: { buffer: typeBufs[i] } },
+          { binding: 3, resource: { buffer: velBufs[i] } },
+        ]});
+        const pcbg = [mkForceBG(0), mkForceBG(1)];
+        const prbg = [mkRenderBG(0), mkRenderBG(1)];
+
+        // HDR trail target for the live view (recreated on resize) + composite BG
+        const compLayout = pCompPipe.getBindGroupLayout(0);
+        const mkCompBG = (view: any) => device.createBindGroup({ layout: compLayout, entries: [
+          { binding: 0, resource: { buffer: pBuf } },
+          { binding: 1, resource: trailSampler },
+          { binding: 2, resource: view },
+        ]});
+        let trailTex: any = null;
+        let trailView: any = null;
+        let screenCompBG: any = null;
+        remakeTrail = () => {
+          try { trailTex?.destroy?.(); } catch { /* noop */ }
+          trailTex = device.createTexture({
+            size: [canvas.width, canvas.height], format: TRAIL_FORMAT,
+            usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+          });
+          trailView = trailTex.createView();
+          screenCompBG = mkCompBG(trailView);
+        };
+        remakeTrail();
 
         // 2-channel buffers for Lenia "war" episodes (populated from the live field)
         const fightBufs = [
@@ -741,19 +822,47 @@ export default function Genesis() {
           pcur = 1 - pcur;
         };
 
-        const particleRender = () => {
-          const enc = device.createCommandEncoder();
-          const view = ctx.getCurrentTexture().createView();
+        // fade the trail texture toward black, then splat the swarm additively
+        const trailPass = (enc: any, view: any, decay: number, drawSwarm: boolean) => {
+          const pass = enc.beginRenderPass({
+            colorAttachments: [{ view, loadOp: "load", storeOp: "store" }],
+          });
+          pass.setPipeline(pFadePipe);
+          pass.setBlendConstant({ r: decay, g: decay, b: decay, a: decay });
+          pass.draw(3);
+          if (drawSwarm) {
+            pass.setPipeline(pRenderPipe);
+            pass.setBindGroup(0, prbg[pcur]); // pcur holds latest positions
+            pass.draw(6, PN); // 6 verts/quad × PN instances
+          }
+          pass.end();
+        };
+        const compositePass = (enc: any, view: any, bg: any) => {
           const pass = enc.beginRenderPass({
             colorAttachments: [{
               view, loadOp: "clear", storeOp: "store",
               clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 },
             }],
           });
-          pass.setPipeline(pRenderPipe);
-          pass.setBindGroup(0, prbg[pcur]); // pcur holds latest positions
-          pass.draw(6, PN); // 6 verts/quad × PN instances
+          pass.setPipeline(pCompPipe);
+          pass.setBindGroup(0, bg);
+          pass.draw(3);
           pass.end();
+        };
+        const clearTrail = (view: any) => {
+          const enc = device.createCommandEncoder();
+          const pass = enc.beginRenderPass({
+            colorAttachments: [{ view, loadOp: "clear", storeOp: "store", clearValue: { r: 0, g: 0, b: 0, a: 0 } }],
+          });
+          pass.end();
+          device.queue.submit([enc.finish()]);
+        };
+
+        const particleRender = () => {
+          const enc = device.createCommandEncoder();
+          // while paused the trails hold still (no fade, no draw) but keep compositing
+          if (!pausedRef.current) trailPass(enc, trailView, trailDecay(), true);
+          compositePass(enc, ctx.getCurrentTexture().createView(), screenCompBG);
           device.queue.submit([enc.finish()]);
         };
 
@@ -761,9 +870,11 @@ export default function Genesis() {
           const st = initParticles(PN, PL.K);
           device.queue.writeBuffer(posBufs[pcur], 0, st.pos);
           device.queue.writeBuffer(velBufs[pcur], 0, st.vel);
-          device.queue.writeBuffer(typeBuf, 0, st.type);
+          device.queue.writeBuffer(typeBufs[0], 0, st.type);
+          device.queue.writeBuffer(typeBufs[1], 0, st.type);
           curMat = randomMatrix(PL.K); // new physics
           device.queue.writeBuffer(matBuf, 0, curMat);
+          if (trailView) clearTrail(trailView); // fresh world, fresh canvas
         };
 
         // ---- rival "war" episodes inside Lenia (2-channel competitive engine) ----
@@ -883,25 +994,25 @@ export default function Genesis() {
         const capView = capTex.createView();
         const capRead = device.createBuffer({ size: capBPR * CAP, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
         const bgra = format.startsWith("bgra");
+        // particle candidates accumulate trails into their own HDR square, so CLIP
+        // judges the composited look (streaks, glow) — exactly what a viewer sees
+        const capTrailTex = device.createTexture({
+          size: [CAP, CAP], format: TRAIL_FORMAT,
+          usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
+        });
+        const capTrailView = capTrailTex.createView();
+        const capCompBG = mkCompBG(capTrailView);
         const captureEmbed = async (kind: "field" | "particle") => {
-          if (kind === "particle") {
-            // render the capture square (aspect 1, fuller points) so CLIP sees the swarm
-            const pr = paramsRef.current;
-            device.queue.writeBuffer(pBuf, 0, new Float32Array([
-              PN, PL.K, pr.rMax, PL.beta,
-              PL.dt, pr.friction, pr.forceFactor, pr.noise,
-              1.0, POINT_SIZE * 2.4, -1, -1,
-              pr.cursor, pseed, 0, 0,
-              pr.hueBase, pr.hueSpread, pr.sat, pr.val,
-            ]));
-          }
           const enc = device.createCommandEncoder();
-          const pass = enc.beginRenderPass({
-            colorAttachments: [{ view: capView, loadOp: "clear", storeOp: "store", clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 } }],
-          });
-          if (kind === "field") { pass.setPipeline(renPipe); pass.setBindGroup(0, rbg[cur]); pass.draw(3); }
-          else { pass.setPipeline(pRenderPipe); pass.setBindGroup(0, prbg[pcur]); pass.draw(6, PN); }
-          pass.end();
+          if (kind === "field") {
+            const pass = enc.beginRenderPass({
+              colorAttachments: [{ view: capView, loadOp: "clear", storeOp: "store", clearValue: { r: 0.072, g: 0.072, b: 0.066, a: 1 } }],
+            });
+            pass.setPipeline(renPipe); pass.setBindGroup(0, rbg[cur]); pass.draw(3);
+            pass.end();
+          } else {
+            compositePass(enc, capView, capCompBG); // tone-mapped trails → capture tex
+          }
           enc.copyTextureToBuffer({ texture: capTex }, { buffer: capRead, bytesPerRow: capBPR, rowsPerImage: CAP }, [CAP, CAP, 1]);
           device.queue.submit([enc.finish()]);
           await capRead.mapAsync(GPUMapMode.READ);
@@ -917,8 +1028,37 @@ export default function Genesis() {
           let lum = 0;
           for (let i = 0; i < rgba.length; i += 4) lum += (rgba[i] + rgba[i + 1] + rgba[i + 2]);
           const cov = lum / (rgba.length / 4 * 3 * 255); // mean brightness ∈ [0,1]
-          const emb = await embedPixels(rgba, CAP, CAP);
-          return { emb, cov };
+          const embs = await embedPixelsMulti(rgba, CAP, CAP); // full frame + zoom crop, batched
+          return { embs, cov };
+        };
+
+        /* ---- trained summon prior: offline-evolved genome atlas ------------- */
+        // ml/genesis/train_summon_prior.py distills hours of CLIP-guided evolution
+        // into public/genesis/summon-prior.json; at summon time the prompt embedding
+        // retrieves the nearest concepts and their genomes seed the live search.
+        type PriorEntry = { prompt: string; e: Float32Array; g: number[] };
+        let priorEntries: PriorEntry[] | null = null;
+        const getPrior = async (): Promise<PriorEntry[]> => {
+          if (priorEntries) return priorEntries;
+          try {
+            const r = await fetch("/genesis/summon-prior.json");
+            if (!r.ok) throw new Error(String(r.status));
+            const j = await r.json();
+            priorEntries = (Array.isArray(j?.entries) ? j.entries : [])
+              .filter((en: any) => Array.isArray(en?.e) && Array.isArray(en?.g) && en.g.length === P_GENOME_LEN)
+              .map((en: any) => {
+                const e = Float32Array.from(en.e as number[]);
+                let s = 0; for (let i = 0; i < e.length; i++) s += e[i] * e[i];
+                s = Math.sqrt(s) || 1;
+                for (let i = 0; i < e.length; i++) e[i] /= s;
+                return {
+                  prompt: String(en.prompt ?? ""),
+                  e,
+                  g: (en.g as number[]).map((x) => Math.min(1, Math.max(0, x))),
+                };
+              });
+          } catch { priorEntries = []; } // atlas not shipped yet → search runs unaided
+          return priorEntries ?? [];
         };
         // empty/collapsed frames (a swarm sucked into one dot) read as near-black —
         // scale their fitness down so the search prefers worlds that fill the view.
@@ -927,9 +1067,24 @@ export default function Genesis() {
           for (let i = 0; i < steps; i++) { writeFieldUniform(f0 + i); stepOnce(); advectOnce(); }
           decayOnce();
         };
+        // develop a particle candidate: step physics with the capture-styled uniform
+        // and accumulate the last stretch of motion into the capture trail texture,
+        // so the embedding sees trails exactly as the live view renders them
         const developParticle = (steps: number) => {
-          for (let i = 0; i < steps; i++) { pUniWrite?.(); particleStepGPU(); }
+          const TRAIL_STEPS = 45;
+          for (let i = 0; i < steps; i++) {
+            pseed++;
+            writePUni(pseed, true);
+            particleStepGPU();
+            if (i >= steps - TRAIL_STEPS) {
+              const enc = device.createCommandEncoder();
+              trailPass(enc, capTrailView, trailDecay(), true);
+              device.queue.submit([enc.finish()]);
+            }
+          }
         };
+        // mirror the candidate to the live canvas so the search is a spectacle
+        const showLive = () => { writePUni(pseed, false); particleRender(); };
         const applyCandidate = (sub: Substrate, vec: number[]) => {
           if (sub === "lenia") {
             const pr = { ...paramsRef.current };
@@ -946,31 +1101,33 @@ export default function Genesis() {
             curMat = m;
             device.queue.writeBuffer(matBuf, 0, curMat);
             const pr = { ...paramsRef.current };
-            P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); pr[key] = mn + vec[K2 + i] * (mx - mn); });
-            COLOR_KEYS.forEach((key, i) => { pr[key] = vec[K2 + P_SEARCH_KEYS.length + i]; }); // palette genes, 0..1
+            P_GENOME.forEach(([key, mn, mx], i) => { pr[key] = mn + vec[K2 + i] * (mx - mn); });
             paramsRef.current = pr;
             const st = initParticles(PN, PL.K);
             device.queue.writeBuffer(posBufs[pcur], 0, st.pos);
             device.queue.writeBuffer(velBufs[pcur], 0, st.vel);
-            device.queue.writeBuffer(typeBuf, 0, st.type);
+            device.queue.writeBuffer(typeBufs[0], 0, st.type);
+            device.queue.writeBuffer(typeBufs[1], 0, st.type);
+            clearTrail(capTrailView); // fresh candidate, fresh trails
           }
         };
         const evalCandidate = async (sub: Substrate, mode: "prompt" | "open", vec: number[]) => {
           const kind = sub === "lenia" ? "field" : "particle";
           applyCandidate(sub, vec);
-          if (sub === "lenia") { developLenia(95, 0); renderFrame(); } else { developParticle(150); particleRender(); }
+          if (sub === "lenia") { developLenia(95, 0); renderFrame(); } else { developParticle(150); showLive(); }
           const a = await captureEmbed(kind);
           if (mode === "prompt") {
-            // average two frames for a less noisy fitness → the search climbs reliably
-            if (sub === "lenia") { developLenia(28, 95); renderFrame(); } else { developParticle(45); particleRender(); }
+            // two moments × two crops per moment → a dense, denoised fitness signal
+            if (sub === "lenia") { developLenia(28, 95); renderFrame(); } else { developParticle(45); showLive(); }
             const a2 = await captureEmbed(kind);
             const te = textEmbedRef.current!;
-            const sim = (cosine(a.emb, te) + cosine(a2.emb, te)) / 2;
+            const nulls = await getNullBank();
+            const sim = matchScore([...a.embs, ...a2.embs], te, nulls); // contrastive margin
             return sim * covPenalty(Math.max(a.cov, a2.cov)); // punish invisible worlds
           }
-          if (sub === "lenia") { developLenia(60, 80); renderFrame(); } else { developParticle(90); particleRender(); }
+          if (sub === "lenia") { developLenia(60, 80); renderFrame(); } else { developParticle(90); showLive(); }
           const b = await captureEmbed(kind);
-          return (1 - cosine(a.emb, b.emb)) * covPenalty(Math.max(a.cov, b.cov)); // restless & visible
+          return (1 - cosine(meanEmbed(a.embs), meanEmbed(b.embs))) * covPenalty(Math.max(a.cov, b.cov)); // restless & visible
         };
 
         const runSearch = async (mode: "prompt" | "open") => {
@@ -994,25 +1151,50 @@ export default function Genesis() {
             LENIA_COLOR_KEYS.forEach((key) => mean0.push(Math.max(0, Math.min(1, paramsRef.current[key]))));
           } else {
             for (let i = 0; i < K2; i++) mean0.push((curMat[i] + 1) / 2);
-            P_SEARCH_KEYS.forEach((key) => {
-              const [mn, mx] = boundsOf("particle", key);
+            P_GENOME.forEach(([key, mn, mx]) => {
               mean0.push(Math.max(0, Math.min(1, (paramsRef.current[key] - mn) / (mx - mn))));
             });
-            COLOR_KEYS.forEach((key) => mean0.push(Math.max(0, Math.min(1, paramsRef.current[key]))));
           }
 
           let bestScore = -Infinity; let bestVec: number[] | null = null;
-          const GENS = sub === "lenia" ? 12 : 9;
+          const GENS = sub === "lenia" ? 12 : 10;
           try {
-            // broad random warm-start: find a promising basin before CMA-ES refines it
-            const WARM = sub === "lenia" ? 12 : 16;
             let warmVec = mean0.slice();
-            for (let i = 0; i < WARM && !searchCancelRef.current; i++) {
-              const v = Array.from({ length: mean0.length }, () => Math.random());
-              const s = await evalCandidate(sub, mode, v);
+            const take = (v: number[], s: number, label: string) => {
               if (s > bestScore) { bestScore = s; bestVec = v.slice(); warmVec = v.slice(); }
               setScore(s);
-              setSearchInfo(`exploring ${i + 1}/${WARM} · best ${bestScore.toFixed(3)}`);
+              setSearchInfo(`${label} · best ${bestScore.toFixed(3)}`);
+            };
+            // 1) trained prior — genomes evolved offline for concepts near this prompt
+            //    (retrieval in CLIP space) get first shot at seeding the search
+            if (sub === "particle" && mode === "prompt") {
+              const prior = await getPrior();
+              if (prior.length) {
+                const te = textEmbedRef.current!;
+                const ranked = prior
+                  .map((en) => ({ en, c: cosine(te, en.e) }))
+                  .sort((x, y) => y.c - x.c)
+                  .slice(0, 3);
+                for (const { en, c } of ranked) {
+                  if (searchCancelRef.current) break;
+                  const s = await evalCandidate(sub, mode, en.g);
+                  take(en.g, s, `prior · “${en.prompt}” ${c.toFixed(2)}`);
+                }
+              }
+            }
+            // 2) Latin-hypercube warm start: stratified coverage of the genome box
+            //    (uniform random wastes samples; LHS spreads them over every axis)
+            const WARM = sub === "lenia" ? 12 : 14;
+            const nDim = mean0.length;
+            const strata: number[][] = Array.from({ length: nDim }, () => {
+              const p = Array.from({ length: WARM }, (_, k) => k);
+              for (let k = WARM - 1; k > 0; k--) { const r = (Math.random() * (k + 1)) | 0; [p[k], p[r]] = [p[r], p[k]]; }
+              return p;
+            });
+            for (let i = 0; i < WARM && !searchCancelRef.current; i++) {
+              const v = Array.from({ length: nDim }, (_, d) => (strata[d][i] + Math.random()) / WARM);
+              const s = await evalCandidate(sub, mode, v);
+              take(v, s, `exploring ${i + 1}/${WARM}`);
             }
             const es = new CMAES(warmVec, 0.30);
             for (let g = 0; g < GENS && !searchCancelRef.current; g++) {
@@ -1037,9 +1219,10 @@ export default function Genesis() {
                 SLIDERS.lenia.forEach(([key, , min, max], i) => { np[key] = +(min + bestVec![i] * (max - min)).toPrecision(4); });
                 LENIA_COLOR_KEYS.forEach((key, i) => { np[key] = +bestVec![nL + i].toPrecision(4); });
               } else {
-                const K2 = PL.K * PL.K;
-                P_SEARCH_KEYS.forEach((key, i) => { const [mn, mx] = boundsOf("particle", key); np[key] = +(mn + bestVec![K2 + i] * (mx - mn)).toPrecision(4); });
-                COLOR_KEYS.forEach((key, i) => { np[key] = +bestVec![K2 + P_SEARCH_KEYS.length + i].toPrecision(4); });
+                const K2b = PL.K * PL.K;
+                P_GENOME.forEach(([key, mn, mx], i) => { np[key] = +(mn + bestVec![K2b + i] * (mx - mn)).toPrecision(4); });
+                // hold the summoned creature: stop the matrix random-walk eroding it
+                if (mode === "prompt") np.matDrift = 0;
               }
               setParams(np);
             }
@@ -1108,6 +1291,22 @@ export default function Genesis() {
 
         if (reduce) {
           // static-ish: evolve briefly into structure, then hold one frame
+          if (substrateRef.current === "particle") {
+            for (let i = 0; i < 180; i++) {
+              pseed = i;
+              writePUni(i, false);
+              particleStepGPU();
+              if (i >= 120) {
+                const enc = device.createCommandEncoder();
+                trailPass(enc, trailView, trailDecay(), true);
+                device.queue.submit([enc.finish()]);
+              }
+            }
+            const enc = device.createCommandEncoder();
+            compositePass(enc, ctx.getCurrentTexture().createView(), screenCompBG);
+            device.queue.submit([enc.finish()]);
+            return;
+          }
           for (let i = 0; i < 80; i++) stepOnce();
           decayOnce();
           renderFrame();
@@ -1234,7 +1433,7 @@ export default function Genesis() {
         <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
           {substrate === "lenia" && (<>A continuous cellular automaton on your GPU. Click to seed life.</>)}
           {substrate === "life" && (<>Conway&rsquo;s Game of Life on the GPU. Click to spark cells.</>)}
-          {substrate === "particle" && (<>{PN.toLocaleString()} agents, {PL.K} species, evolving physics. Move to herd them; click to reshape.</>)}
+          {substrate === "particle" && (<>{PN.toLocaleString()} agents, {PL.K} species — flocking, wind, predation waves. Move to herd them; click for new physics.</>)}
         </p>
       </div>
 
@@ -1287,7 +1486,7 @@ export default function Genesis() {
             <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 6 }}>{searchInfo}</div>
           )}
           <div style={{ fontSize: 10.5, color: "rgba(247,245,240,0.42)", marginTop: 9, lineHeight: 1.45 }}>
-            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> breeds toward your words (CMA-ES). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life. <b style={{ color: SAND, fontWeight: 600 }}>Particles</b> read most creature-like.
+            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> retrieves a trained prior for your words, then breeds toward them (CMA-ES on a 51-gene genome, scored by contrastive CLIP). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life.
           </div>
         </div>
       )}
@@ -1305,8 +1504,8 @@ export default function Genesis() {
           </div>
 
           <div style={seg}>
-            <button onClick={() => setSubstrate("lenia")} style={segBtn(substrate === "lenia")}>Lenia</button>
             <button onClick={() => setSubstrate("particle")} style={segBtn(substrate === "particle")}>Particles</button>
+            <button onClick={() => setSubstrate("lenia")} style={segBtn(substrate === "lenia")}>Lenia</button>
             <button onClick={() => setSubstrate("life")} style={segBtn(substrate === "life")}>Life</button>
           </div>
 
@@ -1418,18 +1617,25 @@ function GenesisWriteup() {
           Three artificial-life systems run on the GPU, full-screen. <strong className="font-medium text-ink">Lenia</strong> is
           a continuous cellular automaton — a smooth field grown by a ring-kernel convolution
           into drifting, self-organizing creatures. <strong className="font-medium text-ink">Particle Life</strong> sets
-          ~1,800 agents of six species loose under an asymmetric attraction matrix; cells,
-          chasers and membranes assemble from 36 simple numbers. <strong className="font-medium text-ink">Conway’s
-          Game of Life</strong> rounds out the set.
+          2,400 agents of six species loose under an asymmetric attraction matrix, extended here
+          with flocking, a global wind field, per-species force pulsing and cyclic predation —
+          waves of colour sweep the swarm as species convert each other. Everything renders
+          through an HDR trail buffer with velocity-stretched, speed-heated sprites.{" "}
+          <strong className="font-medium text-ink">Conway’s Game of Life</strong> rounds out the set.
         </Block>
 
         <Block kicker="Summon by prompt">
           Type a description and an in-browser <strong className="font-medium text-ink">CLIP</strong> model
-          (running client-side on WebGPU) scores how much the simulation resembles your words —
-          a live “resonance” reading. A <strong className="font-medium text-ink">separable CMA-ES</strong> search
-          then breeds the substrate’s parameters to maximize that resonance, growing and judging
-          candidate worlds until the closest match takes the screen. An open-ended mode instead
-          hunts for restless, ever-changing life. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
+          (running client-side on WebGPU) scores how much the simulation resembles your words.
+          The fitness is contrastive: each candidate is embedded from several views and moments,
+          and the prompt’s similarity is measured <em>against</em> a bank of generic descriptions,
+          so the search climbs on what is specific to your words rather than “glowing dots on
+          black”. A <strong className="font-medium text-ink">separable CMA-ES</strong> then breeds a
+          51-gene genome — the full attraction matrix, physics and palette — warm-started from a{" "}
+          <strong className="font-medium text-ink">trained prior</strong>: an offline pipeline evolves
+          genomes for dozens of concepts against the same CLIP model, and your prompt retrieves
+          the nearest ones in embedding space. An open-ended mode instead hunts for restless,
+          ever-changing life. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
           <em> Artificial Life</em>, 2025), realized here as something you can drive.
         </Block>
 

@@ -3,9 +3,9 @@
 
 export const profile = {
   name: "Harvey Houlahan",
-  title: "Spatial · Simulation · ML Engineer",
+  title: "ML Systems · Simulation · Spatial Engineer",
   descriptor:
-    "Spatial ML and GPU simulation for climate, carbon & nature tech.",
+    "I build applied ML and AI systems, from RAG pipelines and fine-tuned open-source models to GPU simulation, proven in climate, carbon and spatial data.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",
@@ -56,6 +56,6 @@ export const about = {
     "At ArborMeta I build the infrastructure connecting ecological field surveys and satellite data to Australian carbon policy: canopy-height and above-ground-carbon models from paired LiDAR captures, live fire-spread mapping, and the pipelines that determine how land is measured, what gets logged, and what makes it into the registry.",
     "I grew up on a cotton farm in Queensland, started a medicine degree at Monash, and left after six months. I was already writing more code than medical notes. Switched to computer science.",
     "The playground on this site is the same discipline, off the clock: real solvers running on your GPU, and neural operators trained to emulate them — physics as the teacher, the network as the student, racing side-by-side in a browser tab.",
-    "Open to contract work in climate tech: carbon MRV, biodiversity monitoring, spatial data pipelines, precision agriculture.",
+    "Open to contract work in two lanes: climate tech — carbon MRV, biodiversity monitoring, spatial data pipelines, precision agriculture — and applied ML/AI systems: RAG pipelines, fine-tuning open-source models (Llama, Mistral), vector search, and cost-effective model deployment without full reliance on a single API provider.",
   ],
 } as const;

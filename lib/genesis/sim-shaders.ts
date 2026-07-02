@@ -151,16 +151,29 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
 
 // Particle Life — N agents of K types, pairwise attraction matrix, toroidal box.
 // Force compute (naive O(N²)); transcribed from lib/genesis/particle-life.ts.
-//   pu.a = (N, K, rMax, beta)   pu.b = (dt, friction, forceFactor, _)
+// Beyond the classic force law the kernel carries four evolvable behaviours:
+//   · alignment — Vicsek-style steering toward the local mean velocity (flocking)
+//   · flow      — a global time-varying wind field (storms, currents)
+//   · pulse     — per-species force modulation, so species breathe out of phase
+//   · convert   — cyclic predation: type t is converted by a close type (t+1)%K,
+//                 producing waves of colour sweeping through the swarm
+// Types ping-pong alongside pos/vel (typIn → typOut) so conversion is race-free.
+//   pu.a = (N, K, rMax, beta)      pu.b = (dt, friction, forceFactor, noise)
+//   pu.c = (aspect, pointSize, cursorX, cursorY)
+//   pu.d = (cursor, seed, time, align)
+//   pu.e = (hueBase, hueSpread, sat, val)
+//   pu.f = (flow, pulse, convert, stretch)
+//   pu.g = (trailDecay, exposure, _, _)
 export const PARTICLE_FORCE_WGSL = /* wgsl */ `
-struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32> };
+struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32>, g: vec4<f32> };
 @group(0) @binding(0) var<uniform> pu: PU;
 @group(0) @binding(1) var<storage, read> posIn: array<vec2<f32>>;
 @group(0) @binding(2) var<storage, read> velIn: array<vec2<f32>>;
 @group(0) @binding(3) var<storage, read_write> posOut: array<vec2<f32>>;
 @group(0) @binding(4) var<storage, read_write> velOut: array<vec2<f32>>;
-@group(0) @binding(5) var<storage, read> typ: array<u32>;
-@group(0) @binding(6) var<storage, read> mat: array<f32>;
+@group(0) @binding(5) var<storage, read> typIn: array<u32>;
+@group(0) @binding(6) var<storage, read_write> typOut: array<u32>;
+@group(0) @binding(7) var<storage, read> mat: array<f32>;
 ${HASH_WGSL}
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
@@ -173,13 +186,27 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   let dt = pu.b.x;
   let fric = pu.b.y;
   let ff = pu.b.z;
-  let namp = pu.b.w;   // brownian jitter amplitude
-  let cs = pu.d.x;     // cursor force strength
-  let seed = pu.d.y;   // frame seed
+  let namp = pu.b.w;      // brownian jitter amplitude
+  let cs = pu.d.x;        // cursor force strength
+  let seed = pu.d.y;      // frame seed
+  let time = pu.d.z;      // seconds-ish, drives pulse + flow
+  let align = pu.d.w;     // flocking strength
+  let flow = pu.f.x;      // wind-field strength
+  let pulse = pu.f.y;     // per-species force breathing
+  let convert = pu.f.z;   // cyclic predation rate
+  let TAU = 6.2831853;
 
   let pi = posIn[i];
-  let ti = i32(typ[i]);
+  let vi_ = velIn[i];
+  let ti = i32(typIn[i]);
+  let pred = (ti + 1) % K; // the species that converts me on contact
+  // species breathe out of phase: force factor pulses per type
+  let pulseMul = 1.0 + pulse * 0.6 * sin(time * 4.0 + f32(ti) * TAU / f32(K));
+
   var acc = vec2<f32>(0.0, 0.0);
+  var avgV = vec2<f32>(0.0, 0.0);
+  var nn = 0.0;
+  var predDist = 1e9;
   for (var j = 0u; j < N; j = j + 1u) {
     if (j == i) { continue; }
     var d = posIn[j] - pi;
@@ -188,15 +215,28 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let r = length(d);
     if (r > 0.0 && r < rMax) {
       let rn = r / rMax;
-      let a = mat[ti * K + i32(typ[j])];
+      let tj = i32(typIn[j]);
+      let a = mat[ti * K + tj];
       var f = 0.0;
       if (rn < beta) { f = rn / beta - 1.0; }
       else { f = a * (1.0 - abs(2.0 * rn - 1.0 - beta) / (1.0 - beta)); }
       acc = acc + (d / r) * f;
+      avgV = avgV + velIn[j];
+      nn = nn + 1.0;
+      if (tj == pred && r < predDist) { predDist = r; }
     }
   }
-  acc = acc * (rMax * ff);
+  acc = acc * (rMax * ff * pulseMul);
 
+  // flocking — steer toward the local mean velocity (any species)
+  if (align > 0.0 && nn > 0.0) {
+    acc = acc + align * (avgV / nn - vi_);
+  }
+  // wind — a slow global flow field the whole swarm rides
+  if (flow > 0.0) {
+    let fv = vec2<f32>(sin(TAU * pi.y * 3.0 + time * 0.7), cos(TAU * pi.x * 3.0 + time * 0.7));
+    acc = acc + fv * (flow * 2.5);
+  }
   // brownian jitter — thermal energy so clusters shimmer and keep exploring
   if (namp > 0.0) {
     let jx = hash13(vec3<f32>(f32(i), seed, 1.0)) * 2.0 - 1.0;
@@ -215,7 +255,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     }
   }
 
-  var nv = velIn[i] * fric + acc * dt;
+  var nv = vi_ * fric + acc * dt;
   if (nv.x != nv.x || nv.y != nv.y) { nv = vec2<f32>(0.0, 0.0); } // NaN guard
   let sp = length(nv);
   let maxv = 2.5;                                  // speed cap → no blow-ups
@@ -224,16 +264,25 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
   var np = pi + nv * dt;
   np = np - floor(np); // wrap to [0,1)
   posOut[i] = np;
+
+  // cyclic predation — a close predator converts me to its species
+  var nt = u32(ti);
+  if (convert > 0.0 && predDist < rMax * 0.45) {
+    if (hash13(vec3<f32>(f32(i), seed, 3.0)) < convert) { nt = u32(pred); }
+  }
+  typOut[i] = nt;
 }
 `;
 
-// Particle render — one soft glowing disc per particle (instanced quads, additive).
-//   pu.c = (aspect, pointSize, _, _)
+// Particle render — one glowing sprite per particle, stretched along its velocity
+// (comet streaks) and heat-shifted by speed. Draws additively into the HDR trail
+// texture (rgba16float), not the swapchain; the composite pass tone-maps it.
 export const PARTICLE_RENDER_WGSL = /* wgsl */ `
-struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32> };
+struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32>, g: vec4<f32> };
 @group(0) @binding(0) var<uniform> pu: PU;
 @group(0) @binding(1) var<storage, read> pos: array<vec2<f32>>;
 @group(0) @binding(2) var<storage, read> typ: array<u32>;
+@group(0) @binding(3) var<storage, read> vel: array<vec2<f32>>;
 
 struct VSOut {
   @builtin(position) p: vec4<f32>,
@@ -271,13 +320,26 @@ fn vs(@builtin(vertex_index) vi: u32, @builtin(instance_index) ii: u32) -> VSOut
   let q = quad[vi];
   let aspect = pu.c.x;
   let size = pu.c.y;
+  let stretch = pu.f.w;
   let p = pos[ii];
+  let v = vel[ii];
+  let sp = length(v);
+  // sprite basis: long axis along the velocity (sim y is down; NDC y is up)
+  var dir = vec2<f32>(1.0, 0.0);
+  if (sp > 1e-4) { dir = v / sp; }
+  let dirN = vec2<f32>(dir.x, -dir.y);
+  let perpN = vec2<f32>(-dirN.y, dirN.x);
+  let len = size * (1.0 + stretch * min(sp, 2.0) * 1.1);
   let center = vec2(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0);
-  let off = vec2(q.x * size, q.y * size * aspect);
+  let off2 = dirN * (q.x * len) + perpN * (q.y * size);
+  let off = vec2(off2.x, off2.y * aspect);
   var o: VSOut;
   o.p = vec4(center + off, 0.0, 1.0);
   o.uv = q;
-  o.col = typeColor(typ[ii]);
+  // fast particles run hot: whiten + brighten with speed
+  let base = typeColor(typ[ii]);
+  let heat = min(1.0, sp * 0.55);
+  o.col = mix(base, base * 0.4 + vec3(0.75), heat * 0.55) * (0.85 + 0.5 * heat);
   return o;
 }
 
@@ -289,6 +351,58 @@ fn fs(i: VSOut) -> @location(0) vec4<f32> {
   let core = smoothstep(0.5, 0.0, d);
   let c = i.col * (glow * 0.45) + i.col * core;
   return vec4(c, glow); // additive blend in the pipeline
+}
+`;
+
+// Trail fade — a fullscreen draw whose blend (src·0 + dst·constant) multiplies the
+// HDR trail texture by the decay factor set via setBlendConstant. Cheap persistence:
+// run before the particle pass each frame and streaks bloom into comet trails.
+export const PARTICLE_FADE_WGSL = /* wgsl */ `
+struct VSOut { @builtin(position) pos: vec4<f32> };
+@vertex
+fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  var p = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+  var o: VSOut;
+  o.pos = vec4(p[vi], 0.0, 1.0);
+  return o;
+}
+@fragment
+fn fs() -> @location(0) vec4<f32> { return vec4(0.0, 0.0, 0.0, 1.0); }
+`;
+
+// Composite — sample the HDR trail texture, filmic-ish tone map (1 − e^−x·exposure),
+// vignette, and lay it over the ink background. Targets the swapchain (live view)
+// or the 224² capture texture (CLIP sees exactly what the viewer sees).
+export const PARTICLE_COMPOSITE_WGSL = /* wgsl */ `
+struct PU { a: vec4<f32>, b: vec4<f32>, c: vec4<f32>, d: vec4<f32>, e: vec4<f32>, f: vec4<f32>, g: vec4<f32> };
+@group(0) @binding(0) var<uniform> pu: PU;
+@group(0) @binding(1) var samp: sampler;
+@group(0) @binding(2) var trailTex: texture_2d<f32>;
+
+struct VSOut {
+  @builtin(position) pos: vec4<f32>,
+  @location(0) uv: vec2<f32>,
+};
+
+@vertex
+fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  var p = array<vec2<f32>, 3>(vec2(-1.0, -1.0), vec2(3.0, -1.0), vec2(-1.0, 3.0));
+  let xy = p[vi];
+  var o: VSOut;
+  o.pos = vec4(xy, 0.0, 1.0);
+  o.uv = vec2((xy.x + 1.0) * 0.5, 1.0 - (xy.y + 1.0) * 0.5);
+  return o;
+}
+
+@fragment
+fn fs(i: VSOut) -> @location(0) vec4<f32> {
+  let hdr = textureSample(trailTex, samp, i.uv).rgb;
+  let exposure = pu.g.y;
+  let c = vec3(1.0) - exp(-hdr * exposure);
+  let dctr = distance(i.uv, vec2(0.5)) * 1.41421;
+  let vig = 1.0 - 0.30 * smoothstep(0.6, 1.05, dctr);
+  let bg = vec3(0.072, 0.072, 0.066);
+  return vec4(bg + c * vig, 1.0);
 }
 `;
 

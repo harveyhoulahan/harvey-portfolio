@@ -28,10 +28,17 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://hjhportfolio.com"),
-  title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
+  title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
   description:
-    "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
+    "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation. Available for contract work. Byron Bay, remote.",
   keywords: [
+    "ML Systems Engineer",
+    "AI Integration",
+    "RAG Pipelines",
+    "LLM Fine-tuning",
+    "Vector Databases",
+    "Model Quantization",
+    "Edge AI",
     "Geospatial ML",
     "PostGIS",
     "MapLibre GL JS",
@@ -46,9 +53,9 @@ export const metadata: Metadata = {
     canonical: "https://hjhportfolio.com",
   },
   openGraph: {
-    title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
+    title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
     description:
-      "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
+      "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation, proven in climate, carbon and spatial data. Available for contract work. Byron Bay, remote.",
     url: "https://hjhportfolio.com",
     siteName: "Harvey Houlahan",
     type: "website",
@@ -57,9 +64,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Harvey Houlahan — Spatial · Simulation · ML Engineer",
+    title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
     description:
-      "Production spatial systems and simulations for climate, carbon & nature tech. Available for contract work. Byron Bay · remote.",
+      "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation, proven in climate, carbon and spatial data. Available for contract work. Byron Bay, remote.",
   },
 };
 

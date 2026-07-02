@@ -22,6 +22,34 @@ export type VisionStatus = "idle" | "loading" | "ready" | "error";
 
 let mods: any = null;
 let loadingPromise: Promise<void> | null = null;
+let nullBank: Float32Array[] | null = null;
+
+// Prompt-ensembling templates. Shared verbatim with the offline trainer
+// (ml/genesis/train_summon_prior.py) so atlas embeddings and browser embeddings
+// live in exactly the same space — edit both together or the prior lookup breaks.
+export const PROMPT_TEMPLATES = (text: string): string[] => [
+  text,
+  `a photo of ${text}`,
+  `an image of ${text}`,
+  `${text} on a black background`,
+  `glowing ${text} on a dark background`,
+  `a pattern that looks like ${text}`,
+  `${text}, organic texture`,
+];
+
+// The "null bank": embeddings of generic, prompt-free descriptions of what the
+// substrate trivially looks like. Scoring against text − max(null) rewards frames
+// that are *specifically* like the prompt, not merely bright/dotty — the standard
+// contrastive-margin trick from CLIP-guidance work. Shared with the trainer.
+export const NULL_PROMPTS = [
+  "an image",
+  "a photo",
+  "a dark background",
+  "colorful dots on a black background",
+  "glowing particles on a dark background",
+  "abstract noise",
+];
+export const NULL_WEIGHT = 0.5;
 
 // Native dynamic import that the bundler can't see (so it stays a runtime CDN fetch,
 // no webpack resolution, no build-time dependency). Browsers run it as import().
@@ -76,15 +104,7 @@ export async function embedText(text: string): Promise<Float32Array> {
   const { tokenizer, textModel } = mods;
   // ensemble of templates; several mention a dark background to match how the
   // simulation actually renders (glowing forms on near-black), which tightens CLIP.
-  const prompts = [
-    text,
-    `a photo of ${text}`,
-    `an image of ${text}`,
-    `${text} on a black background`,
-    `glowing ${text} on a dark background`,
-    `a pattern that looks like ${text}`,
-    `${text}, organic texture`,
-  ];
+  const prompts = PROMPT_TEMPLATES(text);
   const inputs = tokenizer(prompts, { padding: true, truncation: true });
   const out = await textModel(inputs);
   const data = out.text_embeds.data as ArrayLike<number>;
@@ -97,6 +117,22 @@ export async function embedText(text: string): Promise<Float32Array> {
     for (let i = 0; i < dim; i++) avg[i] += (data[r * dim + i] as number) / s;
   }
   return l2norm(avg);
+}
+
+/** Embed the null-prompt bank (once, cached) — individual unit vectors. */
+export async function getNullBank(): Promise<Float32Array[]> {
+  if (nullBank) return nullBank;
+  const { tokenizer, textModel } = mods;
+  const inputs = tokenizer(NULL_PROMPTS, { padding: true, truncation: true });
+  const out = await textModel(inputs);
+  const data = out.text_embeds.data as ArrayLike<number>;
+  const dim = (data.length / NULL_PROMPTS.length) | 0;
+  const bank: Float32Array[] = [];
+  for (let r = 0; r < NULL_PROMPTS.length; r++) {
+    bank.push(l2norm(Float32Array.from({ length: dim }, (_, i) => data[r * dim + i] as number)));
+  }
+  nullBank = bank;
+  return bank;
 }
 
 /** Draw a WebGPU canvas into a 224² RGBA RawImage (CLIP can't read a webgpu ctx directly). */
@@ -129,6 +165,70 @@ export async function embedPixels(rgba: Uint8ClampedArray, width: number, height
   const inputs = await processor(img);
   const out = await visionModel(inputs);
   return l2norm(Float32Array.from(out.image_embeds.data as ArrayLike<number>));
+}
+
+/** Center-crop RGBA pixels to a `frac` fraction of the frame (new buffer). */
+function centerCrop(rgba: Uint8ClampedArray, w: number, h: number, frac: number): { px: Uint8ClampedArray; w: number; h: number } {
+  const cw = Math.max(2, Math.round(w * frac));
+  const ch = Math.max(2, Math.round(h * frac));
+  const x0 = (w - cw) >> 1;
+  const y0 = (h - ch) >> 1;
+  const out = new Uint8ClampedArray(cw * ch * 4);
+  for (let y = 0; y < ch; y++) {
+    const src = ((y0 + y) * w + x0) * 4;
+    out.set(rgba.subarray(src, src + cw * 4), y * cw * 4);
+  }
+  return { px: out, w: cw, h: ch };
+}
+
+/**
+ * Multi-crop embedding: the full frame plus a zoomed center crop, embedded in a
+ * single batched vision forward. Cutout averaging is the standard CLIP-guidance
+ * trick — it makes the fitness see both the whole ecology and individual creatures,
+ * a far denser signal for the evolutionary search than one global view.
+ */
+export async function embedPixelsMulti(rgba: Uint8ClampedArray, width: number, height: number): Promise<Float32Array[]> {
+  const { t, processor, visionModel } = mods;
+  const crop = centerCrop(rgba, width, height, 0.62);
+  const mk = (px: Uint8ClampedArray, w: number, h: number) => {
+    let im = new t.RawImage(px, w, h, 4);
+    if (typeof im.rgb === "function") im = im.rgb();
+    return im;
+  };
+  const inputs = await processor([mk(rgba, width, height), mk(crop.px, crop.w, crop.h)]);
+  const out = await visionModel(inputs);
+  const data = out.image_embeds.data as ArrayLike<number>;
+  const dim = (data.length / 2) | 0;
+  const embs: Float32Array[] = [];
+  for (let r = 0; r < 2; r++) {
+    embs.push(l2norm(Float32Array.from({ length: dim }, (_, i) => data[r * dim + i] as number)));
+  }
+  return embs;
+}
+
+/** Mean of unit vectors, re-normalized — a single embedding for a set of views. */
+export function meanEmbed(embs: Float32Array[]): Float32Array {
+  const dim = embs[0].length;
+  const m = new Float32Array(dim);
+  for (const e of embs) for (let i = 0; i < dim; i++) m[i] += e[i];
+  return l2norm(m);
+}
+
+/**
+ * Contrastive prompt-match fitness: mean over views of
+ *   cos(view, prompt) − NULL_WEIGHT · max_j cos(view, null_j).
+ * Subtracting the best generic-description match whitens away the "it's glowing
+ * dots on black" baseline every candidate shares, so the search climbs on what is
+ * *specific* to the prompt. Mirrored exactly in the offline trainer.
+ */
+export function matchScore(views: Float32Array[], text: Float32Array, nulls: Float32Array[]): number {
+  let s = 0;
+  for (const v of views) {
+    let nmax = -1;
+    for (const n of nulls) { const c = cosine(v, n); if (c > nmax) nmax = c; }
+    s += cosine(v, text) - NULL_WEIGHT * nmax;
+  }
+  return s / views.length;
 }
 
 /** Cosine similarity of two unit vectors (CLIP resonance). */

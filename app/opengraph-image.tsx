@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 // Generated OG / Twitter card. File-based metadata — Next wires this in automatically.
 export const runtime = "edge";
 export const alt =
-  "Harvey Houlahan — Geospatial ML Infrastructure Engineer. Production spatial data systems for climate, carbon & nature tech.";
+  "Harvey Houlahan — ML Systems Engineer. Applied AI integration, including RAG and fine-tuned open-source models, and GPU simulation, proven in climate, carbon and spatial data.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -33,7 +33,7 @@ export default function OpengraphImage() {
             fontFamily: "monospace",
           }}
         >
-          Geospatial ML Infrastructure
+          ML Systems Engineering
         </div>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <div style={{ fontSize: 84, lineHeight: 1.05, fontWeight: 700, letterSpacing: -2 }}>Harvey Houlahan</div>
@@ -46,7 +46,7 @@ export default function OpengraphImage() {
               fontFamily: "Helvetica, Arial, sans-serif",
             }}
           >
-            Production spatial data systems for climate, carbon &amp; nature tech
+            Applied AI integration and GPU simulation, proven in climate, carbon and spatial data
           </div>
         </div>
         <div
@@ -57,7 +57,7 @@ export default function OpengraphImage() {
             letterSpacing: 1,
           }}
         >
-          FastAPI · PostGIS · React/MapLibre · Docker &nbsp;&nbsp;/&nbsp;&nbsp; Byron Bay · remote
+          PyTorch · FastAPI · PostGIS · React/MapLibre &nbsp;&nbsp;/&nbsp;&nbsp; Byron Bay · remote
         </div>
       </div>
     ),

@@ -45,6 +45,12 @@ export const skillsData = [
       "Feature engineering",
       "Model deployment",
       "Carbon MRV pipelines",
+      "RAG pipelines",
+      "LangChain / LlamaIndex",
+      "Vector databases (Pinecone, pgvector)",
+      "Fine-tuning open-source LLMs (Llama, Mistral)",
+      "Model quantization",
+      "Edge AI / on-device inference",
     ],
   },
   {
