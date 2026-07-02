@@ -1712,6 +1712,9 @@ const panelWrap = (open: boolean): CSSProperties => ({
   backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
   border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
   padding: open ? "13px 15px 15px" : "10px 12px",
+  maxHeight: open ? "calc(100% - 44px)" : undefined,
+  overflowY: open ? "auto" : "visible",
+  overscrollBehavior: "contain",
   boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
   fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
 });
