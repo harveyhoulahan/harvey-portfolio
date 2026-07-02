@@ -657,6 +657,31 @@ fn cloudShade(p: vec2<f32>, off: vec2<f32>, amt: f32) -> f32 {
 }
 `;
 
+/* §5 ocean — domain-warped, multi-octave turbulent swell (the real-time cousin of
+ * a Tessendorf FFT ocean). Iterative warp + rotated octaves give a chaotic, non-
+ * repeating sea. Returns analytic normal (xyz) + wave height (w). Shared by the
+ * ocean surface and the diorama's cross-section wall so they meet exactly. */
+const OCEAN_WAVE = /* wgsl */ `
+fn oceanWave(p0: vec2<f32>, t: f32) -> vec4<f32> {
+  var p = p0 + vec2<f32>(sin(p0.y * 2.3 + t * 0.4), sin(p0.x * 2.1 - t * 0.35)) * 0.05;
+  var h = 0.0; var dx = 0.0; var dz = 0.0;
+  var amp = 0.013; var freq = 6.0; var spd = 0.85;
+  var dir = normalize(vec2<f32>(0.92, 0.39));
+  let ca = cos(2.399); let sa = sin(2.399);
+  let rot = mat2x2<f32>(ca, -sa, sa, ca);
+  for (var i = 0; i < 6; i = i + 1) {
+    let ph = dot(dir, p) * freq + t * spd + f32(i) * 1.31;
+    let s = sin(ph); let cph = cos(ph);
+    h = h + amp * s;
+    dx = dx + amp * freq * dir.x * cph;
+    dz = dz + amp * freq * dir.y * cph;
+    p = p + vec2<f32>(dz, dx) * 0.18;      // turbulent feedback warp
+    dir = rot * dir; freq = freq * 1.72; amp = amp * 0.62; spd = spd * 1.16;
+  }
+  return vec4<f32>(normalize(vec3<f32>(-dx, 1.0, -dz)), h);
+}
+`;
+
 /* Bilinear (sunVisibility, skyAO) lookup from the SHADOWAO buffer. Callers must
  * declare \`ru\` (with params = n,vscale,half,seaY) and \`shad\` at module scope. */
 const SHADOW_SAMPLE = /* wgsl */ `
@@ -729,6 +754,7 @@ struct VSOut {
   @location(3) sediment: f32,
   @location(4) eco: vec3<f32>,  // fuel, char, fire
   @location(5) beach: f32,      // 0..1 sandy foreshore strength (1 at the waterline)
+  @location(6) bedh: f32,       // true bed height (ocean verts are snapped to sea level)
 };
 
 @vertex
@@ -739,7 +765,8 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
   let x = (f32(c) / f32(n - 1u)) * span - ru.params.z;
   let z = (f32(r) / f32(n - 1u)) * span - ru.params.z;
   let isOcean = (flags[vi] & 1u) != 0u;
-  var h = renderBed(i32(r), i32(c), n) / ru.misc.x * ru.params.y;
+  let hBed = renderBed(i32(r), i32(c), n) / ru.misc.x * ru.params.y;
+  var h = hBed;
   if (isOcean) { h = ru.params.w; }
   let world = vec3<f32>(x, h, z);
   var out: VSOut;
@@ -750,6 +777,7 @@ fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
   out.sediment = sed[vi];
   out.eco = vec3<f32>(fuel[vi], charr[vi], fire[vi]);
   out.beach = f32((flags[vi] >> 2u) & 15u) / 15.0; // 4-bit beach strength packed in flags
+  out.bedh = hBed;
   return out;
 }
 
@@ -770,14 +798,25 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   // sandy beach: wet, darker sand at the waterline fading to dry pale sand up the slope
   var wetSheen = 0.0;
   if (in.beach > 0.001 && in.info.x < 0.5) {
-    let aboveSea = clamp((hN - 0.06) / 0.12, 0.0, 1.0);
+    // the tideline breathes: the wet band creeps up the sand and drains back in
+    // time with the swell, so the beach reads as worked by the sea
+    let tide = 0.5 + 0.5 * sin(ru.misc.z * 0.8 + (in.world.x + in.world.z) * 5.0);
+    let aboveSea = clamp((hN - 0.06 - 0.016 * tide) / 0.12, 0.0, 1.0);
     let wetSand = srgbToLinear(vec3<f32>(0.50, 0.46, 0.39));
     let drySand = srgbToLinear(vec3<f32>(0.84, 0.78, 0.63));
     let sand = mix(wetSand, drySand, aboveSea);
     base = mix(base, sand, clamp(in.beach * 1.15, 0.0, 1.0));
-    wetSheen = clamp(in.beach * (1.0 - aboveSea), 0.0, 1.0); // glossy band the tide keeps wet
+    wetSheen = clamp(in.beach * (1.0 - aboveSea) * (0.75 + 0.35 * tide), 0.0, 1.0);
   }
-  if (in.info.x > 0.5) { base = srgbToLinear(vec3<f32>(0.05, 0.22, 0.48)); }
+  if (in.info.x > 0.5) {
+    // the seabed: pale sand shelving into deep slate-green with real depth, so the
+    // translucent sea above reads as water over ground, not paint over paint
+    let wcol = max(ru.params.w - in.bedh, 0.0);
+    let sandBed = srgbToLinear(vec3<f32>(0.62, 0.60, 0.50));
+    let deepBed = srgbToLinear(vec3<f32>(0.10, 0.20, 0.24));
+    base = mix(sandBed, deepBed, smoothstep(0.0, 0.032, wcol));
+    base = base * (0.94 + 0.12 * vnoise(in.world.xz * 14.0)); // bottom texture
+  }
   // macro albedo variation so broad faces read as ground, not flat paint
   base = base * (0.93 + 0.14 * vnoise(in.world.xz * 6.3));
   // ground wetness: darken + cool toward the wet-earth tone around live water
@@ -929,6 +968,7 @@ struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>
 ${COLOR_HELPERS}
 ${NOISE_HELPERS}
 ${SHADOW_SAMPLE}
+${OCEAN_WAVE}
 
 fn bedAtCell(r: i32, c: i32, n: u32) -> f32 {
   let rr = u32(clamp(r, 0, i32(n) - 1));
@@ -953,28 +993,6 @@ struct VSOut {
   @location(5) shore: f32,   // ocean: 0 deep → 1 at the sand (drives shallows + surf)
   @location(6) sedv: f32,    // suspended sediment — turbid floodwater
 };
-
-// §5 ocean — domain-warped, multi-octave turbulent swell (the real-time cousin of a
-// Tessendorf FFT ocean). Iterative warp + rotated octaves give a chaotic, non-
-// repeating sea. Returns analytic normal (xyz) + wave height (w).
-fn oceanWave(p0: vec2<f32>, t: f32) -> vec4<f32> {
-  var p = p0 + vec2<f32>(sin(p0.y * 2.3 + t * 0.4), sin(p0.x * 2.1 - t * 0.35)) * 0.05;
-  var h = 0.0; var dx = 0.0; var dz = 0.0;
-  var amp = 0.013; var freq = 6.0; var spd = 0.85;
-  var dir = normalize(vec2<f32>(0.92, 0.39));
-  let ca = cos(2.399); let sa = sin(2.399);
-  let rot = mat2x2<f32>(ca, -sa, sa, ca);
-  for (var i = 0; i < 6; i = i + 1) {
-    let ph = dot(dir, p) * freq + t * spd + f32(i) * 1.31;
-    let s = sin(ph); let cph = cos(ph);
-    h = h + amp * s;
-    dx = dx + amp * freq * dir.x * cph;
-    dz = dz + amp * freq * dir.y * cph;
-    p = p + vec2<f32>(dz, dx) * 0.18;      // turbulent feedback warp
-    dir = rot * dir; freq = freq * 1.72; amp = amp * 0.62; spd = spd * 1.16;
-  }
-  return vec4<f32>(normalize(vec3<f32>(-dx, 1.0, -dz)), h);
-}
 
 @vertex
 fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
@@ -1044,16 +1062,14 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let stormD = ru.stormu.w * exp(-dot(dsx, dsx) / (2.0 * ru.stormu.z * ru.stormu.z + 1e-5));
     let sunV = sao.x * ocloud * (1.0 - stormD * 0.55);
 
-    // body colour: deep→mid by swell height + slow current variation, greening
-    // through turquoise over the shoals, sand ghosting through the last metres
+    // body colour: one continuous slate→sea-green ramp driven by real depth, with
+    // only gentle swell/current modulation — no saturated bands, no hard steps
     let cvar = vnoise(in.world.xz * 1.3 + vec2<f32>(tt * 0.03, -tt * 0.02)) - 0.5;
-    let deepC = srgbToLinear(vec3<f32>(0.03, 0.17, 0.36));
-    let midC = srgbToLinear(vec3<f32>(0.09, 0.38, 0.50));
-    var col = mix(deepC, midC, clamp(0.42 + h * 14.0 + cvar * 0.30, 0.0, 1.0));
-    let shallowC = srgbToLinear(vec3<f32>(0.30, 0.63, 0.62));
-    let sandC = srgbToLinear(vec3<f32>(0.58, 0.66, 0.58));
-    col = mix(col, shallowC, smoothstep(0.10, 0.75, shallowF));
-    col = mix(col, sandC, smoothstep(0.75, 0.97, shallowF) * 0.55);
+    let deepC = srgbToLinear(vec3<f32>(0.09, 0.22, 0.32));
+    let midC = srgbToLinear(vec3<f32>(0.13, 0.33, 0.41));
+    var col = mix(deepC, midC, clamp(0.45 + h * 10.0 + cvar * 0.18, 0.0, 1.0));
+    let shallowC = srgbToLinear(vec3<f32>(0.32, 0.55, 0.53));
+    col = mix(col, shallowC, smoothstep(0.05, 0.85, shallowF) * 0.85);
     col = col * (0.62 + 0.38 * sunV);
     // fresnel sky reflection, damped over the shallows so the sand stays readable
     let refl = reflect(-V, N);
@@ -1084,9 +1100,10 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let contact = smoothstep(0.010, 0.0025, waterCol) * lapN;
     let foam = clamp(crest * 0.55 + max(breaking * 0.85, contact), 0.0, 1.0);
     col = mix(col, srgbToLinear(vec3<f32>(0.92, 0.95, 0.95)) * (0.55 + 0.45 * sunV), foam);
-    // deep sea opaque; shallows translucent so the seabed reads through; foam solid
-    var alpha = mix(0.97, 0.55, smoothstep(0.55, 0.95, shallowF));
-    alpha = clamp(alpha + foam * 0.45, 0.0, 0.97);
+    // opacity eases from near-opaque deep water to a glassy film over the sand —
+    // the (now real) seabed does the tonal work in the shallows
+    var alpha = mix(0.93, 0.52, smoothstep(0.35, 0.95, shallowF));
+    alpha = clamp(alpha + foam * 0.45, 0.0, 0.96);
     return vec4<f32>(displayColor(col) * alpha, alpha);
   }
 
@@ -1151,6 +1168,78 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   var alpha = clamp(1.0 - (trans.x + trans.y + trans.z) / 3.0, 0.0, 1.0);
   alpha = clamp(alpha * 0.92 + turb * 0.35 + foam * 0.4 + spec * 0.5, 0.0, 0.95) * edge;
   alpha = max(alpha, 0.10 * edge);
+  return vec4<f32>(displayColor(col) * alpha, alpha);
+}
+`;
+
+/* The sea's cut face: an aquarium-style cross-section wall along the diorama
+ * perimeter, from the (waving) ocean surface down to the seabed. Uses the same
+ * oceanWave as the surface so the two meet exactly; land-height segments are
+ * degenerate (top == bed) and vanish. Vertices pack cell | band<<28 (0 top, 1 bed). */
+export const RENDER_OCEANWALL_WGSL = /* wgsl */ `
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32>, stormu: vec4<f32> };
+@group(0) @binding(0) var<uniform> ru: RU;
+@group(0) @binding(1) var<storage, read> bed: array<f32>;
+@group(0) @binding(2) var<storage, read> wall: array<u32>;
+${COLOR_HELPERS}
+${NOISE_HELPERS}
+${OCEAN_WAVE}
+
+fn bedAtCell(r: i32, c: i32, n: u32) -> f32 {
+  let rr = u32(clamp(r, 0, i32(n) - 1));
+  let cc = u32(clamp(c, 0, i32(n) - 1));
+  return bed[rr * n + cc];
+}
+
+fn renderBed(r: i32, c: i32, n: u32) -> f32 {
+  let center = bedAtCell(r, c, n) * 4.0;
+  let card = (bedAtCell(r - 1, c, n) + bedAtCell(r + 1, c, n) + bedAtCell(r, c - 1, n) + bedAtCell(r, c + 1, n)) * 2.0;
+  let diag = bedAtCell(r - 1, c - 1, n) + bedAtCell(r - 1, c + 1, n) + bedAtCell(r + 1, c - 1, n) + bedAtCell(r + 1, c + 1, n);
+  return mix(bedAtCell(r, c, n), (center + card + diag) / 16.0, 0.72);
+}
+
+struct VSOut {
+  @builtin(position) pos: vec4<f32>,
+  @location(0) world: vec3<f32>,
+  @location(1) span: vec2<f32>, // (topY, bedY) of this column
+};
+
+@vertex
+fn vs(@builtin(vertex_index) vi: u32) -> VSOut {
+  let d = wall[vi];
+  let cell = d & 0x0fffffffu;
+  let band = d >> 28u;
+  let n = u32(ru.params.x);
+  let r = cell / n; let c = cell % n;
+  let ext = 2.0 * ru.params.z;
+  let x = (f32(c) / f32(n - 1u)) * ext - ru.params.z;
+  let z = (f32(r) / f32(n - 1u)) * ext - ru.params.z;
+  let bedY = renderBed(i32(r), i32(c), n) / ru.misc.x * ru.params.y;
+  let seaTop = ru.params.w + oceanWave(vec2<f32>(x, z), ru.misc.z).w;
+  let top = max(seaTop, bedY);
+  let y = select(bedY, top, band == 0u);
+  var out: VSOut;
+  out.pos = ru.mvp * vec4<f32>(x, y, z, 1.0);
+  out.world = vec3<f32>(x, y, z);
+  out.span = vec2<f32>(top, bedY);
+  return out;
+}
+
+@fragment
+fn fs(in: VSOut) -> @location(0) vec4<f32> {
+  if (in.span.x - in.span.y < 0.001) { discard; }
+  let depthB = max(in.span.x - in.world.y, 0.0);
+  // vertical water column: sunlit sea-green fading into the deeps
+  let cTop = srgbToLinear(vec3<f32>(0.30, 0.52, 0.52));
+  let cDeep = srgbToLinear(vec3<f32>(0.05, 0.15, 0.24));
+  var col = mix(cTop, cDeep, smoothstep(0.0, 0.16, depthB));
+  // drifting particulate / light shafts inside the volume
+  let shaft = vnoise(vec2<f32>(in.world.x * 9.0 + in.world.z * 9.0, in.world.y * 26.0) + vec2<f32>(ru.misc.z * 0.22, ru.misc.z * -0.07));
+  col = col * (0.90 + 0.18 * shaft);
+  // bright waterline right under the surface
+  let wl = 1.0 - smoothstep(0.0, 0.014, depthB);
+  col = mix(col, srgbToLinear(vec3<f32>(0.86, 0.93, 0.93)), wl * 0.7);
+  let alpha = 0.90;
   return vec4<f32>(displayColor(col) * alpha, alpha);
 }
 `;
