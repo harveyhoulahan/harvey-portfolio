@@ -11,7 +11,7 @@ const DEMOS = [
     kicker: "01 · Neural Earth engine",
     title: "Catchment",
     blurb:
-      "A living catchment. Rain carves real terrain, fire runs with the wind — and a neural operator trained on the solver runs the same world. Flip physics vs neural and watch the error field live.",
+      "Rain carves real terrain and fire runs with the wind. The full solver runs on your GPU, and I trained a neural operator to imitate it. Switch between physics and neural and watch the error field live.",
     meta: "WebGPU · shallow-water · neural operator",
     motif: "basin" as const,
   },
@@ -20,7 +20,7 @@ const DEMOS = [
     kicker: "02 · Artificial-life lab",
     title: "Genesis",
     blurb:
-      "Thousands of agents flock, chase, and predate on your GPU — then summon a swarm by describing it, with CLIP scoring and an evolutionary search doing the coaxing.",
+      "Thousands of particles flock, chase, and predate on your GPU. Describe a swarm in plain text and CLIP scores it while an evolutionary search nudges the sim toward what you asked for.",
     meta: "WebGPU · particle life · CLIP · CMA-ES",
     motif: "rings" as const,
   },
@@ -35,9 +35,8 @@ export default function Playground() {
       </div>
       <h1 className="mt-3 font-display text-3xl md:text-4xl">Things that run in your browser</h1>
       <p className="mt-3 max-w-prose text-ink/65">
-        Two flagship simulations, GPU-native and entirely client-side — no
-        servers, no API keys, no libraries doing the heavy lifting. Raw WGSL
-        compute, including the neural network.{" "}
+        Two simulations that run entirely in your browser on the GPU. No servers,
+        no API keys, no libraries. Raw WGSL compute, including the neural network.{" "}
         <a
           href="https://github.com/harveyhoulahan/harvey-portfolio"
           target="_blank"

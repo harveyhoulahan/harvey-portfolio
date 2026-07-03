@@ -4,6 +4,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { themeInitScript } from "@/lib/theme";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -79,7 +80,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${archivo.variable} ${plexSans.variable} ${jetbrainsMono.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body>
         <div className="flex min-h-screen flex-col">
           <Navbar />

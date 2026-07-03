@@ -10,12 +10,29 @@
  */
 
 :root {
-  --background: #ecefea; /* hillshade paper */
-  --foreground: #161f1b; /* rainforest shadow */
+  --paper: #ecefea; /* hillshade paper */
+  --ink: #161f1b; /* rainforest shadow */
   --flow: #14655a; /* channel teal — accent */
+  --flow-deep: #0f5147; /* pressed channel — button hover */
   --infra: #b23a18; /* CIR vegetation red — signal */
   --terrace: #e2e7e0; /* bench surface */
   --contour: #c3ccc2; /* contour hairline */
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --graticule: rgba(107, 125, 115, 0.13);
+  color-scheme: light;
+}
+
+html.dark {
+  --paper: #1a1f1c;
+  --ink: #ecefea;
+  --flow: #d2603b; /* CIR red — accent swaps from teal */
+  --flow-deep: #b23a18;
+  --infra: #b23a18;
+  --terrace: #242926;
+  --contour: #3a4540;
+  --graticule: rgba(180, 190, 185, 0.08);
+  color-scheme: dark;
 }
 
 * {
@@ -37,6 +54,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern", "liga", "calt";
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
 }
 
 ::selection {
@@ -151,7 +171,12 @@ body {
     align-items: center;
     gap: 0.5rem;
     background-color: var(--flow);
-    background-image: linear-gradient(90deg, #0f5147 0%, #0f5147 50%, var(--flow) 50%);
+    background-image: linear-gradient(
+      90deg,
+      var(--flow-deep) 0%,
+      var(--flow-deep) 50%,
+      var(--flow) 50%
+    );
     background-size: 200% 100%;
     background-position: 100% 0;
     color: var(--background);
@@ -170,7 +195,7 @@ body {
   .btn-sending {
     background-image: repeating-linear-gradient(
       90deg,
-      #0f5147 0 12px,
+      var(--flow-deep) 0 12px,
       var(--flow) 12px 24px
     );
     background-size: auto;
@@ -254,9 +279,43 @@ body {
   /* Survey graph paper — a faint drafting grid for section bands. */
   .graticule-grid {
     background-image:
-      linear-gradient(rgba(107, 125, 115, 0.13) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(107, 125, 115, 0.13) 1px, transparent 1px);
+      linear-gradient(var(--graticule) 1px, transparent 1px),
+      linear-gradient(90deg, var(--graticule) 1px, transparent 1px);
     background-size: 56px 56px;
+  }
+
+  /* Byron map — teal duotone in light mode, CIR red in dark mode. */
+  .byron-map-shell {
+    background: #0b1512;
+  }
+  html.dark .byron-map-shell {
+    background: #150a08;
+  }
+  .byron-map-duotone {
+    background: linear-gradient(135deg, #0e2b26 0%, #14655a 52%, #6fb8aa 100%);
+  }
+  html.dark .byron-map-duotone {
+    background: linear-gradient(135deg, #2a1208 0%, #b23a18 52%, #d2603b 100%);
+  }
+  .byron-map-highlight {
+    background: linear-gradient(135deg, rgba(126, 206, 188, 0.16) 0%, transparent 45%);
+  }
+  html.dark .byron-map-highlight {
+    background: linear-gradient(135deg, rgba(210, 96, 59, 0.18) 0%, transparent 45%);
+  }
+  .byron-map-vignette {
+    background: radial-gradient(
+      120% 95% at 50% 38%,
+      transparent 55%,
+      rgba(6, 16, 13, 0.55) 100%
+    );
+  }
+  html.dark .byron-map-vignette {
+    background: radial-gradient(
+      120% 95% at 50% 38%,
+      transparent 55%,
+      rgba(20, 8, 6, 0.58) 100%
+    );
   }
 }
 

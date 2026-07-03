@@ -1,6 +1,6 @@
 "use client";
 
-import React, { CSSProperties, forwardRef, useRef } from "react";
+import React, { CSSProperties, forwardRef, useEffect, useRef } from "react";
 import { useAnimationFrame } from "framer-motion";
 import { useMousePositionRef } from "@/hooks/use-mouse-position-ref";
 
@@ -108,6 +108,17 @@ const TextCursorProximity = forwardRef<HTMLSpanElement, TextProps>(
 
       return from;
     };
+
+    useEffect(() => {
+      letterRefs.current.forEach((letterRef) => {
+        if (!letterRef) return;
+        Object.entries(styles).forEach(([key, value]) => {
+          if (value) {
+            letterRef.style[key as any] = String(value.from);
+          }
+        });
+      });
+    }, [styles]);
 
     useAnimationFrame(() => {
       if (prefersReducedMotion) return;

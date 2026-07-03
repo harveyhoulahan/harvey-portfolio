@@ -13,15 +13,12 @@ import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 import ContourMotif from "@/components/ContourMotif";
 import Reveal from "@/components/Reveal";
 import LocalClock from "@/components/LocalClock";
+import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 import { about, profile } from "@/data/metadata";
-
-const headingStyles = {
-  transform: { from: "scale(1)", to: "scale(1.06)" },
-  color: { from: "#161F1B", to: "#14655A" },
-} as const;
 
 export default function AboutStory() {
   const headerRef = useRef<HTMLDivElement>(null);
+  const headingStyles = useProximityHeadingStyles("scale(1.06)");
 
   return (
     <div className="py-20 md:py-28">
@@ -34,7 +31,7 @@ export default function AboutStory() {
         <span className="mono-label">About</span>
         <h1 className="mt-5 font-display">
           <TextCursorProximity
-            label="ML systems engineer — spatial, simulation, applied AI."
+            label="ML systems engineer; spatial, full-stack, simulation & applied AI."
             className="block"
             styles={headingStyles}
             falloff="gaussian"

@@ -53,7 +53,7 @@ export const stats = [
 // About — written as prose, rendered paragraph by paragraph.
 export const about = {
   intro:
-    "I build the systems that connect field data to carbon policy.",
+    "Right now I'm building the systems that connect field data to carbon policy.",
   paragraphs: [
     "At ArborMeta I build the infrastructure connecting ecological field surveys and satellite data to Australian carbon policy: canopy-height and above-ground-carbon models from paired LiDAR captures, live fire-spread mapping, and the pipelines that determine how land is measured, what gets logged, and what makes it into the registry.",
     "I grew up on a cotton farm in Queensland. At Monash I set out to become a doctor; six months in I was writing more code than medical notes, so I switched to computer science.",

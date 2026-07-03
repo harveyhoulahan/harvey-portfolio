@@ -3,23 +3,13 @@
 import { useRef } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
+import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 import { caseStudies } from "@/data/projects";
-
-// Ink -> sage, so the letters warm toward the brand green near the cursor.
-const headingStyles = {
-  transform: {
-    from: "scale(1)",
-    to: "scale(1.12)",
-  },
-  color: {
-    from: "#161F1B",
-    to: "#14655A",
-  },
-} as const;
 
 export default function WorkshopHero() {
   const heroRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
+  const headingStyles = useProximityHeadingStyles("scale(1.12)");
 
   // Triple the list so the marquee loop reads as seamless.
   const marqueeItems = [...caseStudies, ...caseStudies, ...caseStudies];

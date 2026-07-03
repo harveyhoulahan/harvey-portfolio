@@ -3,21 +3,18 @@
 import { useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
+import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 
 interface SkillGroup {
   category: string;
   skills: string[];
 }
 
-const headingStyles = {
-  transform: { from: "scale(1)", to: "scale(1.08)" },
-  color: { from: "#161F1B", to: "#14655A" },
-} as const;
-
 export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [active, setActive] = useState<string>("All");
+  const headingStyles = useProximityHeadingStyles("scale(1.08)");
 
   const tabs = ["All", ...groups.map((g) => g.category)];
   const visible =

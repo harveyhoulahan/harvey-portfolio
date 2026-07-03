@@ -92,8 +92,7 @@ export default function ByronMap() {
   if (err) {
     return (
       <div
-        className="relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden border border-contour text-center"
-        style={{ background: "#0b1512" }}
+      className="byron-map-shell relative flex h-full min-h-[260px] w-full flex-col items-center justify-center overflow-hidden border border-contour text-center"
       >
         <span className="mono-label" style={{ color: "rgba(214,236,229,0.85)" }}>
           Byron Bay, NSW
@@ -109,8 +108,8 @@ export default function ByronMap() {
     <div
       ref={wrap}
       aria-label="Map of Byron Bay, New South Wales"
-      className="relative h-full min-h-[260px] w-full overflow-hidden border border-contour"
-      style={{ background: "#0b1512", isolation: "isolate" }}
+      className="byron-map-shell relative h-full min-h-[260px] w-full overflow-hidden border border-contour"
+      style={{ isolation: "isolate" }}
     >
       {/* desaturated satellite basemap */}
       <div
@@ -120,30 +119,16 @@ export default function ByronMap() {
       />
       {/* caldera-teal duotone — imposes hue, keeps satellite luminance */}
       <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(135deg, #0e2b26 0%, #14655a 52%, #6fb8aa 100%)",
-          mixBlendMode: "color",
-        }}
+        className="byron-map-duotone pointer-events-none absolute inset-0"
+        style={{ mixBlendMode: "color" }}
       />
       {/* subtle highlight to lift the contrast */}
       <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(126,206,188,0.16) 0%, transparent 45%)",
-          mixBlendMode: "screen",
-        }}
+        className="byron-map-highlight pointer-events-none absolute inset-0"
+        style={{ mixBlendMode: "screen" }}
       />
       {/* depth vignette */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(120% 95% at 50% 38%, transparent 55%, rgba(6,16,13,0.55) 100%)",
-        }}
-      />
+      <div className="byron-map-vignette pointer-events-none absolute inset-0" />
       {/* Byron Bay marker (crisp, above the blend layers) */}
       <div ref={marker} className="pointer-events-none absolute left-0 top-0 z-10">
         <span

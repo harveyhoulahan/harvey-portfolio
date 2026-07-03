@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { motion, useReducedMotion, useScroll } from "framer-motion";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const navItems = [
   { name: "About", path: "/about" },
@@ -63,7 +64,7 @@ export default function Navbar() {
           Harvey Houlahan
         </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden items-center gap-6 md:flex">
           {navItems.map((item) => {
             const active = isActive(item.path);
             return (
@@ -88,15 +89,23 @@ export default function Navbar() {
               </Link>
             );
           })}
+          <ThemeToggle
+            variant={inDemo ? (dark ? "on-dark" : "on-light") : "default"}
+          />
         </div>
 
-        <button
-          onClick={() => setOpen(!open)}
-          className={`transition-colors duration-500 md:hidden ${dark ? "text-paper" : "text-ink"}`}
-          aria-label="Toggle menu"
-        >
-          {open ? <X size={22} /> : <Menu size={22} />}
-        </button>
+        <div className="flex items-center gap-4 md:hidden">
+          <ThemeToggle
+            variant={inDemo ? (dark ? "on-dark" : "on-light") : "default"}
+          />
+          <button
+            onClick={() => setOpen(!open)}
+            className={`transition-colors duration-500 ${dark ? "text-paper" : "text-ink"}`}
+            aria-label="Toggle menu"
+          >
+            {open ? <X size={22} /> : <Menu size={22} />}
+          </button>
+        </div>
       </nav>
 
       {/* Graticule ruler edge — survey-sheet tick marks — with the scroll
@@ -115,7 +124,9 @@ export default function Navbar() {
       {open && (
         <div
           className={`border-t px-6 py-3 transition-colors duration-500 md:hidden ${
-            dark ? "border-white/10 bg-[rgba(20,20,18,0.92)]" : "border-contour bg-[rgba(240,243,238,0.97)]"
+            dark
+              ? "border-white/10 bg-[rgba(20,20,18,0.92)]"
+              : "border-contour bg-paper/95 backdrop-blur-sm"
           }`}
         >
           {navItems.map((item) => {

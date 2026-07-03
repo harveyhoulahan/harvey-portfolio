@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: "class",
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -9,26 +10,22 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // "CALDERA-CIR" — the Tweed-caldera DEM behind Catchment, graded as a
-        // colour-infrared composite. Hillshade paper, rainforest-shadow ink,
-        // channel teal for flow accumulation, CIR vegetation red as the signal.
-        paper: "#ECEFEA", // hillshade paper — flat unlit-slope white, cool cast
-        ink: "#161F1B", // rainforest shadow — blue-green black
-        flow: "#14655A", // channel teal — flow accumulation / estuary (accent)
-        infra: "#B23A18", // CIR vegetation red — canopy in false-colour infrared
-        terrace: "#E2E7E0", // bench surface — cards / sections
-        contour: "#C3CCC2", // contour grey-green — hairline borders
-        // Legacy aliases (old token names → new hexes) so nothing off the main
-        // redesign path breaks; new chrome should use the names above.
-        concrete: "#ECEFEA",
-        sage: "#14655A",
-        sand: "#B23A18",
-        surface: "#E2E7E0",
-        hairline: "#C3CCC2",
-        // Semantic aliases so utilities read cleanly.
-        background: "#ECEFEA",
-        foreground: "#161F1B",
-        border: "#C3CCC2",
+        // Tokens map to CSS variables — see app/globals.css for light/dark values.
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        flow: "var(--flow)",
+        infra: "var(--infra)",
+        terrace: "var(--terrace)",
+        contour: "var(--contour)",
+        // Legacy aliases
+        concrete: "var(--paper)",
+        sage: "var(--flow)",
+        sand: "var(--infra)",
+        surface: "var(--terrace)",
+        hairline: "var(--contour)",
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        border: "var(--contour)",
       },
       fontFamily: {
         display: ["var(--font-display)", "Archivo", "system-ui", "sans-serif"],

@@ -33,6 +33,7 @@ uniform float u_time;
 uniform vec2 u_mouse;
 uniform float u_mstr;
 uniform float u_reveal;
+uniform float u_dark;
 uniform vec4 u_rip0;
 uniform vec4 u_rip1;
 uniform vec4 u_rip2;
@@ -104,8 +105,12 @@ void main() {
   // Contours draw on from the valleys upward on load.
   float vis = smoothstep(h - 0.06, h, u_reveal * 1.1);
 
-  vec3 ink = vec3(0.086, 0.122, 0.106);
-  vec3 flow = vec3(0.078, 0.396, 0.353);
+  vec3 ink = u_dark > 0.5
+    ? vec3(0.72, 0.76, 0.73)
+    : vec3(0.086, 0.122, 0.106);
+  vec3 flow = u_dark > 0.5
+    ? vec3(0.824, 0.376, 0.231)
+    : vec3(0.078, 0.396, 0.353);
   vec3 infra = vec3(0.698, 0.227, 0.094);
   float prox = clamp(bump * u_mstr * 1.6, 0.0, 1.0);
   vec3 col = mix(ink, flow, prox);
@@ -190,6 +195,7 @@ export default function ContourField({ className = "" }: { className?: string })
     const uMouse = gl.getUniformLocation(prog, "u_mouse");
     const uMstr = gl.getUniformLocation(prog, "u_mstr");
     const uReveal = gl.getUniformLocation(prog, "u_reveal");
+    const uDark = gl.getUniformLocation(prog, "u_dark");
     const uRips = [0, 1, 2, 3].map((i) =>
       gl.getUniformLocation(prog, `u_rip${i}`)
     );
@@ -223,6 +229,8 @@ export default function ContourField({ className = "" }: { className?: string })
       }
     };
 
+    const isDark = () => document.documentElement.classList.contains("dark");
+
     const draw = (now: number) => {
       resize();
       const t = (now - start) / 1000;
@@ -234,6 +242,7 @@ export default function ContourField({ className = "" }: { className?: string })
       gl.uniform2f(uMouse, mouse[0], mouse[1]);
       gl.uniform1f(uMstr, mstr);
       gl.uniform1f(uReveal, eased);
+      gl.uniform1f(uDark, isDark() ? 1 : 0);
       for (let i = 0; i < 4; i++) {
         const rip = ripples[i];
         const age = rip ? (now - rip.born) / 1000 : 99;
