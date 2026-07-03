@@ -9,7 +9,8 @@
     "lint": "next lint",
     "catchment:rollouts": "node scripts/catchment/generate-teacher-rollouts.mjs",
     "catchment:train": "python3 scripts/catchment/train-surrogate.py",
-    "genesis:prior": "python ml/genesis/train_summon_prior.py"
+    "genesis:prior": "python ml/genesis/train_summon_prior.py",
+    "splat:test-asset": "node scripts/splat/make-test-splat.mjs"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.65",
