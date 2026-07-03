@@ -13,7 +13,9 @@
  */
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { decodeDEM, sampleElev, type CatchmentDEM, type CatchmentDEMRaw } from "@/lib/catchment/dem";
+import { isMobilePhone } from "@/lib/is-mobile-phone";
 import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type Vec3, type Mat4 } from "@/lib/catchment/mat4";
 import {
   ADDRAIN_WGSL, FLUX_WGSL, WATERVEL_WGSL, ERODE_WGSL, TRANSPORT_WGSL, FINALIZE_WGSL,
@@ -67,7 +69,7 @@ function paintFallback(dem: CatchmentDEM, canvas: HTMLCanvasElement) {
   ctx.drawImage(small, (W - n * s) / 2, (H - n * s) / 2, n * s, n * s);
 }
 
-type Status = "loading" | "running" | "nogpu" | "error";
+type Status = "loading" | "running" | "nogpu" | "mobile" | "error";
 type Pick = { elevM: number; slopeDeg: number; lng: number; lat: number } | null;
 type Mode = "orbit" | "pour" | "ignite" | "meteor";
 type MeteorKind = 1 | 2 | 3;
@@ -144,7 +146,9 @@ const PANEL_CSS = `
 export default function Catchment() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rainCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [status, setStatus] = useState<Status>("loading");
+  const [status, setStatus] = useState<Status>(() =>
+    typeof window !== "undefined" && isMobilePhone() ? "mobile" : "loading"
+  );
   const [err, setErr] = useState("");
   const [sunDeg, setSunDeg] = useState(135);
   const [exag, setExag] = useState(DEFAULT_VSCALE);
@@ -219,6 +223,7 @@ export default function Catchment() {
 
     (async () => {
       const canvas = canvasRef.current; if (!canvas) return;
+      if (isMobilePhone()) { setStatus("mobile"); return; }
       if (!disposed) setStatus("loading");
       let dem: CatchmentDEM;
       try {
@@ -1693,6 +1698,18 @@ export default function Catchment() {
 
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center"><span className="mono-label animate-pulse">Initialising engine…</span></div>
+      )}
+      {status === "mobile" && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-concrete/95 p-8 text-center">
+          <span className="mono-label">Desktop only</span>
+          <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink/70">
+            Catchment is too heavy to run on a phone. Open it on a laptop or desktop
+            with Chrome, Edge, or Safari.
+          </p>
+          <Link href="/playground" className="btn-secondary mt-6 text-sm">
+            Back to playground
+          </Link>
+        </div>
       )}
       {status === "nogpu" && (
         <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-concrete/85 p-6 backdrop-blur-sm">

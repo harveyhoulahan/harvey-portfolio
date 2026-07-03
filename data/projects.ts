@@ -205,7 +205,7 @@ export const personalProjects: PersonalProject[] = [
   {
     name: "Catchment — physics vs neural",
     blurb:
-      "A browser-native Earth engine: shallow-water hydrology, erosion and wind-driven fire, all in raw WebGPU. Then the ML part — a convolutional neural operator trained against the solver itself (physics as teacher, pushforward-unrolled for rollout stability), exported to hand-written WGSL compute passes and raced against the real physics with a live error field. No servers, no runtime dependency.",
+      "A browser-native Earth engine: shallow-water hydrology, erosion, and wind-driven fire in raw WebGPU. A convolutional neural operator trains against the solver, exports to hand-written WGSL compute passes, and races the real physics with a live error field. No servers, no runtime dependency.",
     tags: ["WebGPU", "Neural Operators", "PyTorch", "WGSL", "Shallow-water"],
     year: "2026",
     links: [
@@ -220,17 +220,45 @@ export const personalProjects: PersonalProject[] = [
   {
     name: "Genesis — an artificial-life lab",
     blurb:
-      "Lenia-class continuous cellular automata evolving live on the GPU, plus CLIP-guided evolutionary search (separable CMA-ES): describe a lifeform in plain English and the optimiser coaxes it out of the simulation. Entirely client-side — the foundation model runs in your browser.",
-    tags: ["WebGPU", "CLIP", "CMA-ES", "Artificial Life"],
+      "Particle Life on the GPU: flocking, chase, and predation waves, summoned from a text prompt. In-browser CLIP scores candidate worlds while a separable CMA-ES search breeds the simulation toward the description. Entirely client-side.",
+    tags: ["WebGPU", "CLIP", "CMA-ES", "Embedding Retrieval", "Artificial Life"],
     year: "2026",
-    links: [{ label: "Run it live", href: "/genesis" }],
+    links: [
+      { label: "Run it live", href: "/genesis" },
+      {
+        label: "Source",
+        href: "https://github.com/harveyhoulahan/harvey-portfolio",
+        external: true,
+      },
+    ],
+  },
+  {
+    name: "agri-iq",
+    blurb:
+      "ML research on smart ear tags for livestock: pregnancy prediction and health indexing from biosensor time series. Pre-commercial R&D on cattle, sheep, and goats.",
+    tags: ["Time Series", "IoT", "PyTorch", "Agriculture", "Livestock"],
+    year: "2025",
+    status: "Research",
+    links: [
+      {
+        label: "GitHub",
+        href: "https://github.com/harveyhoulahan/agri-iq",
+        external: true,
+      },
+    ],
   },
   {
     name: "Modaics",
     blurb:
-      "Digital wardrobe and sustainable-fashion marketplace with AI-powered styling. Built through the RMIT Activator accelerator program.",
+      "Digital wardrobe and sustainable-fashion marketplace with AI styling. Built through the RMIT Activator accelerator program.",
     tags: ["Computer Vision", "NLP", "React Native", "Swift"],
     year: "2024",
-    links: [{ label: "Overview", href: "/projects/modaics.html", external: true }],
+    links: [
+      {
+        label: "GitHub",
+        href: "https://github.com/harveyhoulahan/Modaics",
+        external: true,
+      },
+    ],
   },
 ];
