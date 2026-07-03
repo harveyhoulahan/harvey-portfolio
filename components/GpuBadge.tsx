@@ -47,12 +47,12 @@ export default function GpuBadge() {
 
   return (
     <span
-      className={`inline-flex items-center gap-2 border px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.14em] ${
+      className={`inline-flex items-center gap-2 font-mono text-[10px] normal-case tracking-[0.08em] ${
         ok
-          ? "border-flow/40 text-flow"
+          ? "text-flow"
           : state === "probing"
-            ? "border-contour text-ink/50"
-            : "border-infra/40 text-infra"
+            ? "text-ink/50"
+            : "text-infra"
       }`}
       role="status"
     >

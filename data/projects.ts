@@ -171,7 +171,7 @@ export const papers: Paper[] = [
     title: "Adapting frontier LLM-pretraining techniques under fixed compute",
     context: "Maincode — Mainrun assessment · 2026",
     summary:
-      "A 33% validation-loss reduction (1.75 → 1.18) on a ~40M-parameter GPT-style transformer, reasoning from first principles to stack Muon optimisation, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations and value-residual connections; adapted to a fixed 7-epoch budget.",
+      "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18. Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections, each argued from first principles.",
     links: [
       { label: "Read the report (PDF)", href: "/papers/mainrun-report.pdf" },
     ],

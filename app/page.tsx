@@ -56,13 +56,12 @@ export default function Home() {
               <ContourMotif variant="basin" />
               <div className="relative">
                 <h3 className="font-display text-xl text-ink">
-                  A neural operator, racing its own teacher
+                  Physics and neural, side by side
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                  Catchment runs a real shallow-water solver on your GPU — and a
-                  convolutional neural operator trained against that solver,
-                  executing as hand-written WGSL compute passes. Flip between
-                  physics and neural and watch the error field live.
+                  Catchment runs shallow-water flow, erosion, and fire in WebGPU.
+                  A neural operator trains on the solver and ships as hand-written
+                  WGSL. Toggle between them and watch the error field live.
                 </p>
               </div>
               <span className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-flow transition-transform duration-300 ease-out group-hover:translate-x-1 motion-reduce:transform-none">
@@ -76,10 +75,13 @@ export default function Home() {
               <ContourMotif variant="channels" />
               <div className="relative">
                 <h3 className="font-display text-xl text-ink">
-                  1.75 → 1.18 val loss, fixed compute
+                  1.75 to 1.18, same compute budget
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                  {papers[0].summary}
+                  A ~40M-parameter transformer pretraining assessment. Validation
+                  loss down 33% in seven epochs: Muon, rotary embeddings,
+                  warmup-stable-decay, ReLU², value residuals. Each change
+                  argued from first principles, not swept.
                 </p>
               </div>
               <span className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-flow transition-transform duration-300 ease-out group-hover:translate-x-1 motion-reduce:transform-none">

@@ -8,20 +8,20 @@ import GpuBadge from "@/components/GpuBadge";
 const DEMOS = [
   {
     href: "/catchment",
-    kicker: "01 · Neural Earth engine",
-    title: "Catchment",
+    kicker: "01 · neural earth engine",
+    title: "catchment",
     blurb:
       "Rain carves real terrain and fire runs with the wind. The full solver runs on your GPU, and I trained a neural operator to imitate it. Switch between physics and neural and watch the error field live.",
-    meta: "WebGPU · shallow-water · neural operator",
+    meta: "webgpu · shallow-water · neural operator",
     motif: "basin" as const,
   },
   {
     href: "/genesis",
-    kicker: "02 · Artificial-life lab",
-    title: "Genesis",
+    kicker: "02 · artificial-life lab",
+    title: "genesis",
     blurb:
       "Thousands of particles flock, chase, and predate on your GPU. Describe a swarm in plain text and CLIP scores it while an evolutionary search nudges the sim toward what you asked for.",
-    meta: "WebGPU · particle life · CLIP · CMA-ES",
+    meta: "webgpu · particle life · CLIP · CMA-ES",
     motif: "swarm" as const,
   },
 ] as const;
@@ -30,7 +30,7 @@ export default function Playground() {
   return (
     <section className="col-shell max-w-work py-16 md:py-24">
       <div className="flex flex-wrap items-center gap-3">
-        <span className="mono-label">Playground · live demos</span>
+        <span className="mono-label normal-case tracking-[0.14em]">playground · live demos</span>
         <GpuBadge />
       </div>
       <h1 className="mt-3 font-display text-3xl md:text-4xl">Things that run in your browser</h1>
@@ -57,13 +57,13 @@ export default function Playground() {
           >
             <ContourMotif variant={d.motif} />
             <div className="relative">
-              <span className="mono-label">{d.kicker}</span>
+              <span className="mono-label normal-case tracking-[0.14em]">{d.kicker}</span>
               <h2 className="mt-2 font-display text-2xl text-ink">{d.title}</h2>
               <p className="mt-2 text-sm leading-relaxed text-ink/70">{d.blurb}</p>
             </div>
             <div className="relative mt-6 flex items-center justify-between gap-4">
-              <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink/40">{d.meta}</span>
-              <span className="font-mono text-xs uppercase tracking-[0.12em] text-flow transition-transform duration-300 ease-out group-hover:translate-x-1 motion-reduce:transform-none">
+              <span className="font-mono text-[11px] tracking-[0.06em] text-ink/40">{d.meta}</span>
+              <span className="font-mono text-xs tracking-[0.06em] text-flow transition-transform duration-300 ease-out group-hover:translate-x-1 motion-reduce:transform-none">
                 enter →
               </span>
             </div>
