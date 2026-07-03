@@ -1,19 +1,22 @@
 import type { Metadata } from "next";
-import { Archivo, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { themeInitScript } from "@/lib/theme";
 
-const archivo = Archivo({
+// Display: Bricolage Grotesque — hand-cut terminals and wonky details that
+// match the drawn contour motifs; characterful without being a novelty face.
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
 
-const plexSans = IBM_Plex_Sans({
+// Body: Instrument Sans — warm, quietly quirky, disappears at text sizes.
+const instrument = Instrument_Sans({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   variable: "--font-sans",
@@ -79,7 +82,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${archivo.variable} ${plexSans.variable} ${jetbrainsMono.variable}`}
+      className={`${bricolage.variable} ${instrument.variable} ${jetbrainsMono.variable}`}
       suppressHydrationWarning
     >
       <head>

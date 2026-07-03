@@ -28,8 +28,8 @@ const config: Config = {
         border: "var(--contour)",
       },
       fontFamily: {
-        display: ["var(--font-display)", "Archivo", "system-ui", "sans-serif"],
-        sans: ["var(--font-sans)", "IBM Plex Sans", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "Bricolage Grotesque", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Instrument Sans", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"],
       },
       maxWidth: {
