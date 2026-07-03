@@ -1,1 +1,221 @@
-{"maps":[{"id":"hinterland","file":"dem.json","name":"Byron Hinterland","tagline":"Where it began: coast to escarpment.","rain":3,"wind":90},{"id":"caldera","file":"caldera.json","name":"The Caldera","tagline":"A ring of fire around a sleeping lake.","rain":5,"wind":140},{"id":"fjords","file":"fjords.json","name":"Drowned Coast","tagline":"Steep fjords the sea crept into.","rain":6,"wind":200},{"id":"delta","file":"delta.json","name":"Braided Delta","tagline":"A thousand channels, one sea.","rain":9,"wind":180},{"id":"archipelago","file":"archipelago.json","name":"Archipelago","tagline":"Peaks that refused to drown.","rain":4,"wind":90},{"id":"olympus","file":"olympus.json","name":"Olympus","tagline":"Not of this world. (Mariner 9, 1971.)","rain":2,"wind":45,"secret":true}]}
+{
+ "maps": [
+  {
+   "id": "hinterland",
+   "file": "dem.json",
+   "name": "Byron Hinterland",
+   "tagline": "Where it began: coast to escarpment.",
+   "rain": 3,
+   "wind": 90,
+   "props": {
+    "trees": 0.5,
+    "shrubs": 0.55
+   }
+  },
+  {
+   "id": "caldera",
+   "file": "caldera.json",
+   "name": "The Caldera",
+   "tagline": "A ring of fire around a sleeping lake.",
+   "rain": 5,
+   "wind": 140,
+   "props": {
+    "trees": 0.4,
+    "shrubs": 0.5
+   }
+  },
+  {
+   "id": "fjords",
+   "file": "fjords.json",
+   "name": "Drowned Coast",
+   "tagline": "Steep fjords the sea crept into.",
+   "rain": 6,
+   "wind": 200,
+   "props": {
+    "trees": 0.35,
+    "shrubs": 0.4
+   }
+  },
+  {
+   "id": "archipelago",
+   "file": "archipelago.json",
+   "name": "Archipelago",
+   "tagline": "Peaks that refused to drown.",
+   "rain": 4,
+   "wind": 90,
+   "props": {
+    "trees": 0.35,
+    "shrubs": 0.4
+   }
+  },
+  {
+   "id": "gorge",
+   "file": "gorge.json",
+   "name": "The Gorge",
+   "tagline": "A river a hundred metres down.",
+   "rain": 6,
+   "wind": 120,
+   "props": {
+    "trees": 0.55,
+    "shrubs": 0.5,
+    "bridges": [
+     {
+      "x0": 52,
+      "z0": 49,
+      "x1": 52,
+      "z1": 67
+     },
+     {
+      "x0": 108,
+      "z0": 56,
+      "x1": 108,
+      "z1": 70
+     }
+    ]
+   }
+  },
+  {
+   "id": "terraces",
+   "file": "terraces.json",
+   "name": "Terraces",
+   "tagline": "Steps cut by patient hands.",
+   "rain": 8,
+   "wind": 60,
+   "props": {
+    "trees": 0.32,
+    "shrubs": 0.45,
+    "settlements": [
+     {
+      "x": 138,
+      "z": 76,
+      "count": 9,
+      "spread": 7
+     }
+    ],
+    "bridges": [
+     {
+      "x0": 120,
+      "z0": 62,
+      "x1": 120,
+      "z1": 72
+     }
+    ]
+   }
+  },
+  {
+   "id": "pinnacles",
+   "file": "pinnacles.json",
+   "name": "The Pinnacles",
+   "tagline": "Towers the rain forgot to level.",
+   "rain": 5,
+   "wind": 200,
+   "props": {
+    "trees": 0.7,
+    "shrubs": 0.7,
+    "settlements": [
+     {
+      "x": 70,
+      "z": 74,
+      "count": 7,
+      "spread": 6
+     }
+    ],
+    "bridges": [
+     {
+      "x0": 96,
+      "z0": 57,
+      "x1": 96,
+      "z1": 67
+     }
+    ]
+   }
+  },
+  {
+   "id": "riverport",
+   "file": "riverport.json",
+   "name": "Riverport",
+   "tagline": "A grid the river ignores.",
+   "rain": 5,
+   "wind": 100,
+   "props": {
+    "trees": 0.3,
+    "shrubs": 0.35,
+    "settlements": [
+     {
+      "x": 100,
+      "z": 66,
+      "count": 46,
+      "spread": 17,
+      "grid": true
+     },
+     {
+      "x": 102,
+      "z": 98,
+      "count": 30,
+      "spread": 13,
+      "grid": true
+     },
+     {
+      "x": 56,
+      "z": 78,
+      "count": 7,
+      "spread": 7
+     }
+    ],
+    "bridges": [
+     {
+      "x0": 92,
+      "z0": 76,
+      "x1": 92,
+      "z1": 86
+     },
+     {
+      "x0": 112,
+      "z0": 74,
+      "x1": 112,
+      "z1": 84
+     },
+     {
+      "x0": 132,
+      "z0": 73,
+      "x1": 132,
+      "z1": 81
+     }
+    ]
+   }
+  },
+  {
+   "id": "vent",
+   "file": "vent.json",
+   "name": "The Vent",
+   "tagline": "One mountain, still deciding.",
+   "rain": 4,
+   "wind": 160,
+   "props": {
+    "trees": 0.6,
+    "shrubs": 0.6,
+    "settlements": [
+     {
+      "x": 135,
+      "z": 88,
+      "count": 8,
+      "spread": 6
+     }
+    ]
+   }
+  },
+  {
+   "id": "olympus",
+   "file": "olympus.json",
+   "name": "Olympus",
+   "tagline": "Not of this world. (Mariner 9, 1971.)",
+   "rain": 2,
+   "wind": 45,
+   "secret": true,
+   "props": {
+    "trees": 0,
+    "shrubs": 0
+   }
+  }
+ ]
+}

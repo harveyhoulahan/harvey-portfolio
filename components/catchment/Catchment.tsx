@@ -22,11 +22,12 @@ import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type 
 import {
   ADDRAIN_WGSL, FLUX_WGSL, WATERVEL_WGSL, ERODE_WGSL, TRANSPORT_WGSL, FINALIZE_WGSL,
   NORMALS_WGSL, SHADOWAO_WGSL, RENDER_TERRAIN_WGSL, RENDER_WATER_WGSL, RENDER_SKIRT_WGSL,
-  RENDER_OCEANWALL_WGSL,
+  RENDER_OCEANWALL_WGSL, RENDER_PROPS_WGSL,
   SPREAD_WGSL, BURN_WGSL, METEOR_WGSL,
   NEURAL_ASSEMBLE_WGSL, NEURAL_CONV_WGSL, NEURAL_APPLY_WGSL, RENDER_SKY_WGSL,
   POST_BRIGHT_WGSL, POST_BLUR_WGSL, POST_COMPOSITE_WGSL,
 } from "@/lib/catchment/sim-shaders";
+import { buildPropGeometry, type PropsConfig } from "@/lib/catchment/props";
 import { decodeSurrogate } from "@/lib/catchment/surrogate";
 import { useIdleUI } from "@/lib/useIdleUI";
 
@@ -171,7 +172,7 @@ export default function Catchment() {
   // let the animation breathe: title retires on first interaction, controls fade when idle
   const { everInteracted, idle } = useIdleUI({ timeout: 3500 });
   const uiVisible = everInteracted && !idle;
-  type MapInfo = { id: string; file: string; name: string; tagline: string; rain?: number; wind?: number; secret?: boolean };
+  type MapInfo = { id: string; file: string; name: string; tagline: string; rain?: number; wind?: number; secret?: boolean; props?: PropsConfig };
   const [maps, setMaps] = useState<MapInfo[]>([]);
   const [mapId, setMapId] = useState("hinterland");
   const [secretUnlocked, setSecretUnlocked] = useState(false);
@@ -479,6 +480,17 @@ export default function Catchment() {
       const charBuf = zeroBuf(total * 4);
       const heatBuf = zeroBuf(total * 4);
 
+      // Living props: trees, shrubs, settlements and bridges, built from the
+      // world's designed prop config. They stand on the LIVE bed buffer, so
+      // erosion, craters and the fire front all reach them.
+      const propsCfg: PropsConfig = activeMap?.props ?? { trees: 0.5, shrubs: 0.55 };
+      const propGeo = buildPropGeometry(dem, fuelInit, beachStrength, propsCfg, activeMap?.id ?? "hinterland", { half: HALF, hscale: HSCALE });
+      const propCount = propGeo.length / 10;
+      const propsVB = propCount
+        ? device.createBuffer({ size: propGeo.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST })
+        : null;
+      if (propsVB) device.queue.writeBuffer(propsVB, 0, propGeo);
+
       // SimU is 11 vec4s (176 B): +storm (drifting rain cell) and +aux (sun angles
       // for the shadow pass). RU is 12 vec4s (192 B): +impact (crater glow), +env
       // (cloud-shadow drift), +stormu (storm gloom). Skirt declares a shorter
@@ -495,7 +507,7 @@ export default function Catchment() {
           erode: cs(ERODE_WGSL), transport: cs(TRANSPORT_WGSL), finalize: cs(FINALIZE_WGSL),
           normals: cs(NORMALS_WGSL), shadow: cs(SHADOWAO_WGSL),
           terrain: cs(RENDER_TERRAIN_WGSL), water: cs(RENDER_WATER_WGSL),
-          skirt: cs(RENDER_SKIRT_WGSL), spread: cs(SPREAD_WGSL), burn: cs(BURN_WGSL),
+          skirt: cs(RENDER_SKIRT_WGSL), props: cs(RENDER_PROPS_WGSL), spread: cs(SPREAD_WGSL), burn: cs(BURN_WGSL),
           meteor: cs(METEOR_WGSL),
         };
         const checks = await Promise.all(Object.values(mods).map((m: any) => m.getCompilationInfo?.() ?? Promise.resolve({ messages: [] })));
@@ -544,6 +556,24 @@ export default function Catchment() {
             multisample: { count: SAMPLE_COUNT },
             depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
           }),
+          props: device.createRenderPipeline({
+            layout: "auto",
+            vertex: {
+              module: mods.props, entryPoint: "vs",
+              buffers: [{
+                arrayStride: 40,
+                attributes: [
+                  { shaderLocation: 0, offset: 0, format: "float32x3" },
+                  { shaderLocation: 1, offset: 12, format: "float32x3" },
+                  { shaderLocation: 2, offset: 24, format: "float32x4" },
+                ],
+              }],
+            },
+            fragment: { module: mods.props, entryPoint: "fs", targets: [{ format }] },
+            primitive: { topology: "triangle-list", cullMode: "none" },
+            multisample: { count: SAMPLE_COUNT },
+            depthStencil: { format: "depth24plus", depthWriteEnabled: true, depthCompare: "less" },
+          }),
         };
       } catch (e: any) { fail(`Pipeline error: ${e?.message ?? e}`); return; }
 
@@ -560,6 +590,7 @@ export default function Catchment() {
         spread: bg(P.spread, [simBuf, fireBuf, bedBuf, heatBuf, fuelBuf, watBuf, oceanBuf]),
         burn: bg(P.burn, [simBuf, heatBuf, fuelBuf, fireBuf, charBuf, watBuf, oceanBuf]),
         meteor: bg(P.meteor, [simBuf, bedBuf, watBuf, velBuf, fuelBuf, fireBuf, charBuf, oceanBuf]),
+        props: bg(P.props, [ruBuf, bedBuf, fuelBuf, charBuf, fireBuf, shadowBuf]),
         terrain: bg(P.terrain, [ruBuf, bedBuf, nrmBuf, flagsBuf, sedABuf, fuelBuf, charBuf, fireBuf, shadowBuf, watBuf]),
         water: bg(P.water, [ruBuf, bedBuf, watBuf, flagsBuf, velBuf, sedABuf, shadowBuf]),
       };
@@ -1602,6 +1633,11 @@ export default function Catchment() {
         rp.setPipeline(P.terrain); rp.setBindGroup(0, BG.terrain);
         rp.setIndexBuffer(indexBuf, "uint32"); rp.drawIndexed(idx.length);
         rp.setPipeline(P.skirt); rp.setBindGroup(0, BGskirt); rp.draw(skirtCount);
+        if (propsVB && propCount) {
+          rp.setPipeline(P.props); rp.setBindGroup(0, BG.props);
+          rp.setVertexBuffer(0, propsVB);
+          rp.draw(propCount);
+        }
         rp.setPipeline(P.water);
         rp.setBindGroup(0, (neuralOK && neuralOnRef.current && bgWaterNeural) ? bgWaterNeural : BG.water);
         rp.setIndexBuffer(indexBuf, "uint32"); rp.drawIndexed(idx.length);

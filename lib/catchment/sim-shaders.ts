@@ -481,8 +481,10 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     wat[i] = max(0.0, wat[i] * (1.0 - bowl * 0.72) + rim * splash * 0.16);
 
     let heat = bowl * ignition + rim * ignition * 0.35;
-    fuel[i] = max(0.0, fuel[i] - bowl * dry * 0.4);
-    charr[i] = clamp(charr[i] + heat * 0.28, 0.0, 1.0);
+    // the core is total destruction: vegetation and structures inside the
+    // bowl are erased outright, the rim heavily scorched
+    fuel[i] = max(0.0, fuel[i] - bowl * (dry * 0.4 + 0.85));
+    charr[i] = clamp(charr[i] + heat * 0.28 + pow(bowl, 1.2) * 1.1 + rim * 0.35, 0.0, 1.0);
     if (heat > 0.2 && fuel[i] > 0.08) {
       fire[i] = max(fire[i], clamp(heat, 0.0, 1.0));
     }
@@ -1357,6 +1359,161 @@ fn fs(in: VO) -> @location(0) vec4<f32> {
     col = col + srgbToLinear(vec3<f32>(1.0, 0.92, 0.76)) * exp(-d * 7.0) * 0.85 * dim;
     col = col + srgbToLinear(vec3<f32>(1.0, 0.97, 0.88)) * smoothstep(0.028, 0.0, d) * dim;
   }
+  return vec4<f32>(displayColor(col), 1.0);
+}
+`;
+
+/* ===========================================================================
+ * Props — trees, shrubs, buildings and bridges. One vertex buffer, one draw.
+ * Every vertex carries its grid cell, so props stand on the LIVE bed (they
+ * ride erosion and sink into meteor craters), read the fire sim (canopies
+ * scorch, shrink and glow when the front reaches them) and share the
+ * terrain's light: cast shadows, sky AO, drifting cloud, storm gloom, fog.
+ * data = (cellIdx | -1 for anchored, type, rand, anchorH01).
+ * Types: 0 canopy, 1 trunk, 2 shrub, 3 wall, 4 roof, 5 deck, 6 dark timber.
+ * =========================================================================== */
+export const RENDER_PROPS_WGSL = /* wgsl */ `
+struct RU { mvp: mat4x4<f32>, sun: vec4<f32>, params: vec4<f32>, pick: vec4<f32>, cam: vec4<f32>, misc: vec4<f32>, impact: vec4<f32>, env: vec4<f32>, stormu: vec4<f32> };
+@group(0) @binding(0) var<uniform> ru: RU;
+@group(0) @binding(1) var<storage, read> bed: array<f32>;
+@group(0) @binding(2) var<storage, read> fuel: array<f32>;
+@group(0) @binding(3) var<storage, read> charr: array<f32>;
+@group(0) @binding(4) var<storage, read> fire: array<f32>;
+@group(0) @binding(5) var<storage, read> shad: array<vec2<f32>>;
+${COLOR_HELPERS}
+${NOISE_HELPERS}
+${SHADOW_SAMPLE}
+
+struct VSIn {
+  @location(0) pos: vec3<f32>,
+  @location(1) nrm: vec3<f32>,
+  @location(2) data: vec4<f32>,
+};
+struct VSOut {
+  @builtin(position) pos: vec4<f32>,
+  @location(0) world: vec3<f32>,
+  @location(1) normal: vec3<f32>,
+  @location(2) albedo: vec3<f32>,
+  @location(3) emiss: f32,
+};
+
+@vertex
+fn vs(in: VSIn) -> VSOut {
+  let n = u32(ru.params.x);
+  let ptype = u32(in.data.y);
+  let rand = in.data.z;
+  let vsc = ru.params.y;
+
+  var p = in.pos;
+  var world: vec3<f32>;
+  var charA = 0.0;
+  var fireA = 0.0;
+  var fuelA = 1.0;
+
+  if (in.data.x < 0.0) {
+    // anchored (bridges): pos.xz are absolute world, y rides the anchor bed
+    // level scaled by relief so decks stay level with their banks
+    world = vec3<f32>(p.x, in.data.w * vsc + p.y, p.z);
+    // sample the ground beneath: fire chars the span, meteors and burnt
+    // sections give way and crumple down to whatever is left below
+    let hf = ru.params.z;
+    let cc = u32(clamp((world.x + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.0));
+    let rr = u32(clamp((world.z + hf) / (2.0 * hf) * f32(n - 1u), 0.0, f32(n) - 1.0));
+    let under = rr * n + cc;
+    charA = charr[under];
+    fireA = fire[under];
+    let groundY = bed[under] / ru.misc.x * vsc;
+    let fall = pow(clamp(charA * 1.25, 0.0, 1.0), 1.6);
+    world.y = mix(world.y, min(world.y, groundY + 0.004), fall);
+  } else {
+    let cell = u32(in.data.x);
+    let r = cell / n; let c = cell % n;
+    let span = 2.0 * ru.params.z;
+    let cx = (f32(c) / f32(n - 1u)) * span - ru.params.z;
+    let cz = (f32(r) / f32(n - 1u)) * span - ru.params.z;
+    let baseY = bed[cell] / ru.misc.x * vsc;
+    charA = charr[cell];
+    fireA = fire[cell];
+    fuelA = fuel[cell];
+    if (ptype == 3u || ptype == 4u) {
+      // structures give way as they burn or take a strike: walls slump,
+      // roofs pancake, until only charred slabs mark the block
+      let collapse = pow(clamp(charA * 1.15, 0.0, 1.0), 1.3) * select(0.8, 0.94, ptype == 4u);
+      p.y *= (1.0 - collapse);
+    }
+    if (ptype <= 2u) {
+      // vegetation: burnt trees shrink and gnarl; live canopies sway on the wind
+      let shrink = 1.0 - charA * 0.5;
+      p = vec3<f32>(p.x * (1.0 - charA * 0.35), p.y * shrink, p.z * (1.0 - charA * 0.35));
+      let weight = smoothstep(0.008, 0.05, p.y);
+      let sway = sin(ru.misc.z * (1.0 + rand * 0.7) + rand * 21.0)
+               * (0.0012 + ru.misc.w * 0.0009) * weight;
+      p.x += sway; p.z += sway * 0.6;
+    }
+    world = vec3<f32>(cx + p.x, baseY + p.y, cz + p.z);
+  }
+
+  // per-type albedo, varied per instance so nothing repeats exactly
+  var alb: vec3<f32>;
+  if (ptype == 0u) {
+    let a = srgbToLinear(vec3<f32>(0.33, 0.44, 0.27));
+    let b = srgbToLinear(vec3<f32>(0.47, 0.52, 0.32));
+    alb = mix(a, b, rand);
+  } else if (ptype == 1u) {
+    alb = srgbToLinear(vec3<f32>(0.42, 0.37, 0.31)); // gum trunk
+  } else if (ptype == 2u) {
+    alb = mix(srgbToLinear(vec3<f32>(0.38, 0.42, 0.26)), srgbToLinear(vec3<f32>(0.52, 0.50, 0.34)), rand);
+  } else if (ptype == 3u) {
+    alb = mix(srgbToLinear(vec3<f32>(0.82, 0.79, 0.72)), srgbToLinear(vec3<f32>(0.72, 0.70, 0.66)), rand); // walls
+  } else if (ptype == 4u) {
+    // corrugated roofs: most rust-red, some slate
+    alb = select(srgbToLinear(vec3<f32>(0.55, 0.23, 0.13)), srgbToLinear(vec3<f32>(0.30, 0.33, 0.35)), rand > 0.72);
+  } else if (ptype == 5u) {
+    alb = srgbToLinear(vec3<f32>(0.48, 0.39, 0.29)); // bridge deck timber
+  } else {
+    alb = srgbToLinear(vec3<f32>(0.33, 0.27, 0.21)); // piers and rails
+  }
+  // foliage dries toward sere yellow-brown as the cell's fuel is consumed
+  if (ptype == 0u || ptype == 2u) {
+    alb = mix(srgbToLinear(vec3<f32>(0.56, 0.47, 0.26)), alb, clamp(0.25 + fuelA, 0.0, 1.0));
+  }
+  // scorched material blackens
+  alb = mix(alb, srgbToLinear(vec3<f32>(0.09, 0.08, 0.075)), charA * select(0.78, 0.9, ptype <= 2u));
+
+  var out: VSOut;
+  out.pos = ru.mvp * vec4<f32>(world, 1.0);
+  out.world = world;
+  out.normal = in.nrm;
+  out.albedo = alb;
+  out.emiss = fireA * select(0.55, 1.0, ptype <= 2u);
+  return out;
+}
+
+@fragment
+fn fs(in: VSOut) -> @location(0) vec4<f32> {
+  let N = normalize(in.normal);
+  let L = normalize(ru.sun.xyz);
+  let ndl = clamp(dot(N, L), 0.0, 1.0);
+
+  // same light environment as the ground: cast shadow + sky AO, cloud, storm
+  let sao = shadowAt(in.world.x, in.world.z);
+  let cloud = cloudShade(in.world.xz, ru.env.xy, ru.env.z);
+  let dsx = in.world.xz - ru.stormu.xy;
+  let stormD = ru.stormu.w * exp(-dot(dsx, dsx) / (2.0 * ru.stormu.z * ru.stormu.z + 1e-5));
+  let sunVis = sao.x * cloud * (1.0 - stormD * 0.55);
+
+  let amb = mix(srgbToLinear(vec3<f32>(0.34, 0.33, 0.30)), srgbToLinear(vec3<f32>(0.52, 0.55, 0.60)), N.y * 0.5 + 0.5);
+  let sunCol = srgbToLinear(vec3<f32>(1.0, 0.96, 0.88));
+  var col = in.albedo * (amb * (0.35 + 0.65 * sao.y) * (1.0 - stormD * 0.25) + sunCol * ndl * 0.95 * sunVis);
+
+  // burning canopies glow and feed the bloom pass
+  let flick = 0.75 + 0.25 * sin(ru.misc.z * 22.0 + in.world.x * 40.0 + in.world.z * 31.0);
+  col = col + srgbToLinear(vec3<f32>(1.0, 0.42, 0.10)) * in.emiss * 2.4 * flick;
+
+  // aerial perspective, matching the terrain
+  let dist = length(in.world - ru.cam.xyz);
+  let fogH = 1.0 - clamp(in.world.y * 0.8, 0.0, 0.35);
+  col = mix(col, srgbToLinear(vec3<f32>(0.90, 0.90, 0.88)), smoothstep(3.0, 6.5, dist) * ru.cam.w * fogH);
   return vec4<f32>(displayColor(col), 1.0);
 }
 `;
