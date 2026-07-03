@@ -23,23 +23,26 @@ export default function AboutStory() {
   return (
     <div className="py-20 md:py-28">
       {/* Header */}
-      <div ref={headerRef} className="col-shell relative max-w-prose">
-        <ContourMotif
-          variant="rings"
-          className="contour-motif pointer-events-none absolute -top-8 right-0 hidden h-40 w-52 text-ink/10 md:block"
-        />
+      <div ref={headerRef} className="col-shell relative max-w-work overflow-visible">
         <span className="mono-label">About</span>
-        <h1 className="mt-5 font-display">
-          <TextCursorProximity
-            label="ML systems engineer; spatial, full-stack, simulation & applied AI."
-            className="block"
-            styles={headingStyles}
-            falloff="gaussian"
-            radius={120}
-            containerRef={headerRef}
+        <div className="relative mt-5 max-w-prose overflow-visible">
+          <h1 className="font-display">
+            <TextCursorProximity
+              label="ML systems engineer; spatial, full-stack, simulation & applied AI."
+              className="block"
+              styles={headingStyles}
+              falloff="gaussian"
+              radius={120}
+              containerRef={headerRef}
+            />
+          </h1>
+          <ContourMotif
+            variant="basin"
+            animateOnLoad
+            className="contour-motif pointer-events-none absolute left-full top-1/2 ml-6 hidden h-40 w-52 -translate-y-1/2 text-ink/10 md:block lg:ml-10"
           />
-        </h1>
-        <p className="mt-6 font-display text-xl leading-snug text-flow md:text-2xl">
+        </div>
+        <p className="mt-6 max-w-prose font-display text-xl leading-snug text-flow md:text-2xl">
           {about.intro}
         </p>
       </div>

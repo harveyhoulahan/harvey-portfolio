@@ -10,10 +10,11 @@ const MOTIFS = {
     "M94 84 C 93 77, 102 72, 111 74 C 120 76, 123 82, 120 87 C 117 92, 105 93, 99 90 C 96 88, 95 87, 94 84 Z",
   ],
   rings: [
-    "M110 12 A 68 68 0 1 1 109.9 12 Z",
-    "M110 30 A 50 50 0 1 1 109.9 30 Z",
-    "M110 48 A 32 32 0 1 1 109.9 48 Z",
-    "M110 64 A 16 16 0 1 1 109.9 64 Z",
+    // Wobbly, hand-drawn rings — slightly off-centre, like a rushed pen pass.
+    "M 38 72 C 24 38, 58 6, 96 8 C 142 10, 186 38, 188 78 C 190 118, 152 158, 104 156 C 56 154, 14 118, 18 76 C 20 68, 28 62, 38 72 Z",
+    "M 52 74 C 42 48, 68 24, 94 26 C 128 28, 162 52, 164 80 C 166 108, 138 138, 102 136 C 66 134, 38 108, 40 78 C 41 72, 46 68, 52 74 Z",
+    "M 66 76 C 58 56, 78 38, 98 40 C 122 42, 146 62, 148 84 C 150 106, 128 126, 104 124 C 80 122, 60 102, 62 80 C 63 76, 64 74, 66 76 Z",
+    "M 82 78 C 76 64, 90 52, 102 54 C 116 56, 128 68, 130 82 C 132 96, 120 110, 106 108 C 92 106, 82 94, 84 82 C 85 79, 83 78, 82 78 Z",
   ],
   channels: [
     "M20 20 C 60 40, 80 70, 110 80 C 140 90, 170 110, 185 140",
@@ -25,30 +26,54 @@ const MOTIFS = {
 
 export type MotifVariant = keyof typeof MOTIFS;
 
+/** Staggered draw — each loop finishes on its own clock. */
+const DRAW_TIMING = [
+  { delay: "0.08s", duration: "1.7s", ease: "cubic-bezier(0.42, 0.02, 0.28, 1)" },
+  { delay: "0.42s", duration: "0.9s", ease: "cubic-bezier(0.55, 0.12, 0.32, 1)" },
+  { delay: "0.65s", duration: "1.45s", ease: "cubic-bezier(0.38, 0.04, 0.22, 1)" },
+  { delay: "0.22s", duration: "1.05s", ease: "cubic-bezier(0.48, 0.08, 0.26, 1)" },
+] as const;
+
 export default function ContourMotif({
   variant,
   className = "contour-motif pointer-events-none absolute -right-6 -top-6 h-28 w-36 text-ink/20 transition-colors duration-300 group-hover:text-flow/60",
+  animateOnLoad = false,
 }: {
   variant: MotifVariant;
   className?: string;
+  animateOnLoad?: boolean;
 }) {
   return (
     <svg
       aria-hidden
       viewBox="0 0 200 160"
-      className={className}
+      className={`${className}${animateOnLoad ? " contour-motif-draw" : ""}`}
       fill="none"
       style={{ ["--motif-len" as string]: 480 }}
     >
-      {MOTIFS[variant].map((d, i) => (
-        <path
-          key={i}
-          d={d}
-          stroke="currentColor"
-          strokeWidth={i % 2 === 0 ? 1.2 : 0.8}
-          style={{ animationDelay: `${i * 70}ms` }}
-        />
-      ))}
+      {MOTIFS[variant].map((d, i) => {
+        const draw = animateOnLoad ? DRAW_TIMING[i] : null;
+        return (
+          <path
+            key={i}
+            d={d}
+            pathLength={draw ? 1 : undefined}
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={i % 2 === 0 ? 1.2 : 0.85}
+            style={
+              draw
+                ? {
+                    animationDelay: draw.delay,
+                    animationDuration: draw.duration,
+                    animationTimingFunction: draw.ease,
+                  }
+                : { animationDelay: `${i * 70}ms` }
+            }
+          />
+        );
+      })}
     </svg>
   );
 }
