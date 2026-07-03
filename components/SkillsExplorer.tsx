@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import ContourMotif from "@/components/ContourMotif";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 
@@ -23,20 +24,29 @@ export default function SkillsExplorer({ groups }: { groups: SkillGroup[] }) {
   const total = groups.reduce((n, g) => n + g.skills.length, 0);
 
   return (
-    <div ref={sectionRef} className="relative overflow-hidden py-20 md:py-28">
+    <div ref={sectionRef} className="relative overflow-visible py-20 md:py-28">
+      <ContourMotif
+        variant="mesh"
+        animateOnLoad
+        className="contour-motif pointer-events-none absolute right-[clamp(1.25rem,4vw,3rem)] top-[5.75rem] z-0 hidden h-40 w-48 text-ink/[0.09] md:block md:top-[6.5rem] lg:right-[clamp(2rem,8vw,5rem)] lg:top-[7rem] lg:h-44 lg:w-56 xl:right-[clamp(2.5rem,10vw,7rem)]"
+      />
       <div className="relative z-10">
-        <div className="col-shell max-w-work">
+        <div className="col-shell relative max-w-work overflow-visible">
         <span className="mono-label">Stack</span>
-        <h1 className="mt-5 font-display">
-          <TextCursorProximity
-            label="What I build with."
-            className="block"
-            styles={headingStyles}
-            falloff="gaussian"
-            radius={110}
-            containerRef={sectionRef}
-          />
-        </h1>
+        <div className="relative mt-5 overflow-visible">
+          <div className="max-w-prose">
+            <h1 className="relative z-10 font-display">
+              <TextCursorProximity
+                label="What I build with."
+                className="block"
+                styles={headingStyles}
+                falloff="gaussian"
+                radius={110}
+                containerRef={sectionRef}
+              />
+            </h1>
+          </div>
+        </div>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
           Applied ML/AI, spatial work, and simulation. The languages and tools I
           use to build all of it.

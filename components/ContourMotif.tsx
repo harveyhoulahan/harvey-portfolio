@@ -38,6 +38,15 @@ const MOTIFS = {
     "M 76 100 C 88 98, 100 102, 112 100",
     "M 78 132 C 90 130, 102 134, 114 132",
   ],
+  // Warped coordinate mesh — a hand-drawn graticule, like a deformed survey grid.
+  mesh: [
+    "M 12 36 C 58 28, 102 44, 148 32 C 178 26, 192 38, 200 34",
+    "M 8 80 C 52 88, 98 72, 142 84 C 172 90, 194 76, 200 82",
+    "M 14 124 C 62 116, 108 132, 152 118 C 180 112, 196 126, 200 120",
+    "M 44 10 C 38 48, 50 92, 42 132 C 36 162, 48 178, 40 198",
+    "M 104 6 C 98 44, 110 88, 100 128 C 94 158, 106 174, 98 194",
+    "M 164 12 C 158 50, 168 94, 160 134 C 154 164, 166 180, 158 196",
+  ],
 } as const;
 
 export type MotifVariant = keyof typeof MOTIFS;
@@ -60,8 +69,23 @@ const TRAVERSE_DRAW_TIMING = [
   { delay: "0.84s", duration: "0.34s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
 ] as const;
 
+/** Warped graticule — horizontals then verticals weave in. */
+const MESH_DRAW_TIMING = [
+  { delay: "0s", duration: "1.25s", ease: "cubic-bezier(0.38, 0.04, 0.22, 1)" },
+  { delay: "0.14s", duration: "1.15s", ease: "cubic-bezier(0.42, 0.02, 0.28, 1)" },
+  { delay: "0.28s", duration: "1.2s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+  { delay: "0.1s", duration: "1.3s", ease: "cubic-bezier(0.33, 0.02, 0.18, 1)" },
+  { delay: "0.24s", duration: "1.22s", ease: "cubic-bezier(0.45, 0.06, 0.26, 1)" },
+  { delay: "0.38s", duration: "1.18s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+] as const;
+
 function drawTimingFor(variant: MotifVariant, index: number) {
-  const table = variant === "traverse" ? TRAVERSE_DRAW_TIMING : DRAW_TIMING;
+  const table =
+    variant === "traverse"
+      ? TRAVERSE_DRAW_TIMING
+      : variant === "mesh"
+        ? MESH_DRAW_TIMING
+        : DRAW_TIMING;
   return table[index] ?? table[table.length - 1];
 }
 
@@ -84,7 +108,6 @@ export default function ContourMotif({
     >
       {MOTIFS[variant].map((d, i) => {
         const draw = animateOnLoad ? drawTimingFor(variant, i) : null;
-        const thin = variant === "traverse";
         return (
           <path
             key={i}
@@ -93,7 +116,19 @@ export default function ContourMotif({
             stroke="currentColor"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={thin ? (i < 2 ? 1.05 : 0.82) : i % 2 === 0 ? 1.2 : 0.85}
+            strokeWidth={
+              variant === "traverse"
+                ? i < 2
+                  ? 1.05
+                  : 0.82
+                : variant === "mesh"
+                  ? i < 3
+                    ? 0.9
+                    : 0.78
+                  : i % 2 === 0
+                    ? 1.2
+                    : 0.85
+            }
             style={
               draw
                 ? {

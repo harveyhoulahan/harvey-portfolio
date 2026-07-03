@@ -94,6 +94,48 @@ const COYOTE = 6;
 const BUFFER = 8;
 const M_PER_PX = 0.12;
 const PB_KEY = "hjh-transect-pb";
+const FLAG_W = 10;
+const FLAG_CLEAR = 30; // min px between a flag pole and a hill / channel
+
+function rangesOverlap(a0: number, a1: number, b0: number, b1: number) {
+  return a0 < b1 && a1 > b0;
+}
+
+/** Hills and channels occupy the datum — keep benchmark flags out of their span. */
+function flagNearGroundObstacle(flagX: number, obstacles: Ob[]) {
+  const left = flagX - 6;
+  const right = flagX + FLAG_W + 6;
+  for (const o of obstacles) {
+    if (o.kind === "flock") continue;
+    if (rangesOverlap(left, right, o.x - FLAG_CLEAR, o.x + o.w + FLAG_CLEAR)) return true;
+  }
+  return false;
+}
+
+function findClearFlagX(w: number, obstacles: Ob[]) {
+  let fx = w + 24;
+  for (let i = 0; i < 80; i++) {
+    if (!flagNearGroundObstacle(fx, obstacles)) return fx;
+    fx += 18;
+  }
+  let fallback = w + 24;
+  for (const o of obstacles) {
+    if (o.kind !== "flock") fallback = Math.max(fallback, o.x + o.w + FLAG_CLEAR + 8);
+  }
+  return fallback;
+}
+
+/** When spawning patterns, nudge hills/channels past any flags already queued. */
+function clearObstacleX(x: number, w: number, kind: ObKind, flags: Flag[]) {
+  if (kind === "flock") return x;
+  let ox = x;
+  for (const f of flags) {
+    if (rangesOverlap(ox, ox + w, f.x - FLAG_CLEAR, f.x + FLAG_W + FLAG_CLEAR)) {
+      ox = f.x + FLAG_W + FLAG_CLEAR + 6;
+    }
+  }
+  return ox;
+}
 
 // Curated spawn patterns per speed tier. dx = extra px after previous item.
 type P = { kind: ObKind; w: number; h: number; dx: number }[];
@@ -307,6 +349,7 @@ export default function ElevationProfile() {
       let x = w + 30;
       for (const item of pat) {
         x += item.dx;
+        x = clearObstacleX(x, item.w, item.kind, s.flags);
         s.obstacles.push({ kind: item.kind, x, w: item.w, h: item.h, seed: Math.random() * 100 });
         x += item.w;
       }
@@ -333,10 +376,10 @@ export default function ElevationProfile() {
         s.spawnIn -= s.speed * dt;
         if (s.spawnIn <= 0) spawnPattern(s, w);
 
-        // benchmark flags every 250 m
+        // benchmark flags every 250 m — never on top of a hill or channel
         const m = s.dist * M_PER_PX;
         if (m + w * M_PER_PX > s.nextFlagM) {
-          s.flags.push({ x: w + 20, m: s.nextFlagM });
+          s.flags.push({ x: findClearFlagX(w, s.obstacles), m: s.nextFlagM });
           s.nextFlagM += 250;
         }
 

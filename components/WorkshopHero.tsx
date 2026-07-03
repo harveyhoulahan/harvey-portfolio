@@ -1,25 +1,23 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
+import NeuralMesh from "@/components/NeuralMesh";
 import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
-import { caseStudies } from "@/data/projects";
 
 export default function WorkshopHero() {
   const heroRef = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
   const headingStyles = useProximityHeadingStyles("scale(1.12)");
-
-  // Triple the list so the marquee loop reads as seamless.
-  const marqueeItems = [...caseStudies, ...caseStudies, ...caseStudies];
 
   return (
     <div
       ref={heroRef}
       className="graticule-grid relative overflow-hidden border-b border-contour"
     >
-      <div className="col-shell flex min-h-[70vh] max-w-work flex-col justify-between py-16 md:py-24">
+      {/* Neural mesh lives behind the headline — signals hop the plexus while
+          the type reacts to the same cursor above it. */}
+      <NeuralMesh className="absolute inset-0 h-full w-full" />
+      <div className="col-shell relative flex min-h-[70vh] max-w-work flex-col justify-between py-16 md:py-24">
         <div className="flex flex-1 flex-col justify-center">
           <span className="mono-label">Selected work · 2024–2026</span>
           <h1 className="mt-6 font-display leading-[0.85]">
@@ -42,34 +40,6 @@ export default function WorkshopHero() {
           </h1>
         </div>
 
-        {/* Auto-scrolling project name pills */}
-        <div className="mt-12 w-full overflow-hidden border-t border-contour pt-8">
-          <motion.div
-            className="flex w-max items-center gap-4"
-            animate={reduceMotion ? undefined : { x: ["0%", "-33.333%"] }}
-            transition={{
-              x: {
-                repeat: Infinity,
-                repeatType: "loop",
-                duration: 45,
-                ease: "linear",
-              },
-            }}
-          >
-            {marqueeItems.map((project, index) => (
-              <span
-                key={`${project.id}-${index}`}
-                className="inline-flex shrink-0 items-center gap-2 border border-contour bg-terrace px-5 py-2 font-mono text-xs uppercase tracking-[0.12em] text-ink/70"
-              >
-                <span
-                  className="h-1.5 w-1.5 bg-flow"
-                  aria-hidden
-                />
-                {project.company}
-              </span>
-            ))}
-          </motion.div>
-        </div>
       </div>
 
       <span className="pointer-events-none absolute right-6 top-8 hidden font-mono text-xs uppercase tracking-[0.3em] text-ink/40 md:block">
