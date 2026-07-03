@@ -17,7 +17,7 @@ export default function Experience() {
           <ContourMotif
             variant="traverse"
             animateOnLoad
-            className="contour-motif pointer-events-none absolute right-[clamp(3.5rem,16vw,8.5rem)] top-1/2 z-0 hidden h-36 w-28 -translate-y-1/2 rotate-[13deg] text-ink/[0.1] md:block lg:h-44 lg:w-32 lg:rotate-[11deg]"
+            className="contour-motif pointer-events-none absolute right-[clamp(3.5rem,16vw,8.5rem)] top-1/2 z-0 hidden h-40 w-32 -translate-y-1/2 rotate-[13deg] text-ink/[0.1] md:block lg:h-48 lg:w-36 lg:rotate-[11deg]"
           />
           <h1 className="relative z-10 font-display">Timeline</h1>
         </div>

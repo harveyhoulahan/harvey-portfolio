@@ -93,7 +93,7 @@ export default function ContourMotif({
             stroke="currentColor"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={thin ? (i < 2 ? 0.85 : 0.65) : i % 2 === 0 ? 1.2 : 0.85}
+            strokeWidth={thin ? (i < 2 ? 1.05 : 0.82) : i % 2 === 0 ? 1.2 : 0.85}
             style={
               draw
                 ? {
