@@ -25,7 +25,7 @@ export const caseStudies: CaseStudy[] = [
     id: "arbormeta",
     company: "ArborMeta",
     role: "Machine Learning Engineer",
-    period: "Byron Bay, NSW · 2026 – present",
+    period: "Byron Bay, NSW · 2025 – present",
     summary:
       "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:
@@ -229,8 +229,8 @@ export const personalProjects: PersonalProject[] = [
     links: [
       { label: "Run it live", href: "/genesis" },
       {
-        label: "Source",
-        href: "https://github.com/harveyhoulahan/harvey-portfolio",
+        label: "Training code",
+        href: "https://github.com/harveyhoulahan/harvey-portfolio/tree/main/ml/genesis",
         external: true,
       },
     ],

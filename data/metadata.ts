@@ -12,7 +12,7 @@ export const profile = {
   locationNext: "open to EU / US",
   timezone: "AEST",
   footerSubtitle:
-    "Spatial systems & simulations · Byron Bay · remote · open to relocate",
+    "ML systems, simulation & spatial engineering · Byron Bay · remote · open to relocate",
   coordinates: { lat: -28.6431, lng: 153.6122, label: "28.6431° S, 153.6122° E" },
 
   // Availability

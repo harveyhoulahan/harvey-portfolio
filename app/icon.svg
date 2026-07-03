@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- CALDERA-CIR mark: contour rings around a summit benchmark.
+       Paper ground, channel-teal contours, CIR-red summit dot. -->
+  <rect width="64" height="64" rx="12" fill="#ECEFEA"/>
+  <g fill="none" stroke="#14655A" stroke-linecap="round">
+    <circle cx="34" cy="31" r="22" stroke-width="3.5" opacity="0.45"/>
+    <circle cx="32" cy="33" r="15" stroke-width="4"/>
+    <circle cx="30" cy="34" r="8.5" stroke-width="4.5"/>
+  </g>
+  <rect x="26" y="30.5" width="7" height="7" fill="#B23A18" transform="rotate(45 29.5 34)"/>
+</svg>

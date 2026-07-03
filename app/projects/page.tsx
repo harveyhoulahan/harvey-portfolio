@@ -7,7 +7,7 @@ import { caseStudies, papers, personalProjects } from "@/data/projects";
 export const metadata: Metadata = {
   title: "Work — Harvey Houlahan",
   description:
-    "Case studies in geospatial ML infrastructure: ArborMeta carbon policy platform, Step One e-commerce search, FibreTrace product passport.",
+    "Case studies in applied ML and spatial systems: the ArborMeta carbon policy platform, Step One AI product search, and the FibreTrace product passport.",
 };
 
 export default function Projects() {

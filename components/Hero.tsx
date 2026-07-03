@@ -1,5 +1,5 @@
 import { ArrowUpRight, Download } from "lucide-react";
-import ByronMap from "@/components/ByronMap";
+import ByronMap from "@/components/ByronMapLazy";
 import ContourField from "@/components/ContourField";
 import GridReadout from "@/components/GridReadout";
 import { profile } from "@/data/metadata";
