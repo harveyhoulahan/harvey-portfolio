@@ -55,12 +55,15 @@ export default function Contact() {
         <span className="mono-label">{profile.availability}</span>
         <h1 className="mt-5 font-display">Get in touch.</h1>
         <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
-          Contract engagements in applied ML/AI systems — RAG pipelines,
-          fine-tuned open-source models, model deployment — and climate tech:
-          carbon MRV, biodiversity monitoring, precision agriculture and
-          environmental data infrastructure. {profile.locationNow}{" "}
+          Contract engagements in applied ML/AI systems: RAG pipelines,
+          fine-tuned open-source models, model deployment. Climate tech: carbon
+          MRV, biodiversity monitoring, precision agriculture and environmental
+          data infrastructure.
+        </p>
+        <p className="mt-4 font-mono text-sm text-ink/60">
+          {profile.locationNow}{" "}
           <span className="text-infra">→</span>{" "}
-          {profile.locationNext} · {profile.timezone} · remote.
+          {profile.locationNext} · {profile.timezone} · remote
         </p>
       </div>
 
