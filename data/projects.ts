@@ -25,7 +25,7 @@ export const caseStudies: CaseStudy[] = [
     id: "arbormeta",
     company: "ArborMeta",
     role: "Machine Learning Engineer",
-    period: "Byron Bay, NSW · 2026 – present",
+    period: "Byron Bay, NSW · 2025 – present",
     summary:
       "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:
@@ -220,10 +220,17 @@ export const personalProjects: PersonalProject[] = [
   {
     name: "Genesis — an artificial-life lab",
     blurb:
-      "Lenia-class continuous cellular automata evolving live on the GPU, plus CLIP-guided evolutionary search (separable CMA-ES): describe a lifeform in plain English and the optimiser coaxes it out of the simulation. Entirely client-side — the foundation model runs in your browser.",
-    tags: ["WebGPU", "CLIP", "CMA-ES", "Artificial Life"],
+      "Particle Life on the GPU — flocking, wind, predation waves — summoned from a text prompt. An in-browser CLIP model scores each candidate world with a contrastive, multi-view fitness while a separable CMA-ES breeds a 51-gene genome, warm-started from a trained prior: an offline pipeline evolves genomes for dozens of concepts against the same model, and the prompt retrieves the nearest in embedding space. Entirely client-side.",
+    tags: ["WebGPU", "CLIP", "CMA-ES", "Embedding Retrieval", "Artificial Life"],
     year: "2026",
-    links: [{ label: "Run it live", href: "/genesis" }],
+    links: [
+      { label: "Run it live", href: "/genesis" },
+      {
+        label: "Training code",
+        href: "https://github.com/harveyhoulahan/harvey-portfolio/tree/main/ml/genesis",
+        external: true,
+      },
+    ],
   },
   {
     name: "Modaics",

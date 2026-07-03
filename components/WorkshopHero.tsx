@@ -21,7 +21,7 @@ export default function WorkshopHero() {
     >
       <div className="col-shell flex min-h-[70vh] max-w-work flex-col justify-between py-16 md:py-24">
         <div className="flex flex-1 flex-col justify-center">
-          <span className="mono-label">Selected work · 2021–2026</span>
+          <span className="mono-label">Selected work · 2024–2026</span>
           <h1 className="mt-6 font-display leading-[0.85]">
             <TextCursorProximity
               label="THE"
@@ -73,7 +73,7 @@ export default function WorkshopHero() {
       </div>
 
       <span className="pointer-events-none absolute right-6 top-8 hidden font-mono text-xs uppercase tracking-[0.3em] text-ink/40 md:block">
-        2021—2026
+        2024—2026
       </span>
     </div>
   );

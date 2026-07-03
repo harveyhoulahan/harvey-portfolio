@@ -5,7 +5,8 @@ import ContourMotif from "@/components/ContourMotif";
 import { profile } from "@/data/metadata";
 
 export default function Contact() {
-  const [formData, setFormData] = useState({ name: "", email: "", message: "" });
+  // `company` is a honeypot — visually hidden, humans never fill it, bots do.
+  const [formData, setFormData] = useState({ name: "", email: "", message: "", company: "" });
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -22,7 +23,7 @@ export default function Contact() {
       const data = await res.json();
       if (res.ok) {
         setStatus("sent");
-        setFormData({ name: "", email: "", message: "" });
+        setFormData({ name: "", email: "", message: "", company: "" });
         setTimeout(() => setStatus("idle"), 5000);
       } else {
         setStatus("error");
@@ -108,6 +109,17 @@ export default function Contact() {
 
         {/* Minimal message form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Honeypot — off-screen and skipped by keyboard/screen readers */}
+          <input
+            type="text"
+            name="company"
+            value={formData.company}
+            onChange={handleChange}
+            tabIndex={-1}
+            autoComplete="off"
+            aria-hidden="true"
+            className="absolute -left-[9999px] h-0 w-0 opacity-0"
+          />
           <input
             type="text"
             name="name"

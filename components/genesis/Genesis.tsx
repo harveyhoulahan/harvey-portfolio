@@ -1543,7 +1543,7 @@ export default function Genesis() {
       {status === "nogpu" && (
         <Center>
           This live simulation needs WebGPU, which your browser/device doesn’t expose.
-          Try the latest Chrome, Edge, or Safari. (A static gallery fallback lands in M2.)
+          Try the latest Chrome or Edge, or Safari on iOS&nbsp;26 / macOS&nbsp;26+.
         </Center>
       )}
       {status === "error" && <Center>Couldn’t start the simulation: {err}</Center>}
