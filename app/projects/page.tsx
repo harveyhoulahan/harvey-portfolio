@@ -79,8 +79,15 @@ export default function Projects() {
           <div className="mt-8 grid grid-cols-1 gap-px overflow-hidden border border-contour bg-contour md:grid-cols-2">
             {personalProjects.map((project) => (
               <div key={project.name} className="flex flex-col bg-terrace p-7">
-                <div className="flex items-baseline justify-between gap-4">
-                  <h3 className="font-display text-xl">{project.name}</h3>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="font-display text-xl">{project.name}</h3>
+                    {project.subtitle && (
+                      <p className="mt-1 font-mono text-xs tracking-[0.06em] text-ink/50">
+                        {project.subtitle}
+                      </p>
+                    )}
+                  </div>
                   {project.year && (
                     <span className="font-mono text-xs text-ink/40">
                       {project.status ?? project.year}

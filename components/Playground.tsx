@@ -22,7 +22,7 @@ const DEMOS = [
     blurb:
       "Thousands of particles flock, chase, and predate on your GPU. Describe a swarm in plain text and CLIP scores it while an evolutionary search nudges the sim toward what you asked for.",
     meta: "WebGPU · particle life · CLIP · CMA-ES",
-    motif: "rings" as const,
+    motif: "swarm" as const,
   },
 ] as const;
 

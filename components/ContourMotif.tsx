@@ -22,6 +22,22 @@ const MOTIFS = {
     "M20 20 C 40 60, 70 90, 110 80",
     "M110 80 C 120 105, 118 125, 130 148",
   ],
+  // Scattered organic loops — particle-life swarms, not concentric rings.
+  swarm: [
+    "M 132 22 C 118 10, 148 8, 162 22 C 176 36, 158 52, 140 46 C 122 40, 128 28, 132 22 Z",
+    "M 168 48 C 156 38, 182 34, 192 50 C 202 66, 184 76, 168 70 C 152 64, 160 52, 168 48 Z",
+    "M 118 58 C 108 48, 128 42, 138 54 C 148 66, 132 74, 120 68 C 108 62, 112 54, 118 58 Z",
+    "M 145 82 C 158 74, 178 78, 186 94 C 194 110, 172 118, 154 110 C 136 102, 132 90, 145 82 Z",
+  ],
+  // Slanted, hand-drawn timeline ladder — rails lean right, rungs wobble subtly.
+  traverse: [
+    "M 68 12 C 70 42, 66 72, 74 102 C 78 132, 72 148, 84 156",
+    "M 104 8 C 108 38, 102 68, 110 98 C 114 128, 106 146, 118 154",
+    "M 72 36 C 84 34, 96 38, 108 36",
+    "M 74 68 C 86 66, 98 70, 110 68",
+    "M 76 100 C 88 98, 100 102, 112 100",
+    "M 78 132 C 90 130, 102 134, 114 132",
+  ],
 } as const;
 
 export type MotifVariant = keyof typeof MOTIFS;
@@ -33,6 +49,21 @@ const DRAW_TIMING = [
   { delay: "0.65s", duration: "1.45s", ease: "cubic-bezier(0.38, 0.04, 0.22, 1)" },
   { delay: "0.22s", duration: "1.05s", ease: "cubic-bezier(0.48, 0.08, 0.26, 1)" },
 ] as const;
+
+/** Timeline ladder — spine and rails draw down, rungs follow top to bottom. */
+const TRAVERSE_DRAW_TIMING = [
+  { delay: "0s", duration: "1.4s", ease: "cubic-bezier(0.33, 0.02, 0.18, 1)" },
+  { delay: "0.1s", duration: "1.4s", ease: "cubic-bezier(0.35, 0.03, 0.2, 1)" },
+  { delay: "0.45s", duration: "0.34s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+  { delay: "0.58s", duration: "0.34s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+  { delay: "0.71s", duration: "0.34s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+  { delay: "0.84s", duration: "0.34s", ease: "cubic-bezier(0.4, 0.05, 0.25, 1)" },
+] as const;
+
+function drawTimingFor(variant: MotifVariant, index: number) {
+  const table = variant === "traverse" ? TRAVERSE_DRAW_TIMING : DRAW_TIMING;
+  return table[index] ?? table[table.length - 1];
+}
 
 export default function ContourMotif({
   variant,
@@ -52,7 +83,8 @@ export default function ContourMotif({
       style={{ ["--motif-len" as string]: 480 }}
     >
       {MOTIFS[variant].map((d, i) => {
-        const draw = animateOnLoad ? DRAW_TIMING[i] : null;
+        const draw = animateOnLoad ? drawTimingFor(variant, i) : null;
+        const thin = variant === "traverse";
         return (
           <path
             key={i}
@@ -61,7 +93,7 @@ export default function ContourMotif({
             stroke="currentColor"
             strokeLinecap="round"
             strokeLinejoin="round"
-            strokeWidth={i % 2 === 0 ? 1.2 : 0.85}
+            strokeWidth={thin ? (i < 2 ? 0.85 : 0.65) : i % 2 === 0 ? 1.2 : 0.85}
             style={
               draw
                 ? {

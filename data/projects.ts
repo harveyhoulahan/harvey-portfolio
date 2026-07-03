@@ -193,6 +193,7 @@ export const papers: Paper[] = [
 
 export interface PersonalProject {
   name: string;
+  subtitle?: string;
   blurb: string;
   tags: string[];
   year?: string;
@@ -203,7 +204,8 @@ export interface PersonalProject {
 // Things built outside of client work.
 export const personalProjects: PersonalProject[] = [
   {
-    name: "Catchment — physics vs neural",
+    name: "catchment",
+    subtitle: "physics vs neural",
     blurb:
       "A browser-native Earth engine: shallow-water hydrology, erosion, and wind-driven fire in raw WebGPU. A convolutional neural operator trains against the solver, exports to hand-written WGSL compute passes, and races the real physics with a live error field. No servers, no runtime dependency.",
     tags: ["WebGPU", "Neural Operators", "PyTorch", "WGSL", "Shallow-water"],
@@ -218,7 +220,8 @@ export const personalProjects: PersonalProject[] = [
     ],
   },
   {
-    name: "Genesis — an artificial-life lab",
+    name: "genesis",
+    subtitle: "artificial life lab",
     blurb:
       "Particle Life on the GPU: flocking, chase, and predation waves, summoned from a text prompt. In-browser CLIP scores candidate worlds while a separable CMA-ES search breeds the simulation toward the description. Entirely client-side.",
     tags: ["WebGPU", "CLIP", "CMA-ES", "Embedding Retrieval", "Artificial Life"],
@@ -242,13 +245,13 @@ export const personalProjects: PersonalProject[] = [
     links: [
       {
         label: "GitHub",
-        href: "https://github.com/harveyhoulahan/agri-iq",
+        href: "https://github.com/harveyhoulahan/smart-ear-tag",
         external: true,
       },
     ],
   },
   {
-    name: "Modaics",
+    name: "modaics",
     blurb:
       "Digital wardrobe and sustainable-fashion marketplace with AI styling. Built through the RMIT Activator accelerator program.",
     tags: ["Computer Vision", "NLP", "React Native", "Swift"],
