@@ -12,8 +12,10 @@
  * a validated numpy reference. Raw WebGPU, dependency-free, graceful fallback.
  */
 
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import Terminal from "@/components/catchment/Terminal";
+import type { CatchmentBus } from "@/lib/catchment/terminal-core";
 import { decodeDEM, sampleElev, type CatchmentDEM, type CatchmentDEMRaw } from "@/lib/catchment/dem";
 import { isMobilePhone } from "@/lib/is-mobile-phone";
 import { perspectiveZO, lookAt, multiply, invert, transformVec4, orbitEye, type Vec3, type Mat4 } from "@/lib/catchment/mat4";
@@ -157,10 +159,8 @@ export default function Catchment() {
   const [storm, setStorm] = useState(0); // 0 = steady drizzle, 1 = one wind-driven storm cell
   const [mode, setMode] = useState<Mode>("orbit");
   const [pick, setPick] = useState<Pick>(null);
-  const [collapsed, setCollapsed] = useState(true); // opens minimised — one tap to expand
-  const [neuralCollapsed, setNeuralCollapsed] = useState(true);
-  const [openGroups, setOpenGroups] = useState({ water: false, wind: false, light: false });
-  const toggleGroup = (k: "water" | "wind" | "light") => setOpenGroups((g) => ({ ...g, [k]: !g[k] }));
+  // The terminal is the primary control surface; sliders appear on request.
+  const [showControls, setShowControls] = useState(false);
   const [windDeg, setWindDeg] = useState(90);
   const [windSpeed, setWindSpeed] = useState(1.2);
   const [surrogateStatus, setSurrogateStatus] = useState<SurrogateStatus>("idle");
@@ -175,7 +175,6 @@ export default function Catchment() {
   const [maps, setMaps] = useState<MapInfo[]>([]);
   const [mapId, setMapId] = useState("hinterland");
   const [secretUnlocked, setSecretUnlocked] = useState(false);
-  const liveClicks = useRef(0);
   const activeMap = maps.find((m) => m.id === mapId);
   const mapFile = activeMap ? `/catchment/${activeMap.file}` : "/catchment/dem.json";
   const visibleMaps = maps.filter((m) => !m.secret || secretUnlocked);
@@ -200,6 +199,74 @@ export default function Catchment() {
   useEffect(() => { stormRef.current = storm; }, [storm]);
   useEffect(() => { modeRef.current = mode; }, [mode]);
   useEffect(() => { windRef.current = { deg: windDeg, speed: windSpeed }; }, [windDeg, windSpeed]);
+  // Ref mirrors for the terminal bus: it reads live values without re-rendering.
+  const mapIdRef = useRef(mapId);
+  const mapsRef = useRef<MapInfo[]>([]);
+  const secretRef = useRef(false);
+  const modelAvailableRef = useRef(false);
+  const surrogateNoteRef = useRef("");
+  useEffect(() => { mapIdRef.current = mapId; }, [mapId]);
+  useEffect(() => { mapsRef.current = maps; }, [maps]);
+  useEffect(() => { secretRef.current = secretUnlocked; }, [secretUnlocked]);
+  useEffect(() => { modelAvailableRef.current = modelAvailable; }, [modelAvailable]);
+  useEffect(() => {
+    surrogateNoteRef.current =
+      `${surrogateStatus === "exporting" ? "exporting… " : ""}${surrogateMsg}` +
+      `${teacherFrames ? ` · ${teacherFrames} frame${teacherFrames === 1 ? "" : "s"} exported` : ""}`;
+  }, [surrogateStatus, surrogateMsg, teacherFrames]);
+
+  // Everything the terminal can do, in one stable object: snapshots read the
+  // live refs, setters funnel into exactly the same state the sliders drive —
+  // one code path into the sim, no matter who is talking.
+  const bus = useMemo<CatchmentBus>(() => ({
+    snapshot: () => ({
+      rain: Math.round((rainRef.current / 0.02) * 100),
+      storm: Math.round(stormRef.current * 100),
+      erosion: Math.round((eroRef.current / 1.5) * 100),
+      wind: Math.round((windRef.current.speed / 3) * 100),
+      relief: Math.round(((exagRef.current - 0.2) / 0.7) * 100),
+      bearing: Math.round(windRef.current.deg),
+      sun: Math.round(sunRef.current),
+      mode: modeRef.current,
+      world: mapIdRef.current,
+      worlds: mapsRef.current.map((m) => ({ id: m.id, name: m.name, tagline: m.tagline, secret: m.secret })),
+      secretUnlocked: secretRef.current,
+      neural: modelAvailableRef.current ? (neuralOnRef.current ? "neural" : "physics") : "unavailable",
+      neuralNote: modelAvailableRef.current ? "" : surrogateNoteRef.current,
+    }),
+    setParam: (key, pct) => {
+      const t = Math.min(100, Math.max(0, pct)) / 100;
+      if (key === "rain") setRain(t * 0.02);
+      else if (key === "storm") setStorm(t);
+      else if (key === "erosion") setEro(t * 1.5);
+      else if (key === "wind") setWindSpeed(t * 3);
+      else setExag(0.2 + t * 0.7);
+    },
+    setBearing: setWindDeg,
+    setSun: setSunDeg,
+    setMode,
+    reset: () => { resetNowRef.current?.(); resetRef.current = true; setPick(null); },
+    setWorld: (id) => { setMapId(id); setPick(null); },
+    unlockSecret: () => setSecretUnlocked(true),
+    setNeural: (on) => {
+      if (!modelAvailableRef.current) return false;
+      if (on) neuralReseedRef.current = true;
+      setNeuralOn(on);
+      return true;
+    },
+    resyncNeural: () => {
+      if (!modelAvailableRef.current || !neuralOnRef.current) return false;
+      neuralReseedRef.current = true;
+      return true;
+    },
+    exportTeacher: () => {
+      if (!exportTeacherFrameRef.current) return false;
+      void exportTeacherFrameRef.current();
+      return true;
+    },
+    setControls: setShowControls,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
   // Load the map manifest once (a future-proof world list; secret worlds gated below).
   useEffect(() => {
     let alive = true;
@@ -319,28 +386,53 @@ export default function Catchment() {
         beachStrength[i] = 1 - s;
       }
 
-      const bedInit = new Float32Array(total);
-      for (let i = 0; i < total; i++) {
-        const r = Math.floor(i / n), c = i % n;
-        const dist = Math.min(Math.min(c, n - 1 - c), Math.min(r, n - 1 - r)) / (n - 1);
-        const t = Math.min(1, dist / 0.10);
-        const fade = t * t * (3 - 2 * t); // smoothstep: 0 at edges, 1 beyond 10% inward
-        bedInit[i] = elevField[i] * HSCALE * fade;
-      }
+      let anyOcean = false;
+      for (let i = 0; i < total; i++) if (dem.ocean[i]) { anyOcean = true; break; }
 
-      // Ocean-side shoreline: distance (in cells) from each ocean cell back to land,
-      // so the sea can shallow to turquoise and break into surf as it nears the sand.
+      // Ocean-side shoreline: distance (in cells) from each ocean cell back to
+      // land. The near band drives turquoise shallows + surf; the full field
+      // drives the bathymetry below.
       const SHORE_CELLS = 6;
+      const BATHY_CELLS = 10;
       const distLand = new Int32Array(total).fill(-1);
       qh = 0; qt = 0;
       for (let i = 0; i < total; i++) if (!dem.ocean[i]) { distLand[i] = 0; bfsQ[qt++] = i; }
       while (qh < qt) {
         const i = bfsQ[qh++], r = (i / n) | 0, c = i % n, dd = distLand[i];
-        if (dd >= SHORE_CELLS) continue;           // only the surf band needs filling
+        if (dd >= BATHY_CELLS) continue;           // shelf fully deep past this band
         if (c > 0 && distLand[i - 1] < 0 && dem.ocean[i - 1]) { distLand[i - 1] = dd + 1; bfsQ[qt++] = i - 1; }
         if (c < n - 1 && distLand[i + 1] < 0 && dem.ocean[i + 1]) { distLand[i + 1] = dd + 1; bfsQ[qt++] = i + 1; }
         if (r > 0 && distLand[i - n] < 0 && dem.ocean[i - n]) { distLand[i - n] = dd + 1; bfsQ[qt++] = i - n; }
         if (r < n - 1 && distLand[i + n] < 0 && dem.ocean[i + n]) { distLand[i + n] = dd + 1; bfsQ[qt++] = i + n; }
+      }
+
+      // Bathymetry: the DEM records ocean cells at ~sea level (it is a surface
+      // model, not a nautical chart), so the sea floor sat millimetres under
+      // the waves and the ocean read as a film rolling over dry ground.
+      // Excavate a continental shelf that deepens with distance from shore —
+      // the water shader's depth ramp then gets a real column to work with.
+      const MAX_DEPTH = SEA_ELEV * 0.9;            // floor bottoms just above bedrock zero
+      for (let i = 0; i < total; i++) {
+        if (!dem.ocean[i]) continue;
+        const dl = distLand[i] < 0 ? BATHY_CELLS : Math.min(distLand[i], BATHY_CELLS);
+        // Real coasts drop fast: a step right off the sand, full depth within
+        // the band. Keeps island channels (archipelago!) honestly deep instead
+        // of leaving stone visible between every pair of peaks.
+        const shelf = Math.min(1, 0.35 + 0.65 * ((dl - 1) / (BATHY_CELLS - 1)));
+        elevField[i] = Math.min(elevField[i], SEA_ELEV - MAX_DEPTH * shelf);
+      }
+
+      // Pedestal edge fade eases coastal maps into the skirt. A landlocked
+      // world keeps its full rim and gets a clean cross-section cut instead:
+      // fading its edges to zero digs a below-sea-level moat that rain then
+      // fills with phantom "ocean" ringing the whole diorama.
+      const bedInit = new Float32Array(total);
+      for (let i = 0; i < total; i++) {
+        const r = Math.floor(i / n), c = i % n;
+        const dist = Math.min(Math.min(c, n - 1 - c), Math.min(r, n - 1 - r)) / (n - 1);
+        const t = Math.min(1, dist / 0.10);
+        const fade = anyOcean ? t * t * (3 - 2 * t) : 1; // smoothstep: 0 at edges, 1 beyond 10% inward
+        bedInit[i] = Math.max(elevField[i] * HSCALE, 0) * fade;
       }
 
       // flags bits 2–5 carry a 0–15 "shore strength": beach proximity on land cells,
@@ -1171,7 +1263,7 @@ export default function Catchment() {
       // A translucent vertical face along the whole perimeter from the waving sea
       // surface down to the seabed; land-height columns are degenerate and vanish.
       let wallPipe: any = null, bgWall: any = null, wallCount = 0;
-      try {
+      if (anyOcean) try {
         const wallMod = cs(RENDER_OCEANWALL_WGSL);
         wallPipe = device.createRenderPipeline({
           layout: "auto",
@@ -1192,19 +1284,27 @@ export default function Catchment() {
         });
         const wv: number[] = [];
         const wpack = (cell: number, band: number) => cell | (band << 28);
+        // Only genuinely oceanic border columns get a cut face. Land borders
+        // sit below sea level too (the pedestal fade), but drawing sea there
+        // hangs a phantom blue wall off dry coastline.
         const wstrip = (a: number, b: number) => {
+          if (!dem.ocean[a] && !dem.ocean[b]) return;
           wv.push(wpack(a, 0), wpack(a, 1), wpack(b, 0), wpack(b, 0), wpack(a, 1), wpack(b, 1));
         };
         for (let c = 0; c < n - 1; c++) wstrip(c, c + 1);                               // north
         for (let c = 0; c < n - 1; c++) wstrip((n - 1) * n + c, (n - 1) * n + c + 1);   // south
         for (let r = 0; r < n - 1; r++) wstrip(r * n, (r + 1) * n);                     // west
         for (let r = 0; r < n - 1; r++) wstrip(r * n + (n - 1), (r + 1) * n + (n - 1)); // east
-        const wallBuf = mkBuf(new Uint32Array(wv), ST);
-        wallCount = wv.length;
-        bgWall = device.createBindGroup({
-          layout: wallPipe.getBindGroupLayout(0),
-          entries: [ruBuf, bedBuf, wallBuf].map((buffer, binding) => ({ binding, resource: { buffer } })),
-        });
+        if (wv.length) {
+          const wallBuf = mkBuf(new Uint32Array(wv), ST);
+          wallCount = wv.length;
+          bgWall = device.createBindGroup({
+            layout: wallPipe.getBindGroupLayout(0),
+            entries: [ruBuf, bedBuf, wallBuf].map((buffer, binding) => ({ binding, resource: { buffer } })),
+          });
+        } else {
+          wallPipe = null; // ocean exists but never touches the border — no cut face
+        }
       } catch (e) { console.warn("[catchment] ocean wall unavailable:", e); wallPipe = null; }
 
       // ---- M4: neural surrogate (GPU inference). Fully gated + isolated: if a
@@ -1534,164 +1634,89 @@ export default function Catchment() {
   return (
     <>
     <div className="relative h-[calc(100svh-4rem)] w-full overflow-hidden bg-concrete">
+      {/* dangerouslySetInnerHTML: React escapes quotes in SSR'd <style> text, which breaks hydration */}
+      <style dangerouslySetInnerHTML={{ __html: PANEL_CSS }} />
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full touch-none"
         style={{ display: "block", cursor: status === "running" ? (mode === "orbit" ? "grab" : "crosshair") : "default" }}
         aria-label="Interactive 3D catchment with live water and fire simulation." />
       <canvas ref={rainCanvasRef} className="cm-rain-canvas h-full w-full" aria-hidden="true" />
+      {/* title plate — frosted dark card matching the Genesis header; retires on first interaction */}
       <div className="pointer-events-none absolute left-0 top-0 z-[5] p-6"
         style={{ opacity: everInteracted ? 0 : 1, transition: "opacity .7s ease" }}>
-        <span className="mono-label">catchment · live</span>
-        <h1 className="mt-2 font-display text-3xl text-ink md:text-4xl">A living catchment</h1>
-        <p className="mt-2 max-w-sm text-sm text-ink/60">
-          Real terrain, live on your GPU. Rain carves it, fire runs with the wind.
-          Drag to orbit; pour, ignite, watch them fight.
-        </p>
+        <div style={{
+          maxWidth: 380, color: "#FBFAF7",
+          background: "linear-gradient(135deg, rgba(20,22,20,0.62), rgba(20,22,20,0.40))",
+          backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
+          border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
+          padding: "16px 20px", boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+        }}>
+          <div style={{ fontSize: 11, letterSpacing: 2.5, textTransform: "uppercase", color: "#C4A882", fontWeight: 600 }}>
+            catchment · i
+          </div>
+          <h1 style={{ fontSize: 27, margin: "7px 0 5px", fontWeight: 600, letterSpacing: -0.3, color: "#FBFAF7" }}>
+            A living catchment
+          </h1>
+          <p style={{ fontSize: 13.5, lineHeight: 1.55, color: "rgba(247,245,240,0.78)", margin: 0 }}>
+            Real terrain on your GPU — rain carves it, fire runs with the wind.
+            Drag to orbit; the terminal speaks english: try &ldquo;make it storm&rdquo;.
+          </p>
+        </div>
       </div>
 
-      {status === "running" && (
-        <div className={`cm-panel pointer-events-auto absolute bottom-0 left-0 m-5${collapsed ? " is-collapsed" : ""}${uiVisible ? "" : " is-faded"}`}>
-          <style>{PANEL_CSS}</style>
+      {status === "running" && <Terminal bus={bus} faded={!uiVisible} />}
+
+      {status === "running" && showControls && (
+        <div className={`cm-panel pointer-events-auto absolute bottom-0 right-0 m-5${uiVisible ? "" : " is-faded"}`}>
           <div className="cm-head">
             <span className="cm-title">Controls</span>
-            <div className="cm-right">
-              {!collapsed && (
-                <span
-                  className="cm-live"
-                  role="button"
-                  tabIndex={0}
-                  title="live"
-                  onClick={() => {
-                    liveClicks.current += 1;
-                    if (liveClicks.current >= 5 && !secretUnlocked) setSecretUnlocked(true);
-                  }}
-                ><i />{secretUnlocked ? "✦ live" : "live"}</span>
-              )}
-              <button className="cm-collapse" aria-label={collapsed ? "Expand controls" : "Collapse controls"} onClick={() => setCollapsed((v) => !v)}>{collapsed ? "+" : "–"}</button>
-            </div>
+            <button className="cm-collapse" aria-label="Close controls" onClick={() => setShowControls(false)}>✕</button>
           </div>
-          {!collapsed && (
+          {visibleMaps.length > 1 && (
             <>
-              {visibleMaps.length > 1 && (
-                <>
-                  <div className="cm-section">World</div>
-                  <select className="cm-select" value={mapId} onChange={(e) => { setMapId(e.target.value); setPick(null); }}>
-                    {visibleMaps.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
-                  </select>
-                  {activeMap?.tagline && <p className="cm-tagline">{activeMap.tagline}</p>}
-                </>
-              )}
-              <div className="cm-seg">
-                <button data-active={mode === "orbit"} onClick={() => setMode("orbit")}>Orbit</button>
-                <button data-active={mode === "pour"} onClick={() => setMode("pour")}>Pour</button>
-                <button data-active={mode === "ignite"} onClick={() => setMode("ignite")}>Ignite</button>
-                <button data-active={mode === "meteor"} onClick={() => setMode("meteor")}>Meteor</button>
-              </div>
-              <button className="cm-reset-btn" onClick={() => { resetNowRef.current?.(); resetRef.current = true; setPick(null); }}>Reset</button>
-              <button className="cm-group" onClick={() => toggleGroup("water")} aria-expanded={openGroups.water}>
-                <span>Water</span><span className="cm-chevron">{openGroups.water ? "▾" : "▸"}</span>
-              </button>
-              {openGroups.water && (
-                <>
-                  <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
-                    value={rain} onChange={(e) => setRain(+e.target.value)} />
-                  <Ctl label="storm" display={storm < 0.05 ? "steady" : `${Math.round(storm * 100)}`} min={0} max={1} step={0.05}
-                    value={storm} onChange={(e) => setStorm(+e.target.value)} />
-                  <Ctl label="erosion" display={`${Math.round((ero / 1.5) * 100)}`} min={0} max={1.5} step={0.02}
-                    value={ero} onChange={(e) => setEro(+e.target.value)} />
-                </>
-              )}
-              <button className="cm-group" onClick={() => toggleGroup("wind")} aria-expanded={openGroups.wind}>
-                <span>Wind</span><span className="cm-chevron">{openGroups.wind ? "▾" : "▸"}</span>
-              </button>
-              {openGroups.wind && (
-                <>
-                  <Ctl label="strength" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
-                    value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
-                  <Ctl label="bearing" display={`${Math.round(windDeg)}°`} min={0} max={360} step={1}
-                    value={windDeg} onChange={(e) => setWindDeg(+e.target.value)} />
-                </>
-              )}
-              <button className="cm-group" onClick={() => toggleGroup("light")} aria-expanded={openGroups.light}>
-                <span>Light</span><span className="cm-chevron">{openGroups.light ? "▾" : "▸"}</span>
-              </button>
-              {openGroups.light && (
-                <>
-                  <Ctl label="sun" display={`${Math.round(sunDeg)}°`} min={0} max={360} step={1}
-                    value={sunDeg} onChange={(e) => setSunDeg(+e.target.value)} />
-                  <Ctl label="relief" display={`${Math.round(((exag - 0.2) / 0.7) * 100)}`} min={0.2} max={0.9} step={0.01}
-                    value={exag} onChange={(e) => setExag(+e.target.value)} />
-                </>
-              )}
-              <p className="cm-hint">
-                {mode === "pour" ? "Drag the terrain to pour water."
-                  : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
-                    : mode === "meteor" ? "Hold to charge, release to strike — bigger rocks hit harder: stony, iron, then volatile. Crater, shock and fire all feed the sim."
-                  : "Drag to orbit · click to inspect."}
-              </p>
+              <div className="cm-section">World</div>
+              <select className="cm-select" value={mapId} onChange={(e) => { setMapId(e.target.value); setPick(null); }}>
+                {visibleMaps.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}
+              </select>
+              {activeMap?.tagline && <p className="cm-tagline">{activeMap.tagline}</p>}
             </>
           )}
-        </div>
-      )}
-
-      {status === "running" && (
-        <div className={`cm-neural pointer-events-auto absolute bottom-0 right-0 m-5 mb-12${uiVisible ? "" : " is-faded"}`}>
-          <div className="cm-neural-title">
-            <span>M4 neural surrogate</span>
-            <div className="cm-right">
-              {!neuralCollapsed && (
-                <span className="cm-neural-pill">{modelAvailable ? (neuralOn ? "neural live" : "physics") : "teacher"}</span>
-              )}
-              <button
-                className="cm-collapse"
-                aria-label={neuralCollapsed ? "Expand surrogate" : "Collapse surrogate"}
-                onClick={() => setNeuralCollapsed((v) => !v)}
-              >{neuralCollapsed ? "+" : "–"}</button>
-            </div>
+          <div className="cm-section">Mode</div>
+          <div className="cm-seg">
+            <button data-active={mode === "orbit"} onClick={() => setMode("orbit")}>Orbit</button>
+            <button data-active={mode === "pour"} onClick={() => setMode("pour")}>Pour</button>
+            <button data-active={mode === "ignite"} onClick={() => setMode("ignite")}>Ignite</button>
+            <button data-active={mode === "meteor"} onClick={() => setMode("meteor")}>Meteor</button>
           </div>
-          {!neuralCollapsed && (modelAvailable ? (
-            <>
-              <p className="cm-neural-copy">
-                A neural operator runs its own water on the GPU. Flip teacher (physics) ↔ student
-                (neural) and watch where it drifts.
-              </p>
-              <div className="cm-seg" style={{ marginTop: 8 }}>
-                <button data-active={!neuralOn} onClick={() => setNeuralOn(false)}>Physics</button>
-                <button data-active={neuralOn} onClick={() => { neuralReseedRef.current = true; setNeuralOn(true); }}>Neural</button>
-              </div>
-              <button className="cm-neural-btn" onClick={() => { neuralReseedRef.current = true; }}>Resync to physics</button>
-              <p className="cm-neural-copy">{neuralOn ? "Student: the network is stepping the water forward." : "Teacher: virtual-pipes shallow water."}</p>
-            </>
-          ) : (
-            <>
-              <p className="cm-neural-copy">
-                Export live physics frames, train with <code>ml/train_surrogate.py</code>, then drop
-                <code>surrogate.json</code> in <code>public/catchment/</code> to unlock live inference.
-              </p>
-              <div className="cm-neural-grid">
-                <div className="cm-neural-stat"><span>Frames</span><strong>{teacherFrames}</strong></div>
-                <div className="cm-neural-stat"><span>Model</span><strong>{surrogateStatus}</strong></div>
-              </div>
-              <button
-                className="cm-neural-btn"
-                disabled={surrogateStatus === "exporting"}
-                onClick={() => void exportTeacherFrameRef.current?.()}
-              >
-                {surrogateStatus === "exporting" ? "Exporting" : "Export Teacher Frame"}
-              </button>
-              <p className="cm-neural-copy">{surrogateMsg}</p>
-            </>
-          ))}
+          <Ctl label="rain" display={`${Math.round((rain / 0.02) * 100)}`} min={0} max={0.02} step={0.0005}
+            value={rain} onChange={(e) => setRain(+e.target.value)} />
+          <Ctl label="wind" display={`${Math.round((windSpeed / 3) * 100)}`} min={0} max={3} step={0.05}
+            value={windSpeed} onChange={(e) => setWindSpeed(+e.target.value)} />
+          <button className="cm-reset-btn" onClick={() => { resetNowRef.current?.(); resetRef.current = true; setPick(null); }}>Reset</button>
+          <p className="cm-hint">
+            {mode === "pour" ? "Drag the terrain to pour water."
+              : mode === "ignite" ? "Click to start a fire — wind and slope steer it; water stops it."
+                : mode === "meteor" ? "Hold to charge, release to strike — bigger rocks hit harder."
+                  : "Drag to orbit · click to inspect."}
+            {" "}Everything else lives in the terminal — type help.
+          </p>
         </div>
       )}
 
+      {/* inspect readout — fixed dark plate (terminal family), legible over the
+          bright sky in either site theme; Tailwind can't alpha var() colors so
+          the background is explicit */}
       {status === "running" && pick && (
-        <div className="absolute right-0 top-0 m-4 border border-hairline bg-concrete/90 px-4 py-3 backdrop-blur-sm"
-          style={{ opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
-          <span className="mono-label">Inspected point</span>
-          <dl className="mt-2 space-y-1 font-mono text-xs text-ink/75">
-            <div className="flex justify-between gap-6"><dt className="text-ink/45">Elevation</dt><dd>{pick.elevM} m</dd></div>
-            <div className="flex justify-between gap-6"><dt className="text-ink/45">Slope</dt><dd>{pick.slopeDeg}°</dd></div>
-            <div className="flex justify-between gap-6"><dt className="text-ink/45">Coords</dt><dd>{pick.lat.toFixed(3)}, {pick.lng.toFixed(3)}</dd></div>
+        <div className="absolute right-0 top-0 m-4 px-4 py-3"
+          style={{
+            opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease",
+            background: "rgba(26,26,24,0.88)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+            border: "1px solid rgba(216,211,200,0.22)", borderLeft: "2px solid #4A6741",
+          }}>
+          <span className="font-mono text-[0.62rem] uppercase tracking-[0.18em]" style={{ color: "#8FAE83" }}>inspect</span>
+          <dl className="mt-2 space-y-1 font-mono text-xs" style={{ color: "rgba(247,245,240,0.88)" }}>
+            <div className="flex justify-between gap-6"><dt style={{ color: "rgba(247,245,240,0.4)" }}>elevation</dt><dd>{pick.elevM} m</dd></div>
+            <div className="flex justify-between gap-6"><dt style={{ color: "rgba(247,245,240,0.4)" }}>slope</dt><dd>{pick.slopeDeg}°</dd></div>
+            <div className="flex justify-between gap-6"><dt style={{ color: "rgba(247,245,240,0.4)" }}>coords</dt><dd>{pick.lat.toFixed(3)}, {pick.lng.toFixed(3)}</dd></div>
           </dl>
         </div>
       )}
@@ -1700,7 +1725,7 @@ export default function Catchment() {
         <div className="absolute inset-0 flex items-center justify-center"><span className="mono-label animate-pulse">Initialising engine…</span></div>
       )}
       {status === "mobile" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-concrete/95 p-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-paper p-8 text-center">
           <span className="mono-label">Desktop only</span>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink/70">
             Catchment is too heavy to run on a phone. Open it on a laptop or desktop
@@ -1712,13 +1737,13 @@ export default function Catchment() {
         </div>
       )}
       {status === "nogpu" && (
-        <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-concrete/85 p-6 backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-paper p-6">
           <span className="mono-label">WebGPU required</span>
           <p className="mt-2 max-w-prose text-sm text-ink/70">The live engine needs WebGPU: Chrome &amp; Edge, or Safari on iOS&nbsp;26 / macOS&nbsp;26+. You&apos;re seeing a static relief instead.</p>
         </div>
       )}
       {status === "error" && (
-        <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-concrete/85 p-6 backdrop-blur-sm">
+        <div className="absolute inset-x-0 bottom-0 border-t border-hairline bg-paper p-6">
           <span className="mono-label">Engine error</span>
           <p className="mt-2 max-w-prose text-sm text-ink/70">{err}</p>
           <button onClick={() => location.reload()} className="btn-secondary mt-3 text-sm">Reload</button>
@@ -1790,6 +1815,17 @@ function CatchmentWriteup() {
           from its teacher, live, while both run.
         </Block>
 
+        <Block kicker="The terminal">
+          The controls are a terminal. Structured commands work — <code>rain 60</code>,{" "}
+          <code>meteor for 30s</code> — but so does plain english: a ~26k-parameter{" "}
+          <strong className="font-medium text-ink">intent model</strong> (hashed
+          bag-of-features into a tiny MLP, trained in numpy on synthetic phrasings,
+          shipped as 83&nbsp;KB of quantised JSON) maps &ldquo;make it stormy&rdquo; to the right
+          forcings, entirely on-device. Same rules as the surrogate: no runtime, no
+          library, no server — and a parity gate that refuses the model if the
+          browser ever disagrees with its trainer.
+        </Block>
+
         <Block kicker="Honest limits">
           The network is a student, not a copy. It was trained for stability over
           long rollouts and for conserving mass, not for per-frame perfection, so it
@@ -1799,8 +1835,9 @@ function CatchmentWriteup() {
 
         <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">
           Tip: hold longer in <span className="text-sage">Meteor</span> mode for a
-          bigger class of rock. There are more worlds than the hinterland in the map
-          list, and one of them is not on the list.
+          bigger class of rock. Ask the terminal for <span className="text-sage">worlds</span> —
+          there are more than the hinterland, and one is not on the list.
+          Mariner&nbsp;9 photographed it in 1971.
         </p>
       </div>
     </section>

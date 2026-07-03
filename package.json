@@ -9,6 +9,8 @@
     "lint": "next lint",
     "catchment:rollouts": "node scripts/catchment/generate-teacher-rollouts.mjs",
     "catchment:train": "python3 scripts/catchment/train-surrogate.py",
+    "catchment:intent": "python ml/train_intent.py",
+    "catchment:intent-verify": "node scripts/verify-intent-parity.mjs",
     "genesis:prior": "python ml/genesis/train_summon_prior.py",
     "splat:test-asset": "node scripts/splat/make-test-splat.mjs"
   },

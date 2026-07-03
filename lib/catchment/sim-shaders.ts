@@ -1100,9 +1100,10 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let contact = smoothstep(0.010, 0.0025, waterCol) * lapN;
     let foam = clamp(crest * 0.55 + max(breaking * 0.85, contact), 0.0, 1.0);
     col = mix(col, srgbToLinear(vec3<f32>(0.92, 0.95, 0.95)) * (0.55 + 0.45 * sunV), foam);
-    // opacity eases from near-opaque deep water to a glassy film over the sand —
-    // the (now real) seabed does the tonal work in the shallows
-    var alpha = mix(0.93, 0.52, smoothstep(0.35, 0.95, shallowF));
+    // opacity eases from near-opaque deep water to a translucent (not glassy)
+    // wash over the sand — enough body that the seabed reads as underwater
+    // ground, not dry stone with sea rolling over it
+    var alpha = mix(0.94, 0.68, smoothstep(0.35, 0.95, shallowF));
     alpha = clamp(alpha + foam * 0.45, 0.0, 0.96);
     return vec4<f32>(displayColor(col) * alpha, alpha);
   }
@@ -1111,7 +1112,7 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   // Beer–Lambert depth absorption, flow-mapped ripple normals advected by the
   // real velocity field, suspended-sediment turbidity, shoreline + whitewater
   // foam, and terrain shadows falling across the surface.
-  let edge = smoothstep(0.008, 0.055, in.depth);    // soft feathered shoreline
+  let edge = smoothstep(0.012, 0.07, in.depth);     // soft feathered shoreline
   if (edge <= 0.002) { discard; }
   let t = ru.misc.z;
   let spd = length(in.v);
@@ -1159,15 +1160,26 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
   let fuv = vec2<f32>(dot(p, fdir), dot(p, vec2<f32>(-fdir.y, fdir.x)));
   let streak = vnoise(fuv * vec2<f32>(6.0, 52.0) - vec2<f32>(t * (1.5 + spd * 2.5), 0.0));
   let white = smoothstep(0.85, 1.9, spd) * smoothstep(0.45, 0.85, streak);
+  // a real shoreline laps against sloping ground; a thin sheet on a flat basin
+  // floor is just a wet playa — gating the band by bed slope stops whole lakes
+  // sprouting foam fields that the bloom pass then smears into white blobs
+  let nW = u32(ru.params.x);
+  let hfW = ru.params.z;
+  let fcW = clamp((p.x + hfW) / (2.0 * hfW) * f32(nW - 1u), 0.0, f32(nW) - 1.001);
+  let frW = clamp((p.y + hfW) / (2.0 * hfW) * f32(nW - 1u), 0.0, f32(nW) - 1.001);
+  let c0W = i32(floor(fcW)); let r0W = i32(floor(frW));
+  let gW = vec2<f32>(bedAtCell(r0W, c0W + 1, nW) - bedAtCell(r0W, c0W - 1, nW),
+                     bedAtCell(r0W + 1, c0W, nW) - bedAtCell(r0W - 1, c0W, nW));
+  let shoreSlope = smoothstep(0.25, 1.2, length(gW) * 0.5);
   let shoreBand = smoothstep(0.006, 0.016, in.depth) * (1.0 - smoothstep(0.016, 0.05, in.depth));
   let lapN = vnoise(p * 34.0 + vec2<f32>(t * 0.35, -t * 0.28));
-  let foam = clamp(white * 0.85 + shoreBand * smoothstep(0.35, 0.8, lapN) * 0.7, 0.0, 0.9);
+  let foam = clamp(white * 0.85 + shoreBand * shoreSlope * smoothstep(0.35, 0.8, lapN) * 0.7, 0.0, 0.9);
   col = mix(col, srgbToLinear(vec3<f32>(0.90, 0.94, 0.94)) * (0.5 + 0.5 * sunVis), foam);
   // opacity follows transmittance — thin films glint, pools go opaque; turbidity
   // and foam both cloud the water
   var alpha = clamp(1.0 - (trans.x + trans.y + trans.z) / 3.0, 0.0, 1.0);
   alpha = clamp(alpha * 0.92 + turb * 0.35 + foam * 0.4 + spec * 0.5, 0.0, 0.95) * edge;
-  alpha = max(alpha, 0.10 * edge);
+  alpha = max(alpha, 0.06 * edge); // thin films read as sheen, not standing sea
   return vec4<f32>(displayColor(col) * alpha, alpha);
 }
 `;
