@@ -1435,13 +1435,22 @@ fn vs(in: VSIn) -> VSOut {
     charA = charr[cell];
     fireA = fire[cell];
     fuelA = fuel[cell];
+    // excavation under this prop: data.w holds the ORIGINAL ground level, so
+    // a meteor that digs the bed out from underneath erases what stood there.
+    // Fire chars and slumps; the blast removes.
+    let dug = in.data.w - bed[cell] / ru.misc.x;
+    let blast = smoothstep(0.0035, 0.014, dug);
     if (ptype == 3u || ptype == 4u) {
       // structures give way as they burn or take a strike: walls slump,
       // roofs pancake, until only charred slabs mark the block
       let collapse = pow(clamp(charA * 1.15, 0.0, 1.0), 1.3) * select(0.8, 0.94, ptype == 4u);
       p.y *= (1.0 - collapse);
+      // blasted blocks are flattened to broken footings
+      p = vec3<f32>(p.x * (1.0 - blast * 0.55), p.y * (1.0 - blast * 0.96), p.z * (1.0 - blast * 0.55));
     }
     if (ptype <= 2u) {
+      // inside the crater there is simply nothing left
+      p = p * (1.0 - blast);
       // vegetation: burnt trees shrink and gnarl; live canopies sway on the wind
       let shrink = 1.0 - charA * 0.5;
       p = vec3<f32>(p.x * (1.0 - charA * 0.35), p.y * shrink, p.z * (1.0 - charA * 0.35));
@@ -1450,7 +1459,7 @@ fn vs(in: VSIn) -> VSOut {
                * (0.0012 + ru.misc.w * 0.0009) * weight;
       p.x += sway; p.z += sway * 0.6;
     }
-    world = vec3<f32>(cx + p.x, baseY + p.y, cz + p.z);
+    world = vec3<f32>(cx + p.x, baseY + p.y - blast * 0.004, cz + p.z);
   }
 
   // per-type albedo, varied per instance so nothing repeats exactly

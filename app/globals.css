@@ -370,6 +370,54 @@ body {
   }
 }
 
+/* Footer transect runner — soft keycap nudge. */
+@keyframes transect-key-glow {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--flow) 18%, var(--contour));
+    box-shadow: 0 0 5px 0 color-mix(in srgb, var(--flow) 10%, transparent);
+    color: color-mix(in srgb, var(--flow) 48%, var(--ink));
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--flow) 38%, var(--contour));
+    box-shadow: 0 0 9px 1px color-mix(in srgb, var(--flow) 18%, transparent);
+    color: color-mix(in srgb, var(--flow) 68%, var(--ink));
+  }
+}
+
+.transect-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.transect-hint-key {
+  display: inline-flex;
+  min-width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--contour) 92%, var(--flow));
+  background: color-mix(in srgb, var(--paper) 45%, transparent);
+  padding: 0.1rem 0.38rem;
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.54rem;
+  letter-spacing: 0.07em;
+  text-transform: lowercase;
+  color: color-mix(in srgb, var(--flow) 55%, var(--ink));
+}
+
+.transect-hint-key--glow {
+  animation: transect-key-glow 3.4s ease-in-out infinite;
+}
+
+.transect-hint-label {
+  font-family: var(--font-mono), "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.52rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 30%, transparent);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

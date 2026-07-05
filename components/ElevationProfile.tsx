@@ -81,8 +81,15 @@ interface G {
   lastT: number;
 }
 
-const PX = 64; // pen x
 const PEN_W = 10;
+
+/** Pen anchor — ~17–24% of strip width so wide viewports don't hug the left edge. */
+function penX(w: number): number {
+  const min = 64;
+  const target = w * 0.17;
+  const max = w * 0.24;
+  return Math.round(Math.min(Math.max(min, target), max));
+}
 const PEN_H = 14;
 const GROUND_PAD = 12;
 const JUMP_V = -7.4;
@@ -324,7 +331,7 @@ export default function ElevationProfile() {
     resize();
     window.addEventListener("resize", resize);
 
-    const die = (s: G) => {
+    const die = (s: G, px: number) => {
       if (s.dying) return;
       s.dying = 1;
       const m = Math.floor(s.dist * M_PER_PX);
@@ -335,7 +342,7 @@ export default function ElevationProfile() {
       // the pen shatters into survey ticks
       for (let i = 0; i < 7; i++) {
         s.sparks.push({
-          x: PX + PEN_W / 2, y: 0, // y resolved at draw time (ground-relative)
+          x: px + PEN_W / 2, y: 0, // y resolved at draw time (ground-relative)
           vx: -2.2 + Math.random() * 4.4, vy: -3.4 - Math.random() * 2.4,
           age: 0, life: 26 + Math.random() * 14,
         });
@@ -362,6 +369,7 @@ export default function ElevationProfile() {
       if (!s) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
+      const px = penX(w);
       const groundY = h - GROUND_PAD;
       const now = performance.now();
       const dt = Math.min(2, Math.max(0.5, (now - s.lastT) / 16.7)); // 120 Hz fair
@@ -390,14 +398,14 @@ export default function ElevationProfile() {
 
         // channel under the pen?
         const overChannel = s.obstacles.some(
-          (o) => o.kind === "channel" && PX + PEN_W - 3 > o.x && PX + 3 < o.x + o.w,
+          (o) => o.kind === "channel" && px + PEN_W - 3 > o.x && px + 3 < o.x + o.w,
         );
         if (s.py >= 0 && !overChannel && !s.fellIn) {
           if (!wasGrounded) {
             s.squash = 0;
             for (let i = 0; i < 3; i++) {
               s.sparks.push({
-                x: PX + PEN_W / 2 + (Math.random() * 10 - 5), y: -1,
+                x: px + PEN_W / 2 + (Math.random() * 10 - 5), y: -1,
                 vx: (Math.random() - 0.5) * 2.6, vy: -0.8 - Math.random(),
                 age: 0, life: 12 + Math.random() * 6,
               });
@@ -409,7 +417,7 @@ export default function ElevationProfile() {
           if (wasGrounded && !overChannel) s.coyote = COYOTE;
           s.grounded = false;
           if (overChannel && s.py >= 0) s.fellIn = true;
-          if (s.fellIn && s.py > 16) die(s);
+          if (s.fellIn && s.py > 16) die(s, px);
         }
         if (s.coyote > 0 && !s.grounded) s.coyote -= dt;
         if (s.buffer > 0) s.buffer -= dt;
@@ -426,12 +434,12 @@ export default function ElevationProfile() {
         for (const o of s.obstacles) {
           if (o.kind === "hill") {
             const cx = o.x + o.w / 2;
-            const over = PX + PEN_W - 2 > o.x + 2 && PX + 2 < o.x + o.w - 2;
+            const over = px + PEN_W - 2 > o.x + 2 && px + 2 < o.x + o.w - 2;
             if (over) {
               // crest-shaped hitbox: flanks are forgiving, the summit is not
-              const t = 1 - Math.min(1, Math.abs(PX + PEN_W / 2 - cx) / (o.w / 2));
+              const t = 1 - Math.min(1, Math.abs(px + PEN_W / 2 - cx) / (o.w / 2));
               const surface = groundY - o.h * t;
-              if (penBottom > surface + 2) { die(s); break; }
+              if (penBottom > surface + 2) { die(s, px); break; }
               if (!o.cleared && penBottom <= surface + 8) {
                 o.cleared = true;
                 if (penBottom > surface - 7) {
@@ -443,14 +451,14 @@ export default function ElevationProfile() {
             }
           } else if (o.kind === "flock") {
             const fy = groundY - o.h; // flock centre altitude
-            const over = PX + PEN_W - 2 > o.x && PX + 2 < o.x + o.w;
-            if (over && penTop < fy + 7 && penBottom > fy - 7) { die(s); break; }
+            const over = px + PEN_W - 2 > o.x && px + 2 < o.x + o.w;
+            if (over && penTop < fy + 7 && penBottom > fy - 7) { die(s, px); break; }
           }
         }
         for (const f of s.flags) {
-          if (!f.passed && f.x < PX) {
+          if (!f.passed && f.x < px) {
             f.passed = true;
-            s.sparks.push({ x: PX + 16, y: -PEN_H - 10, vx: 0.3, vy: -0.4, age: 0, life: 34, text: `${f.m}m` });
+            s.sparks.push({ x: px + 16, y: -PEN_H - 10, vx: 0.3, vy: -0.4, age: 0, life: 34, text: `${f.m}m` });
           }
         }
 
@@ -582,7 +590,7 @@ export default function ElevationProfile() {
       // pen trail: the line your run draws
       if (s.trail.length > 2 && !s.dying) {
         ctx.beginPath();
-        let tx = PX + PEN_W / 2;
+        let tx = px + PEN_W / 2;
         ctx.moveTo(tx, groundY + s.trail[0].y);
         for (let i = 1; i < s.trail.length; i++) {
           tx -= s.trail[i].s;
@@ -601,10 +609,10 @@ export default function ElevationProfile() {
         const pw = PEN_W * sx, ph = PEN_H * sy;
         const bottom = groundY + s.py;
         ctx.fillStyle = infra;
-        ctx.fillRect(PX + (PEN_W - pw) / 2, bottom - ph, pw, ph);
+        ctx.fillRect(px + (PEN_W - pw) / 2, bottom - ph, pw, ph);
         ctx.fillStyle = ink;
         ctx.globalAlpha = 0.5;
-        ctx.fillRect(PX + (PEN_W - pw) / 2 + pw * 0.28, bottom - ph + ph * 0.26, pw * 0.42, ph * 0.2);
+        ctx.fillRect(px + (PEN_W - pw) / 2 + pw * 0.28, bottom - ph + ph * 0.26, pw * 0.42, ph * 0.2);
         ctx.globalAlpha = 1;
       }
 
@@ -722,13 +730,19 @@ export default function ElevationProfile() {
       />
 
       {showHint && mode === "idle" && !reduceMotion && (
-        <motion.p
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="pointer-events-none absolute bottom-1.5 right-3 font-mono text-[9px] uppercase tracking-[0.14em] text-ink/40"
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="pointer-events-none absolute bottom-2 right-3 md:right-5"
         >
-          {coarse ? "tap · run the transect" : "space · run the transect"}
-        </motion.p>
+          <div className="transect-hint">
+            <span className="transect-hint-key transect-hint-key--glow">
+              {coarse ? "tap" : "space"}
+            </span>
+            <span className="transect-hint-label">run the transect</span>
+          </div>
+        </motion.div>
       )}
 
       {mode === "over" && (

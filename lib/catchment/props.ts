@@ -109,7 +109,7 @@ export function buildPropGeometry(
   };
   const cone = (
     ox: number, oz: number, baseY: number, r: number, apexY: number,
-    seg: number, cell: number, type: number, rand: number,
+    seg: number, cell: number, type: number, rand: number, anch = 0,
   ) => {
     for (let s = 0; s < seg; s++) {
       const a0 = (s / seg) * Math.PI * 2;
@@ -118,7 +118,7 @@ export function buildPropGeometry(
         [ox + Math.cos(a0) * r, baseY, oz + Math.sin(a0) * r],
         [ox + Math.cos(a1) * r, baseY, oz + Math.sin(a1) * r],
         [ox, apexY, oz],
-        cell, type, rand,
+        cell, type, rand, [anch, anch, anch],
       );
     }
   };
@@ -126,16 +126,18 @@ export function buildPropGeometry(
   // ---- trees & shrubs -----------------------------------------------------
   const emitTree = (cell: number, jx: number, jz: number, s: number, rand: number) => {
     // gum: trunk of two crossed quads, then a big canopy cone + an offset crown
+    const anch = dem.elev[cell];
+    const A4: [number, number, number, number] = [anch, anch, anch, anch];
     const tw = 0.09 * s;
     const th = 0.42 * s;
-    quad([jx - tw, 0, jz], [jx + tw, 0, jz], [jx + tw, th, jz], [jx - tw, th, jz], cell, 1, rand);
-    quad([jx, 0, jz - tw], [jx, 0, jz + tw], [jx, th, jz + tw], [jx, th, jz - tw], cell, 1, rand);
-    cone(jx, jz, 0.3 * s, 0.42 * s, 1.02 * s, 6, cell, 0, rand);
+    quad([jx - tw, 0, jz], [jx + tw, 0, jz], [jx + tw, th, jz], [jx - tw, th, jz], cell, 1, rand, A4);
+    quad([jx, 0, jz - tw], [jx, 0, jz + tw], [jx, th, jz + tw], [jx, th, jz - tw], cell, 1, rand, A4);
+    cone(jx, jz, 0.3 * s, 0.42 * s, 1.02 * s, 6, cell, 0, rand, anch);
     const lean = (rand - 0.5) * 0.24 * s;
-    cone(jx + lean, jz + lean * 0.6, 0.58 * s, 0.26 * s, 1.24 * s, 5, cell, 0, Math.min(1, rand + 0.18));
+    cone(jx + lean, jz + lean * 0.6, 0.58 * s, 0.26 * s, 1.24 * s, 5, cell, 0, Math.min(1, rand + 0.18), anch);
   };
   const emitShrub = (cell: number, jx: number, jz: number, s: number, rand: number) => {
-    cone(jx, jz, 0, 0.55 * s, 0.5 * s, 5, cell, 2, rand);
+    cone(jx, jz, 0, 0.55 * s, 0.5 * s, 5, cell, 2, rand, dem.elev[cell]);
   };
 
   const treeDensity = cfg.trees ?? 0;
@@ -176,22 +178,25 @@ export function buildPropGeometry(
   // ---- buildings ----------------------------------------------------------
   const emitBuilding = (cell: number, w: number, d: number, h: number, rise: number, rot: number, rand: number) => {
     const ca = Math.cos(rot), sa = Math.sin(rot);
+    const anch = dem.elev[cell];
+    const A4: [number, number, number, number] = [anch, anch, anch, anch];
+    const A3: [number, number, number] = [anch, anch, anch];
     const R = (x: number, z: number): [number, number] => [x * ca - z * sa, x * sa + z * ca];
     const P = (x: number, y: number, z: number): [number, number, number] => {
       const [rx, rz] = R(x, z);
       return [rx, y, rz];
     };
     // walls
-    quad(P(-w, 0, -d), P(w, 0, -d), P(w, h, -d), P(-w, h, -d), cell, 3, rand);
-    quad(P(w, 0, d), P(-w, 0, d), P(-w, h, d), P(w, h, d), cell, 3, rand);
-    quad(P(-w, 0, d), P(-w, 0, -d), P(-w, h, -d), P(-w, h, d), cell, 3, rand);
-    quad(P(w, 0, -d), P(w, 0, d), P(w, h, d), P(w, h, -d), cell, 3, rand);
+    quad(P(-w, 0, -d), P(w, 0, -d), P(w, h, -d), P(-w, h, -d), cell, 3, rand, A4);
+    quad(P(w, 0, d), P(-w, 0, d), P(-w, h, d), P(w, h, d), cell, 3, rand, A4);
+    quad(P(-w, 0, d), P(-w, 0, -d), P(-w, h, -d), P(-w, h, d), cell, 3, rand, A4);
+    quad(P(w, 0, -d), P(w, 0, d), P(w, h, d), P(w, h, -d), cell, 3, rand, A4);
     // gable ends + ridge roof with a small overhang
-    tri(P(-w, h, -d), P(w, h, -d), P(0, h + rise, -d), cell, 3, rand);
-    tri(P(w, h, d), P(-w, h, d), P(0, h + rise, d), cell, 3, rand);
+    tri(P(-w, h, -d), P(w, h, -d), P(0, h + rise, -d), cell, 3, rand, A3);
+    tri(P(w, h, d), P(-w, h, d), P(0, h + rise, d), cell, 3, rand, A3);
     const ov = d * 1.18;
-    quad(P(-w * 1.12, h - rise * 0.15, -ov), P(0, h + rise, -ov), P(0, h + rise, ov), P(-w * 1.12, h - rise * 0.15, ov), cell, 4, rand);
-    quad(P(0, h + rise, -ov), P(w * 1.12, h - rise * 0.15, -ov), P(w * 1.12, h - rise * 0.15, ov), P(0, h + rise, ov), cell, 4, rand);
+    quad(P(-w * 1.12, h - rise * 0.15, -ov), P(0, h + rise, -ov), P(0, h + rise, ov), P(-w * 1.12, h - rise * 0.15, ov), cell, 4, rand, A4);
+    quad(P(0, h + rise, -ov), P(w * 1.12, h - rise * 0.15, -ov), P(w * 1.12, h - rise * 0.15, ov), P(0, h + rise, ov), cell, 4, rand, A4);
   };
 
   const buildable = (c: number, r: number) => {
