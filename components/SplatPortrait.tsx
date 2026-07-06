@@ -42,9 +42,16 @@ export default function SplatPortrait() {
     return () => { gone = true; };
   }, []);
 
-  // 2) load + start only when scrolled into view; pause when it leaves
+  // 2) load + start only when scrolled into view; pause when it leaves.
+  // NB: depends on a boolean that stays TRUE across idle -> loading -> ready,
+  // not on `stage === "idle"` alone — otherwise the setStage("loading") call
+  // below flips that dependency false->true->false mid-flight, React tears
+  // down this effect (disposed = true) while loadSplatViewer() is still
+  // awaiting, and the viewer that resolves afterwards gets silently disposed
+  // before ever reaching "ready" (stuck forever on the loading placeholder).
+  const active = stage === "idle" || stage === "loading" || stage === "ready";
   useEffect(() => {
-    if (stage !== "idle") return;
+    if (!active) return;
     const shell = shellRef.current;
     if (!shell) return;
     let disposed = false;
@@ -80,7 +87,7 @@ export default function SplatPortrait() {
       viewerRef.current?.dispose();
       viewerRef.current = null;
     };
-  }, [stage === "idle"]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (stage === "probing" || stage === "absent" || stage === "failed") return null;
 

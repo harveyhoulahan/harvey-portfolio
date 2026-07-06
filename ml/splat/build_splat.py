@@ -109,7 +109,7 @@ def stage_sfm(images: Path, work: Path) -> Path:
     print("[sfm] feature extraction (single-camera model)")
     pycolmap.extract_features(
         database_path=db, image_path=images,
-        camera_mode=pycolmap.CameraMode.SINGLE, camera_model="SIMPLE_RADIAL",
+        camera_mode=pycolmap.CameraMode.SINGLE,
     )
     print("[sfm] sequential matching (orbit video)")
     try:
@@ -201,6 +201,10 @@ def stage_train(undist: Path, work: Path, steps: int, sh_degree: int, device_str
         return ply_out
     ply_out.parent.mkdir(parents=True, exist_ok=True)
 
+    # Check if CUDA is available, fall back to CPU if not
+    if device_str == "cuda" and not torch.cuda.is_available():
+        print(f"[train] CUDA not available, falling back to CPU (this will be slow)")
+        device_str = "cpu"
     device = torch.device(device_str)
     viewmats_np, Ks_np, paths, sizes, pts, rgb, _up = load_colmap(undist)
     n_img = len(paths)
@@ -389,6 +393,26 @@ def quat_mul_rot(R: np.ndarray, quats: np.ndarray) -> np.ndarray:
     ], axis=1)
 
 
+def statistical_outlier_mask(points: np.ndarray, k: int, std_ratio: float) -> np.ndarray:
+    """Open3D/CloudCompare-style SOR: flag points whose mean distance to their
+    k nearest neighbours is more than `std_ratio` standard deviations above the
+    dataset average. Strips the sparse floating "petal" gaussians that casual
+    single-orbit captures scatter around the subject, without touching the
+    dense reconstruction itself. O(N log N) via a KD-tree."""
+    from scipy.spatial import cKDTree
+
+    n = len(points)
+    if n <= k + 1:
+        return np.ones(n, dtype=bool)
+    tree = cKDTree(points)
+    # k+1 because the nearest neighbour of a point is itself (distance 0)
+    dist, _ = tree.query(points, k=k + 1, workers=-1)
+    mean_dist = dist[:, 1:].mean(axis=1)
+    mu, sigma = mean_dist.mean(), mean_dist.std()
+    threshold = mu + std_ratio * sigma
+    return mean_dist < threshold
+
+
 def stage_export(ply: Path, out: Path, up_world: np.ndarray | None, args) -> None:
     means, scales_log, quats, opac_logit, sh0 = read_3dgs_ply(ply)
     n0 = len(means)
@@ -396,20 +420,55 @@ def stage_export(ply: Path, out: Path, up_world: np.ndarray | None, args) -> Non
     scales = np.exp(scales_log)
     quats = quats / (np.linalg.norm(quats, axis=1, keepdims=True) + 1e-12)
 
-    keep = opacity > args.opacity_min
-    # drop grotesquely large gaussians (sky/floor sheets)
-    keep &= scales.max(1) < np.percentile(scales.max(1), 99.5) * 2
-    means, scales, quats, opacity, sh0 = means[keep], scales[keep], quats[keep], opacity[keep], sh0[keep]
-    print(f"[export] opacity/size prune: {n0:,} → {len(means):,}")
-
-    # crop to the subject: distance percentile around the opacity-weighted centre
-    if not args.no_crop:
-        centre = np.median(means[opacity > 0.5] if (opacity > 0.5).sum() > 1000 else means, axis=0)
-        d = np.linalg.norm(means - centre, axis=1)
-        r = np.percentile(d, args.crop_percentile) * args.crop_mult
-        keep = d < r
+    # --no-clean: trust a hand-cleaned (e.g. SuperSplat) input completely and
+    # skip every automated prune below — opacity/size, anisotropy, SOR, and
+    # the radial crop. Each of those is a heuristic tuned for a *raw* training
+    # output full of floaters; run against gaussians a human already vetted,
+    # the radial crop in particular will happily slice off arms/legs/feet
+    # because they're the farthest real points from the body's centroid.
+    if args.no_clean:
+        print(f"[export] --no-clean: trusting hand-cleaned input as-is ({n0:,} gaussians)")
+    else:
+        keep = opacity > args.opacity_min
+        # drop grotesquely large gaussians (sky/floor sheets)
+        keep &= scales.max(1) < np.percentile(scales.max(1), 99.5) * 2
         means, scales, quats, opacity, sh0 = means[keep], scales[keep], quats[keep], opacity[keep], sh0[keep]
-        print(f"[export] crop r={r:.3f}: → {len(means):,}")
+        print(f"[export] opacity/size prune: {n0:,} → {len(means):,}")
+
+        # anisotropy prune: kill translucent needle/streak-shaped gaussians
+        # (max-axis / min-axis ratio too high AND low opacity). A live human
+        # subject shot on a hand-held orbit gets motion blur + view-inconsistent
+        # hair/skin regions that 3DGS "fixes" by stretching a low-opacity gaussian
+        # into a long thin streak rather than fitting real geometry — these are
+        # the flame/leaf-shaped artifacts. Gating on opacity too (not shape alone)
+        # spares legitimately thin BUT solid geometry (jacket seams, real hair
+        # strands) which are locally dense, so SOR alone won't catch them either.
+        if not args.no_aniso:
+            n_before = len(means)
+            s_sorted = np.sort(scales, axis=1)  # ascending: [min, mid, max]
+            ratio = s_sorted[:, 2] / np.maximum(s_sorted[:, 0], 1e-8)
+            keep = ~((ratio > args.aniso_max) & (opacity < args.aniso_opacity))
+            means, scales, quats, opacity, sh0 = means[keep], scales[keep], quats[keep], opacity[keep], sh0[keep]
+            print(f"[export] anisotropy prune: {n_before:,} → {len(means):,}")
+
+        # statistical outlier removal: strip sparse floater gaussians (the
+        # scattered "petals" a noisy single-orbit reconstruction throws off away
+        # from the dense subject cluster) before the radial crop below sees them —
+        # otherwise a few distant floaters can bias the crop centre/radius.
+        if not args.no_sor and len(means) > args.sor_k + 1:
+            n_before = len(means)
+            keep = statistical_outlier_mask(means, k=args.sor_k, std_ratio=args.sor_std)
+            means, scales, quats, opacity, sh0 = means[keep], scales[keep], quats[keep], opacity[keep], sh0[keep]
+            print(f"[export] statistical outlier removal: {n_before:,} → {len(means):,}")
+
+        # crop to the subject: distance percentile around the opacity-weighted centre
+        if not args.no_crop:
+            centre = np.median(means[opacity > 0.5] if (opacity > 0.5).sum() > 1000 else means, axis=0)
+            d = np.linalg.norm(means - centre, axis=1)
+            r = np.percentile(d, args.crop_percentile) * args.crop_mult
+            keep = d < r
+            means, scales, quats, opacity, sh0 = means[keep], scales[keep], quats[keep], opacity[keep], sh0[keep]
+            print(f"[export] crop r={r:.3f}: → {len(means):,}")
 
     # orient: camera-average up (SfM) or tallest principal axis (--from-ply) → +Y
     if not args.no_orient:
@@ -420,6 +479,8 @@ def stage_export(ply: Path, out: Path, up_world: np.ndarray | None, args) -> Non
             up = np.linalg.svd(c[np.random.default_rng(0).choice(len(c), min(len(c), 50000), replace=False)], full_matrices=False)[2][0]
             if up[1] < 0:
                 up = -up
+        if args.flip_up:
+            up = -up
         R = rot_between(up / np.linalg.norm(up), np.array([0.0, 1.0, 0.0]))
         means = means @ R.T
         quats = quat_mul_rot(R, quats)
@@ -489,12 +550,25 @@ def main() -> None:
     ap.add_argument("--sh-degree", type=int, default=2)
     ap.add_argument("--device", default="cuda")
     # export tuning
-    ap.add_argument("--max-web", type=int, default=350_000)
-    ap.add_argument("--opacity-min", type=float, default=0.06)
+    ap.add_argument("--max-web", type=int, default=500_000)
+    ap.add_argument("--no-clean", action="store_true",
+                     help="skip ALL automated pruning (opacity/size, anisotropy, SOR, radial crop) — "
+                          "use when --from-ply is already hand-cleaned (e.g. in SuperSplat), since the "
+                          "radial crop especially will cut off limbs/extremities on a vetted subject")
+    ap.add_argument("--opacity-min", type=float, default=0.12)
+    ap.add_argument("--no-aniso", action="store_true", help="skip anisotropy (needle-shape) prune")
+    ap.add_argument("--aniso-max", type=float, default=6.0, help="max long/short axis ratio (lower = more aggressive)")
+    ap.add_argument("--aniso-opacity", type=float, default=0.5,
+                     help="only prune needle gaussians below this opacity (spares solid thin geometry)")
+    ap.add_argument("--no-sor", action="store_true", help="skip statistical outlier removal")
+    ap.add_argument("--sor-k", type=int, default=16, help="SOR neighbour count")
+    ap.add_argument("--sor-std", type=float, default=1.5, help="SOR std-dev threshold (lower = more aggressive)")
     ap.add_argument("--no-crop", action="store_true")
-    ap.add_argument("--crop-percentile", type=float, default=88.0)
-    ap.add_argument("--crop-mult", type=float, default=1.35)
+    ap.add_argument("--crop-percentile", type=float, default=75.0)
+    ap.add_argument("--crop-mult", type=float, default=1.15)
     ap.add_argument("--no-orient", action="store_true")
+    ap.add_argument("--flip-up", action="store_true",
+                     help="invert the auto-detected up vector — use when the portrait renders upside-down")
     ap.add_argument("--yaw", type=float, default=0.0)
     ap.add_argument("--pitch", type=float, default=0.0)
     ap.add_argument("--roll", type=float, default=0.0)

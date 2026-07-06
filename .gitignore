@@ -37,3 +37,18 @@ next-env.d.ts
 # python (ml/ training)
 __pycache__/
 *.pyc
+.venv-splat/
+.venv/
+venv/
+
+# splat pipeline working data (large, regenerable — see ml/splat/README.md)
+# keep public/splat/*.splat + .json (the actual web-shipped output)
+ml/splat/runs/
+*.mp4
+*.MP4
+!public/**/*.mp4
+!public/**/*.MP4
+
+# CUDA / build tool installers (multi-GB, don't belong in the repo)
+cuda_*_windows.exe
+*.exe
