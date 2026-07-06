@@ -36,14 +36,14 @@ export default function GpuBadge() {
   }, []);
 
   const ok = state === "ready";
-  const label =
+  const hint =
     state === "probing"
-      ? "webgpu · probing"
+      ? "…"
       : state === "ready"
-        ? "webgpu · adapter ready"
+        ? ""
         : state === "no-adapter"
-          ? "webgpu · no adapter"
-          : "webgpu · unsupported";
+          ? "needs a gpu"
+          : "not here";
 
   return (
     <span
@@ -55,6 +55,13 @@ export default function GpuBadge() {
             : "text-infra"
       }`}
       role="status"
+      aria-label={
+        state === "ready"
+          ? "These demos run on your device"
+          : state === "probing"
+            ? "Checking whether these demos can run here"
+            : hint
+      }
     >
       <span
         aria-hidden
@@ -66,7 +73,7 @@ export default function GpuBadge() {
               : "bg-infra"
         }`}
       />
-      {label}
+      {hint}
     </span>
   );
 }
