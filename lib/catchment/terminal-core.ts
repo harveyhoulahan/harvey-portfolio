@@ -49,6 +49,8 @@ export interface CatchmentBus {
   resyncNeural(): boolean;
   exportTeacher(): boolean;
   setControls(show: boolean): void;
+  /** Record the live canvases for `seconds`; resolves a downloadable webm. False = unsupported. */
+  record(seconds: number): boolean;
 }
 
 export type ExecResult = {
@@ -380,6 +382,16 @@ function runDeterministic(raw: string, bus: CatchmentBus): ExecResult | null {
         ],
       };
     }
+    case "record": case "rec": case "film": {
+      const secs = Math.round(clamp((durationMs ?? 15_000) / 1000, 3, 60));
+      if (!bus.record(secs)) return { lines: [err("recording unsupported in this browser.")] };
+      return {
+        lines: [
+          ok(`recording ${secs}s — the webm lands in your downloads.`),
+          dim("orbit, pour, strike — it's all going on tape."),
+        ],
+      };
+    }
     case "map": case "world": case "goto": case "load": {
       if (!args.length) return { lines: worldLines(snap) };
       const found = matchWorld(snap, args.join(" "));
@@ -567,7 +579,7 @@ export function completions(snap: CatchmentSnapshot | null): string[] {
     "rain ", "storm ", "erosion ", "wind ", "wind from ", "sun ", "relief ",
     "orbit", "pour", "ignite", "meteor", "meteor for 30s",
     "neural on", "neural off", "neural sync", "neural export",
-    "map ",
+    "map ", "record 15s",
   ];
   if (snap) {
     for (const w of snap.worlds) if (!w.secret || snap.secretUnlocked) base.push(`map ${w.id}`);
