@@ -69,14 +69,12 @@ if the auto up-vector guess is off.
 ## 4 · Ship
 
 ```powershell
-npm run dev            # → http://localhost:3000/about — STA 00 appears
-git add public/splat/portrait.splat public/splat/portrait.json
-git commit -m "add splat portrait" && git push
+npm run dev            # → http://localhost:3000/about — STA 00 appears when portrait.splat exists locally
 ```
 
-Aim for ≤ ~12 MB (the default `--max-web 350000` keeps it around there). The
-viewer lazy-loads only when the block scrolls into view, so the page's initial
-payload is untouched.
+**Do not commit** `public/splat/portrait.splat` or `.json` — they are gitignored.
+Train locally for preview; keep personal captures off production unless you
+explicitly want them public. The About block self-gates (no file → no block).
 
 ## Dev without a portrait
 

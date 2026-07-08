@@ -42,8 +42,10 @@ __pycache__/
 venv/
 
 # splat pipeline working data (large, regenerable — see ml/splat/README.md)
-# keep public/splat/*.splat + .json (the actual web-shipped output)
+# keep public/splat/*.splat + .json out of git — train locally; SplatPortrait self-gates
 ml/splat/runs/
+public/splat/portrait.splat
+public/splat/portrait.json
 *.mp4
 *.MP4
 !public/**/*.mp4
