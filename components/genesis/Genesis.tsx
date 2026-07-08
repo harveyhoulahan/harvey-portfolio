@@ -23,6 +23,7 @@ import { buildKernel, seedScenario, DEFAULT_PARAMS } from "@/lib/genesis/lenia";
 import { initParticles, randomMatrix, PARTICLE_DEFAULTS } from "@/lib/genesis/particle-life";
 import {
   loadVision, embedText, embedCanvas, embedPixelsMulti, meanEmbed, matchScore, getNullBank,
+  classifyPrompt, suggestPhenomena, temporalDrift, DRIFT_WEIGHT, DRIFT_CAP,
   cosine, resonance, type VisionStatus,
 } from "@/lib/genesis/vision";
 import { CMAES } from "@/lib/genesis/cmaes";
@@ -272,11 +273,17 @@ export default function Genesis() {
   const scoreTimer = useRef<number | null>(null);
   const scoringRef = useRef(false);
 
+  // Prompt router: object-shaped prompts get an honest nudge, not a swirl
+  const [routeNotice, setRouteNotice] = useState<{ prompt: string; suggestions: string[] } | null>(null);
+  // Field telemetry: order parameters of the live swarm (the perturbation probe)
+  const [telemetry, setTelemetry] = useState<{ phi: number; spread: number } | null>(null);
+
   // M5 — evolutionary search
   const [searching, setSearching] = useState(false);
   const [searchInfo, setSearchInfo] = useState("");
   const [egg, setEgg] = useState("");
   const runSearchRef = useRef<((mode: "prompt" | "open") => void) | null>(null);
+  const telTimerRef = useRef<number | null>(null);
   const searchCancelRef = useRef(false);
   const searchActiveRef = useRef(false);
 
@@ -345,13 +352,26 @@ export default function Genesis() {
       finally { scoringRef.current = false; }
     }, 700);
   };
-  // Summon = load CLIP, embed the prompt, then evolve the substrate to match it
-  const startSummon = async () => {
-    const text = prompt.trim();
+  // Summon = load CLIP, route the prompt, embed it, then evolve toward it.
+  // Genesis grows behaviors, not portraits: object-shaped prompts are caught
+  // in CLIP text space and offered behavioral rewrites before any GPU time
+  // is spent chasing a face that a 6x6 matrix cannot represent.
+  const startSummon = async (rawText?: string, force = false) => {
+    const text = (rawText ?? prompt).trim();
     if (!text || searching) return;
+    setRouteNotice(null);
     try {
       setVisionStatus("loading"); setVisionMsg("loading vision model…");
       await loadVision((label, frac) => setVisionMsg(`fetching ${label.split("/").pop()} · ${Math.round(frac * 100)}%`));
+      if (!force) {
+        setVisionMsg("reading the prompt…");
+        const route = await classifyPrompt(text);
+        if (route.kind === "object") {
+          setVisionStatus("ready"); setVisionMsg("");
+          setRouteNotice({ prompt: text, suggestions: suggestPhenomena(text) });
+          return;
+        }
+      }
       setVisionMsg("embedding prompt…");
       textEmbedRef.current = await embedText(text);
       await getNullBank(); // warm the contrastive null bank before the search starts
@@ -362,6 +382,10 @@ export default function Genesis() {
       setVisionStatus("error");
       setVisionMsg(e?.message ? String(e.message).slice(0, 120) : "couldn’t load the model");
     }
+  };
+  const summonSuggestion = (text: string) => {
+    setPrompt(text);
+    startSummon(text, true); // suggestions are behavioral by construction
   };
   useEffect(() => () => { if (scoreTimer.current) window.clearInterval(scoreTimer.current); }, []);
 
@@ -1108,13 +1132,24 @@ export default function Genesis() {
           if (sub === "lenia") { developLenia(95, 0); renderFrame(); } else { developParticle(150); showLive(); }
           const a = await captureEmbed(kind);
           if (mode === "prompt") {
-            // two moments × two crops per moment → a dense, denoised fitness signal
+            // behavioral fitness: three moments × two crops per moment. The mean
+            // contrastive match scores fidelity to the words; the temporal-drift
+            // bonus (capped) scores genuinely CHANGING between moments, so the
+            // optimum is a living behavior, not the best still frame.
             if (sub === "lenia") { developLenia(28, 95); renderFrame(); } else { developParticle(45); showLive(); }
             const a2 = await captureEmbed(kind);
+            if (sub === "lenia") { developLenia(24, 123); renderFrame(); } else { developParticle(40); showLive(); }
+            const a3 = await captureEmbed(kind);
             const te = textEmbedRef.current!;
             const nulls = await getNullBank();
-            const sim = matchScore([...a.embs, ...a2.embs], te, nulls); // contrastive margin
-            return sim * covPenalty(Math.max(a.cov, a2.cov)); // punish invisible worlds
+            const sim = (
+              matchScore(a.embs, te, nulls) +
+              matchScore(a2.embs, te, nulls) +
+              matchScore(a3.embs, te, nulls)
+            ) / 3;
+            const drift = temporalDrift([meanEmbed(a.embs), meanEmbed(a2.embs), meanEmbed(a3.embs)]);
+            const alive = DRIFT_WEIGHT * Math.min(drift, DRIFT_CAP);
+            return (sim + alive) * covPenalty(Math.max(a.cov, a2.cov, a3.cov)); // punish invisible worlds
           }
           if (sub === "lenia") { developLenia(60, 80); renderFrame(); } else { developParticle(90); showLive(); }
           const b = await captureEmbed(kind);
@@ -1224,6 +1259,54 @@ export default function Genesis() {
           }
         };
         runSearchRef.current = runSearch;
+
+        /* ---- field telemetry: the perturbation probe ---------------------
+         * Order parameters of the live swarm, read back a few times a second:
+         *   phi    — velocity polarization |mean v-hat| (1 = marching in step)
+         *   spread — positional dispersal across the torus (1 = filling it)
+         * Poke the swarm with the cursor and watch the numbers respond, then
+         * recover: that recovery IS the demo. Skipped while a search owns the
+         * GPU; tiny readback (38 KB) so it costs nothing. */
+        const telStagePos = device.createBuffer({ size: PN * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        const telStageVel = device.createBuffer({ size: PN * 8, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
+        let telBusy = false;
+        telTimerRef.current = window.setInterval(async () => {
+          if (disposed || telBusy || searchActiveRef.current || pausedRef.current) return;
+          if (substrateRef.current !== "particle") { setTelemetry(null); return; }
+          telBusy = true;
+          try {
+            const enc = device.createCommandEncoder();
+            enc.copyBufferToBuffer(posBufs[pcur], 0, telStagePos, 0, PN * 8);
+            enc.copyBufferToBuffer(velBufs[pcur], 0, telStageVel, 0, PN * 8);
+            device.queue.submit([enc.finish()]);
+            await Promise.all([telStagePos.mapAsync(GPUMapMode.READ), telStageVel.mapAsync(GPUMapMode.READ)]);
+            const pos = new Float32Array(telStagePos.getMappedRange().slice(0));
+            const vel = new Float32Array(telStageVel.getMappedRange().slice(0));
+            telStagePos.unmap(); telStageVel.unmap();
+            // polarization: |sum of unit velocities| / count of moving agents
+            let sx = 0, sy = 0, moving = 0;
+            for (let i = 0; i < PN; i++) {
+              const vx = vel[2 * i], vy = vel[2 * i + 1];
+              const sp = Math.hypot(vx, vy);
+              if (sp < 1e-6) continue;
+              sx += vx / sp; sy += vy / sp; moving++;
+            }
+            const phi = moving > 0 ? Math.hypot(sx, sy) / moving : 0;
+            // dispersal on the torus: circular variance of x and y, so a swarm
+            // hugging the wrap seam is not misread as spread out
+            const circSpread = (off: number) => {
+              let cx = 0, cy = 0;
+              for (let i = 0; i < PN; i++) {
+                const a = pos[2 * i + off] * Math.PI * 2;
+                cx += Math.cos(a); cy += Math.sin(a);
+              }
+              return 1 - Math.hypot(cx, cy) / PN; // 0 = one point, 1 = uniform
+            };
+            const spread = (circSpread(0) + circSpread(1)) / 2;
+            if (!disposed) setTelemetry({ phi, spread });
+          } catch { /* skip a bad frame */ }
+          finally { telBusy = false; }
+        }, 600);
 
         /* ---- click-to-seed: read back current state, stamp a soft blob --- */
         const applySeed = async (gx: number, gy: number) => {
@@ -1382,6 +1465,7 @@ export default function Genesis() {
 
     return () => {
       disposed = true;
+      if (telTimerRef.current) { window.clearInterval(telTimerRef.current); telTimerRef.current = null; }
       cancelAnimationFrame(raf);
       canvas.removeEventListener("pointerdown", onPointer);
       canvas.removeEventListener("pointermove", onMove);
@@ -1433,7 +1517,7 @@ export default function Genesis() {
             summon · clip
           </div>
           <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(247,245,240,0.62)", margin: "5px 0 9px" }}>
-            Describe a lifeform. An in-browser vision model scores the resemblance.
+            Describe a behavior. Genesis grows it, then lets you disturb it.
           </p>
           <div style={{ display: "flex", gap: 6 }}>
             <input
@@ -1445,7 +1529,7 @@ export default function Genesis() {
             />
             <button
               style={btn}
-              onClick={startSummon}
+              onClick={() => startSummon()}
               disabled={visionStatus === "loading" || searching}
             >
               {visionStatus === "loading" ? "…" : "Summon"}
@@ -1456,12 +1540,50 @@ export default function Genesis() {
               {visionMsg}
             </div>
           )}
+          {routeNotice && (
+            <div style={{ marginTop: 9, padding: "8px 10px", border: "1px solid rgba(196,168,130,0.35)", background: "rgba(196,168,130,0.08)" }}>
+              <div style={{ fontSize: 11.5, lineHeight: 1.5, color: "rgba(247,245,240,0.78)" }}>
+                Genesis grows behaviors, not portraits. &ldquo;{routeNotice.prompt}&rdquo; is
+                object-shaped: the swarm would give you its texture, never its anatomy. Try one of these instead:
+              </div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
+                {routeNotice.suggestions.map((sg) => (
+                  <button key={sg} style={{ ...btn, fontSize: 11.5, padding: "5px 9px" }} onClick={() => summonSuggestion(sg)}>
+                    {sg}
+                  </button>
+                ))}
+              </div>
+              <button
+                style={{ background: "none", border: "none", color: "rgba(247,245,240,0.45)", fontSize: 10.5, marginTop: 7, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}
+                onClick={() => startSummon(routeNotice.prompt, true)}
+              >
+                summon it anyway
+              </button>
+            </div>
+          )}
           {visionStatus === "ready" && score != null && (
             <div style={{ marginTop: 10 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.7)", marginBottom: 4 }}>
                 <span>resonance</span><span style={{ color: SAND }}>{score.toFixed(3)}</span>
               </div>
               <div style={meterTrack}><div style={{ ...meterFill, width: `${resonance(score) * 100}%` }} /></div>
+            </div>
+          )}
+          {telemetry && !searching && (
+            <div style={{ marginTop: 10 }}>
+              {([
+                ["coherence", telemetry.phi],
+                ["dispersal", telemetry.spread],
+              ] as [string, number][]).map(([label, v]) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                  <span style={{ fontSize: 10.5, color: "rgba(247,245,240,0.5)", width: 62 }}>{label}</span>
+                  <div style={{ ...meterTrack, flex: 1 }}><div style={{ ...meterFill, width: `${Math.min(100, v * 100)}%` }} /></div>
+                  <span style={{ fontSize: 10.5, color: SAND, width: 34, textAlign: "right" }}>{v.toFixed(2)}</span>
+                </div>
+              ))}
+              <div style={{ fontSize: 10, color: "rgba(247,245,240,0.38)", marginTop: 4 }}>
+                live order parameters. poke the swarm and watch it recover.
+              </div>
             </div>
           )}
           <div style={{ display: "flex", gap: 6, marginTop: 11 }}>
@@ -1475,7 +1597,7 @@ export default function Genesis() {
             <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 6 }}>{searchInfo}</div>
           )}
           <div style={{ fontSize: 10.5, color: "rgba(247,245,240,0.42)", marginTop: 9, lineHeight: 1.45 }}>
-            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> retrieves a trained prior for your words, then breeds toward them (CMA-ES on a 51-gene genome, scored by contrastive CLIP). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life.
+            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> retrieves a trained prior for your words, then breeds toward them (CMA-ES on a 51-gene genome, scored by contrastive CLIP across three moments in time, so it selects for behavior, not a still). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life.
           </div>
         </div>
       )}
@@ -1619,9 +1741,12 @@ function GenesisWriteup() {
           <strong className="font-medium text-ink">trained prior</strong>: an
           offline pipeline evolves genomes for dozens of concepts against the same
           CLIP model, and your prompt retrieves the nearest ones in embedding
-          space. An open-ended mode instead hunts for restless, ever-changing
-          motion. The approach follows ASAL (Sakana&nbsp;AI&nbsp;+&nbsp;MIT,
-          <em> Artificial Life</em>, 2025), realized here as something you can drive.
+          space. Fitness is judged across three moments in time, with a bonus for
+          genuinely changing between them, so the search selects for living
+          behavior rather than the best still frame. An open-ended mode instead
+          hunts for restless, ever-changing motion. The approach follows ASAL
+          (Sakana&nbsp;AI&nbsp;+&nbsp;MIT, <em> Artificial Life</em>, 2025),
+          realized here as something you can drive.
         </Block>
 
         <Block kicker="Making it feel alive">
@@ -1642,8 +1767,11 @@ function GenesisWriteup() {
         <Block kicker="Honest limits">
           The swarm is abstract. CLIP nudges colour, density and motion toward the
           vibe of a prompt, but the medium is particles and trails, not anatomy.
-          That gap, emergent media judged by a model trained on natural images, is
-          the interesting tension, and it is true of the original research too.
+          Genesis says so up front: ask it for a face or a car and a prompt router,
+          running in the same CLIP text space, will tell you the swarm can only
+          give you its texture, and offer behavioral rewrites that play to what
+          the medium genuinely does. Most tools draw you a picture. Genesis grows
+          you a behavior, then lets you disturb it.
         </Block>
 
         <p className="mt-12 border-l-2 border-sage pl-4 font-mono text-xs leading-relaxed text-ink/55">

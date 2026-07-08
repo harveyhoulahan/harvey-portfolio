@@ -245,3 +245,120 @@ export function cosine(a: Float32Array, b: Float32Array): number {
 export function resonance(cos: number): number {
   return Math.max(0, Math.min(1, (cos - 0.15) / 0.15));
 }
+
+/* ---- prompt router: behaviors vs objects --------------------------------
+ * Genesis genuinely summons *phenomena* (motion, texture, ecology) and
+ * genuinely cannot summon rigid *objects* (faces, cars, letters): a 6x6
+ * attraction matrix has no spatial degrees of freedom, so CLIP would climb
+ * the texture manifold and hand back generic swirls. Rather than let that
+ * failure happen in front of the user, we classify the prompt in CLIP text
+ * space against two small banks and route object-shaped prompts to an
+ * honest nudge with behavioral rewrites. Zero extra weights: it reuses the
+ * text tower that is already loaded.
+ */
+const OBJECT_BANK = [
+  "a human face",
+  "a portrait of a person",
+  "a skull",
+  "a statue",
+  "a human body",
+  "a hand with fingers",
+  "a car",
+  "a house",
+  "a building",
+  "a chair",
+  "a bicycle",
+  "written text",
+  "a logo",
+  "a map of a country",
+];
+const PHENOMENON_BANK = [
+  "a swarm of particles",
+  "a murmuration of starlings",
+  "a school of fish",
+  "cells dividing under a microscope",
+  "glowing plasma",
+  "swirling smoke",
+  "bacteria in a petri dish",
+  "waves and ripples",
+  "an explosion of sparks",
+  "aurora lights in the sky",
+  "bioluminescent plankton",
+  "a colony of microorganisms",
+];
+
+let objectBank: Float32Array[] | null = null;
+let phenomenonBank: Float32Array[] | null = null;
+
+async function embedBank(prompts: string[]): Promise<Float32Array[]> {
+  const { tokenizer, textModel } = mods;
+  const inputs = tokenizer(prompts, { padding: true, truncation: true });
+  const out = await textModel(inputs);
+  const data = out.text_embeds.data as ArrayLike<number>;
+  const dim = (data.length / prompts.length) | 0;
+  const bank: Float32Array[] = [];
+  for (let r = 0; r < prompts.length; r++) {
+    bank.push(l2norm(Float32Array.from({ length: dim }, (_, i) => data[r * dim + i] as number)));
+  }
+  return bank;
+}
+
+export interface PromptRoute {
+  kind: "phenomenon" | "object";
+  margin: number; // how object-shaped the prompt is (positive = object)
+  nearestObject: string;
+}
+
+/** Classify a raw prompt (no ensembling; the raw phrasing is the signal). */
+export async function classifyPrompt(text: string): Promise<PromptRoute> {
+  const { tokenizer, textModel } = mods;
+  if (!objectBank) objectBank = await embedBank(OBJECT_BANK);
+  if (!phenomenonBank) phenomenonBank = await embedBank(PHENOMENON_BANK);
+  const inputs = tokenizer([text], { padding: true, truncation: true });
+  const out = await textModel(inputs);
+  const e = l2norm(Float32Array.from(out.text_embeds.data as ArrayLike<number>));
+  let obj = -1, objIdx = 0, phen = -1;
+  objectBank.forEach((b, i) => { const c = cosine(e, b); if (c > obj) { obj = c; objIdx = i; } });
+  for (const b of phenomenonBank) { const c = cosine(e, b); if (c > phen) phen = c; }
+  const margin = obj - phen;
+  return {
+    kind: margin > 0.015 ? "object" : "phenomenon",
+    margin,
+    nearestObject: OBJECT_BANK[objIdx],
+  };
+}
+
+/** Behavioral rewrites offered when an object-shaped prompt is routed. */
+export function suggestPhenomena(text: string): string[] {
+  const t = text.toLowerCase();
+  if (/face|skull|portrait|person|human|head|body/.test(t)) {
+    return ["a ghostly presence forming in smoke", "cells organizing into a colony", "a swarm that breathes"];
+  }
+  if (/house|building|city|car|bridge|tower/.test(t)) {
+    return ["a bustling colony of fireflies", "termites building in fast forward", "sparks over a night city"];
+  }
+  if (/text|word|letter|logo|number/.test(t)) {
+    return ["signals firing through a neural net", "ink dispersing in water", "a swarm that keeps rewriting itself"];
+  }
+  return ["a murmuration of starlings", "cells dividing under a microscope", "bioluminescent plankton in a current"];
+}
+
+/* ---- behavioral fitness helpers ------------------------------------------
+ * The search judges a candidate across several developed moments. The mean
+ * contrastive match rewards looking like the words; the temporal drift term
+ * rewards genuinely *changing* between moments, so the optimum is a living
+ * behavior rather than the best still frame. Capped so restlessness can
+ * season the score but never replace prompt fidelity.
+ */
+export const DRIFT_WEIGHT = 0.5;
+export const DRIFT_CAP = 0.08;
+
+/** Mean embedding change between consecutive moments (each moment = one mean view). */
+export function temporalDrift(momentMeans: Float32Array[]): number {
+  if (momentMeans.length < 2) return 0;
+  let d = 0;
+  for (let i = 1; i < momentMeans.length; i++) {
+    d += 1 - cosine(momentMeans[i - 1], momentMeans[i]);
+  }
+  return d / (momentMeans.length - 1);
+}
