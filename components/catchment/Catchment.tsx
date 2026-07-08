@@ -266,6 +266,42 @@ export default function Catchment() {
       return true;
     },
     setControls: setShowControls,
+    record: (seconds) => {
+      const cv = canvasRef.current, rc = rainCanvasRef.current;
+      if (!cv || typeof MediaRecorder === "undefined" || !("captureStream" in HTMLCanvasElement.prototype)) return false;
+      // The scene lives on two canvases (WebGPU ground truth + 2D weather FX),
+      // so composite both into a recording canvas each frame and tape that.
+      const comp = document.createElement("canvas");
+      comp.width = cv.width; comp.height = cv.height;
+      const cctx = comp.getContext("2d");
+      if (!cctx) return false;
+      const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+      let rec: MediaRecorder;
+      const stream = comp.captureStream(30);
+      try { rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 }); }
+      catch { return false; }
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const url = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+        const a = document.createElement("a");
+        a.href = url; a.download = `catchment-${Date.now()}.webm`; a.click();
+        URL.revokeObjectURL(url);
+      };
+      let live = true;
+      const draw = () => {
+        if (!live) return;
+        if (comp.width !== cv.width || comp.height !== cv.height) { comp.width = cv.width; comp.height = cv.height; }
+        cctx.drawImage(cv, 0, 0, comp.width, comp.height);
+        if (rc && rc.width) cctx.drawImage(rc, 0, 0, comp.width, comp.height);
+        requestAnimationFrame(draw);
+      };
+      draw();
+      rec.start(1000);
+      window.setTimeout(() => { live = false; rec.stop(); }, seconds * 1000);
+      return true;
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
   // Load the map manifest once (a future-proof world list; secret worlds gated below).
@@ -1761,11 +1797,24 @@ export default function Catchment() {
         <div className="absolute inset-0 flex items-center justify-center"><span className="mono-label animate-pulse">Initialising engine…</span></div>
       )}
       {status === "mobile" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-paper p-8 text-center">
-          <span className="mono-label">Desktop only</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center overflow-y-auto bg-paper p-6 text-center">
+          {/* On a phone the engine can't run — so run the trailer. The loop is a
+              straight in-engine capture (the terminal's `record` command); the
+              poster keeps this from ever being a dead end if the video 404s. */}
+          <video
+            className="w-full max-w-md border border-contour"
+            autoPlay muted loop playsInline preload="metadata"
+            poster="/catchment/poster.jpg"
+            aria-label="A recording of the live Catchment simulation: rain, storms and meteor strikes on real terrain."
+          >
+            <source src="/catchment/loop.webm" type="video/webm" />
+            <source src="/catchment/loop.mp4" type="video/mp4" />
+          </video>
+          <span className="mono-label mt-6">This is a recording</span>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-ink/70">
-            Catchment is too heavy to run on a phone. Open it on a laptop or desktop
-            with Chrome, Edge, or Safari.
+            The real thing runs live on your GPU — rain carves the terrain, fire
+            runs with the wind, and a terminal takes plain english. Phones can&apos;t
+            hold it yet; open this page on a laptop in Chrome, Edge, or Safari.
           </p>
           <Link href="/playground" className="btn-secondary mt-6 text-sm">
             Back to playground

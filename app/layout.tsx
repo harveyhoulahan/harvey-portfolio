@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Instrument_Sans, JetBrains_Mono } from "next/font/
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
+import SiteTerminal from "@/components/SiteTerminal";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { themeInitScript } from "@/lib/theme";
 
@@ -94,6 +95,7 @@ export default function RootLayout({
           <main className="flex-grow">{children}</main>
           <Footer />
         </div>
+        <SiteTerminal />
         <SpeedInsights />
       </body>
     </html>

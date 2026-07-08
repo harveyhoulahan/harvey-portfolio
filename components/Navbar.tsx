@@ -89,6 +89,22 @@ export default function Navbar() {
               </Link>
             );
           })}
+          {/* the site shell — `/` opens it from anywhere */}
+          {pathname !== "/catchment" && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("site-terminal:open"))}
+              className={`hidden items-center gap-1.5 border px-2 py-0.5 font-mono text-[10px] tracking-[0.1em] transition-colors duration-300 lg:inline-flex ${
+                dark
+                  ? "border-white/15 text-paper/45 hover:border-white/30 hover:text-paper"
+                  : "border-contour text-ink/45 hover:border-flow hover:text-flow"
+              }`}
+              aria-label="Open the site terminal"
+              title="Open the site terminal"
+            >
+              <span aria-hidden>❯</span> /
+            </button>
+          )}
           <ThemeToggle
             variant={inDemo ? (dark ? "on-dark" : "on-light") : "default"}
           />

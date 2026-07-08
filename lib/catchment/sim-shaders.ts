@@ -1071,7 +1071,8 @@ fn fs(in: VSOut) -> @location(0) vec4<f32> {
     let midC = srgbToLinear(vec3<f32>(0.13, 0.33, 0.41));
     var col = mix(deepC, midC, clamp(0.45 + h * 10.0 + cvar * 0.18, 0.0, 1.0));
     let shallowC = srgbToLinear(vec3<f32>(0.32, 0.55, 0.53));
-    col = mix(col, shallowC, smoothstep(0.05, 0.85, shallowF) * 0.85);
+    // turquoise only truly near the sand — mid-channel water keeps its body
+    col = mix(col, shallowC, smoothstep(0.15, 0.9, shallowF) * 0.8);
     col = col * (0.62 + 0.38 * sunV);
     // fresnel sky reflection, damped over the shallows so the sand stays readable
     let refl = reflect(-V, N);

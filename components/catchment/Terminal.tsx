@@ -205,6 +205,23 @@ export default function Terminal({ bus, faded }: { bus: CatchmentBus; faded: boo
     }
   };
 
+  // Handoff from the site shell: "make it storm" typed anywhere on the site
+  // lands here and runs once the terrain is up. One command, spent on arrival.
+  useEffect(() => {
+    let queued: string | null = null;
+    try { queued = sessionStorage.getItem("catchment:handoff"); } catch { /* private mode */ }
+    if (!queued) return;
+    const cmd = queued;
+    // Consume the key only at execution time — strict-mode's mount/unmount
+    // rehearsal must not swallow the command before the real run fires.
+    const t = window.setTimeout(() => {
+      try { sessionStorage.removeItem("catchment:handoff"); } catch { /* private mode */ }
+      void submit(cmd);
+    }, BOOT_LINES.length * BOOT_STEP_MS + 500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // `/` or backtick summons the terminal from anywhere on the page.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
