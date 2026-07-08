@@ -85,7 +85,7 @@ export default function Home() {
                 </p>
               </div>
               <span className="mt-6 font-mono text-xs uppercase tracking-[0.12em] text-flow transition-transform duration-300 ease-out group-hover:translate-x-1 motion-reduce:transform-none">
-                Read the report (PDF) →
+                Read the report →
               </span>
             </a>
           </div>

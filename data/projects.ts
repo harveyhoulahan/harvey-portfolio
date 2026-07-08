@@ -173,7 +173,8 @@ export const papers: Paper[] = [
     summary:
       "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18. Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections, each argued from first principles.",
     links: [
-      { label: "Read the report (PDF)", href: "/papers/mainrun-report.pdf" },
+      { label: "Read the report", href: "/pretraining" },
+      { label: "PDF", href: "/papers/mainrun-report.pdf" },
     ],
   },
   {
