@@ -1,10 +1,10 @@
-import Link from "next/link";
 import ContourMotif from "@/components/ContourMotif";
 import GpuBadge from "@/components/GpuBadge";
+import Link from "next/link";
 
-// The Playground is now the launcher for the two flagship GPU demos. Each card
-// opens the full-screen experience at its own route; the header shifts to demo
-// mode there (see Navbar).
+// The Playground is the launcher for the flagship GPU demos. Live cards open
+// the full-screen experience at their own route; the header shifts to demo
+// mode there (see Navbar). A third slot holds the next thing.
 const DEMOS = [
   {
     href: "/catchment",
@@ -35,7 +35,7 @@ export default function Playground() {
       </div>
       <h1 className="mt-3 font-display text-3xl md:text-4xl">Things that run in your browser</h1>
       <p className="mt-3 max-w-prose text-ink/65">
-        Two simulations that run entirely in your browser on the GPU. No servers,
+        Simulations that run entirely in your browser on the GPU. No servers,
         no API keys, no libraries. Raw WGSL compute, including the neural network.{" "}
         <a
           href="https://github.com/harveyhoulahan/harvey-portfolio"
@@ -48,7 +48,7 @@ export default function Playground() {
         .
       </p>
 
-      <div className="mt-10 grid gap-5 md:grid-cols-2">
+      <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
         {DEMOS.map((d) => (
           <Link
             key={d.href}
@@ -69,6 +69,32 @@ export default function Playground() {
             </div>
           </Link>
         ))}
+
+        {/* Placeholder for the next demo — same card shell, no link */}
+        <div
+          aria-label="More demos coming"
+          className="survey-corners relative flex flex-col justify-between overflow-hidden border border-dashed border-contour bg-terrace/20 p-6"
+        >
+          <ContourMotif
+            variant="channels"
+            className="contour-motif pointer-events-none absolute -right-6 -top-6 z-0 h-28 w-36 text-ink/10"
+          />
+          <div className="relative">
+            <span className="mono-label normal-case tracking-[0.14em] text-ink/40">
+              03 · watch this space
+            </span>
+            <h2 className="mt-2 font-display text-2xl text-ink/45">more coming</h2>
+            <p className="mt-2 text-sm leading-relaxed text-ink/45">
+              Another GPU demo in the works. Same rule: runs in the tab, no servers.
+            </p>
+          </div>
+          <div className="relative mt-6 flex items-center justify-between gap-4">
+            <span className="font-mono text-[11px] tracking-[0.06em] text-ink/30">
+              not shipped yet
+            </span>
+            <span className="font-mono text-xs tracking-[0.06em] text-ink/30">soon</span>
+          </div>
+        </div>
       </div>
     </section>
   );
