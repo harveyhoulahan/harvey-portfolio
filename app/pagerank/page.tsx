@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import "katex/dist/katex.min.css";
+import Math from "@/components/Math";
 import SurferLab from "@/components/pagerank/SurferLab";
 
 export const metadata: Metadata = {
@@ -39,19 +41,13 @@ const QUESTIONS = [
   },
 ] as const;
 
-const ALGORITHMS: [string, string][] = [
-  ["Weighted PageRank", "Power iteration with dangling-page handling. The baseline everything else is measured against."],
-  ["Gillespie SSA", "Continuous-time surfer, exponential waits between clicks. Stationary distribution by time-weighted occupancy."],
-  ["Chain-binomial DTMC", "Exact 6-page P = αW + (1−α)/N, solved by left eigendecomposition."],
-  ["Monte Carlo estimation", "Visit frequencies against the exact eigenvector; 1/K error decay measured across chain lengths."],
-  ["Simulated annealing", "Metropolis acceptance exp(−ΔL/T), geometric cooling, minimising stationary-distribution error over α."],
-];
-
 function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
   return (
-    <div className="mt-10">
-      <h3 className="mb-2 font-mono text-xs uppercase tracking-[0.18em] text-sage">{kicker}</h3>
-      <p className="text-base leading-prose text-ink/80">{children}</p>
+    <div className="mt-12">
+      <h3 className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-sage">{kicker}</h3>
+      <div className="space-y-4 text-base leading-relaxed text-ink/80 [&_.katex]:text-[1.05em] [&_.katex-display]:my-5 [&_.katex-display]:overflow-x-auto">
+        {children}
+      </div>
     </div>
   );
 }
@@ -67,13 +63,13 @@ export default function PageRankPage() {
           <h1 className="font-display text-[clamp(2rem,4.2vw,2.75rem)] leading-[1.08] tracking-[-0.015em] text-balance lg:col-span-5 lg:row-start-2">
             Web navigation as a stochastic process
           </h1>
-          <p className="text-base leading-prose text-ink/75 md:text-[1.02rem] lg:col-span-7 lg:col-start-6 lg:row-start-2 lg:self-end lg:max-w-[58ch]">
+          <p className="text-base leading-relaxed text-ink/75 md:text-[1.02rem] lg:col-span-7 lg:col-start-6 lg:row-start-2 lg:self-end lg:max-w-[58ch]">
             PageRank imagines a surfer who follows links at random and
-            sometimes teleports. α is the link probability; 1&minus;α is uniform
-            jump. That makes the chain irreducible and gives one equilibrium.
-            The textbook stops at linear algebra. This keeps going: random
-            click times, an exact six-page web, then recovering α from behaviour
-            alone.
+            sometimes teleports. <Math>\alpha</Math> is the link probability;{" "}
+            <Math>{"1 - \\alpha"}</Math> is a uniform jump. That makes the chain
+            irreducible and gives one equilibrium. The textbook stops at linear
+            algebra. This keeps going: random click times, an exact six-page web,
+            then recovering <Math>\alpha</Math> from behaviour alone.
           </p>
         </header>
 
@@ -87,15 +83,18 @@ export default function PageRankPage() {
           ))}
         </div>
 
-        {/* the two questions, stated once, each named with its technique */}
-        <div className="mt-12 grid gap-5 md:grid-cols-2 md:items-stretch">
+        {/* the two questions — subgrid keeps the answer rules aligned */}
+        <div className="mt-12 grid gap-5 md:grid-cols-2 md:grid-rows-[auto_auto_1fr]">
           {QUESTIONS.map(({ id, tech, question, answer }) => (
-            <div key={id} className="survey-corners relative flex h-full min-h-0 flex-col border border-contour bg-terrace/40 p-5 md:p-6">
+            <div
+              key={id}
+              className="survey-corners relative grid grid-rows-subgrid row-span-3 border border-contour bg-terrace/40 p-5 md:p-6"
+            >
               <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                 <span className="mono-label">{id}</span>
                 <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-infra">{tech}</span>
               </div>
-              <p className="mt-3 flex-1 text-sm leading-relaxed text-ink/65">{question}</p>
+              <p className="mt-3 text-sm leading-relaxed text-ink/65">{question}</p>
               <div className="mt-5 border-t border-contour/70 pt-4">
                 <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-flow">Answer</p>
                 <p className="mt-2 text-sm leading-relaxed text-ink/85">{answer}</p>
@@ -109,51 +108,103 @@ export default function PageRankPage() {
           <h2 className="font-display text-xl">The surfer, live</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
             The exact six-page web from the submission. Squares scale with rank;
-            the tally below tracks the surfer. Drag α.
+            the tally below tracks the surfer. Drag <Math>\alpha</Math>.
           </p>
           <SurferLab />
         </div>
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The base model">
-            At page i the surfer follows a weighted out-link with probability α
-            or teleports uniformly with 1&minus;α. P = αW + (1&minus;α)/N; the
-            rank is its left eigenvector. Every page gets at least
-            (1&minus;α)/N, so nothing traps the chain. Page E above is the
-            degenerate case: no in-links, rank equals the teleport floor exactly
-            (1&minus;α)/6.
+            <p>
+              At page <Math>i</Math> the surfer follows a weighted out-link with
+              probability <Math>\alpha</Math>, or teleports to any page uniformly
+              with probability <Math>{"1 - \\alpha"}</Math>. The transition matrix
+              is
+            </p>
+            <Math display>{"P = \\alpha W + \\dfrac{1 - \\alpha}{N}"}</Math>
+            <p>
+              The ranking is its left eigenvector for eigenvalue one. Every page
+              receives at least <Math>{"(1 - \\alpha)/N"}</Math>, so nothing traps
+              the chain. Page E above is the degenerate case: no in-links, so its
+              rank equals the teleport floor exactly{" "}
+              <Math>{"(1 - \\alpha)/6"}</Math>.
+            </p>
           </Block>
 
           <Block kicker="Question one">
-            Gillespie replaces synchronous steps with exponential waits. 400 runs
-            at T = 500 match deterministic PageRank; at T = 5 they scatter.
-            Stochastic timing changes the journey, not the destination.
+            <p>
+              Gillespie replaces synchronous steps with exponential waiting times
+              between clicks. Across 400 runs, time-weighted occupancy at horizon{" "}
+              <Math>{"T = 500"}</Math> matches deterministic PageRank; at{" "}
+              <Math>{"T = 5"}</Math> the estimates scatter.
+            </p>
+            <p>
+              Stochastic timing changes the journey, not the destination.
+            </p>
           </Block>
 
           <Block kicker="Question two">
-            Hide α = 0.73, observe only the stationary distribution, search for
-            the damping factor that explains it. Metropolis acceptance,
-            geometric cooling. Stops at 0.730. Same machinery fits link weights
-            to real clickstreams.
+            <p>
+              Hide a true damping factor <Math>{"\\alpha = 0.73"}</Math>, observe
+              only the stationary distribution it produces, then search for the{" "}
+              <Math>\alpha</Math> that explains it. Metropolis acceptance with
+              geometric cooling walks the loss landscape down and stops at{" "}
+              <Math>{"0.730"}</Math>.
+            </p>
+            <p>
+              The same machinery fits link weights to real clickstreams.
+            </p>
           </Block>
 
           <Block kicker="Monte Carlo backbone">
-            Every empirical estimate checked against the exact eigenvector. MSE
-            decays as 1/K; measured from 10³ to 2×10⁵, landing at 2.6×10⁻⁷.
-            The live tally above is that experiment running.
+            <p>
+              Every empirical estimate is checked against the exact eigenvector.
+              Mean-squared error decays as
+            </p>
+            <Math display>{"\\mathrm{MSE} \\propto \\dfrac{1}{K}"}</Math>
+            <p>
+              Measured across chain lengths from <Math>{"10^{3}"}</Math> to{" "}
+              <Math>{"2 \\times 10^{5}"}</Math>, landing at{" "}
+              <Math>{"2.6 \\times 10^{-7}"}</Math>. The live tally above is that
+              experiment running.
+            </p>
           </Block>
         </div>
 
         {/* list of algorithms */}
         <div className="mt-14">
           <h2 className="font-display text-xl">The algorithms</h2>
-          <dl className="mt-4 space-y-3 border-l-2 border-sage pl-4">
-            {ALGORITHMS.map(([k, v]) => (
-              <div key={k}>
-                <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">{k}</dt>
-                <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">{v}</dd>
-              </div>
-            ))}
+          <dl className="mt-4 space-y-4 border-l-2 border-sage pl-4">
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">Weighted PageRank</dt>
+              <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">
+                Power iteration with dangling-page handling. The baseline everything else is measured against.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">Gillespie SSA</dt>
+              <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">
+                Continuous-time surfer, exponential waits between clicks. Stationary distribution by time-weighted occupancy.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">Chain-binomial DTMC</dt>
+              <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">
+                Exact 6-page <Math>{"P = \\alpha W + (1 - \\alpha)/N"}</Math>, solved by left eigendecomposition.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">Monte Carlo estimation</dt>
+              <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">
+                Visit frequencies against the exact eigenvector; <Math>{"1/K"}</Math> error decay measured across chain lengths.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">Simulated annealing</dt>
+              <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">
+                Metropolis acceptance <Math>{"\\exp(-\\Delta L / T)"}</Math>, geometric cooling, minimising stationary-distribution error over <Math>\alpha</Math>.
+              </dd>
+            </div>
           </dl>
         </div>
 

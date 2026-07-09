@@ -5,7 +5,7 @@ export const profile = {
   name: "Harvey Houlahan",
   title: "ML Systems · Simulation · Spatial Engineer",
   descriptor:
-    "ML that delivers. Day job: satellite and LiDAR for forest carbon. Nights: GPU physics and pretraining studies, live here.",
+    "ML that delivers. Satellite and LiDAR for forest carbon at work; GPU physics and pretraining studies here, live in the browser.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",

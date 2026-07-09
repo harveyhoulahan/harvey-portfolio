@@ -65,12 +65,19 @@ export default function SurferLab() {
   const [alpha, setAlpha] = useState(0.85);
   const [stats, setStats] = useState({ steps: 0, mse: 0, teleports: 0 });
   const [reduced, setReduced] = useState(false);
+  const [dark, setDark] = useState(false);
   const alphaRef = useRef(alpha);
   const resetRef = useRef(false);
   alphaRef.current = alpha;
 
   useEffect(() => {
     setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const root = document.documentElement;
+    const syncTheme = () => setDark(root.classList.contains("dark"));
+    syncTheme();
+    const mo = new MutationObserver(syncTheme);
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => mo.disconnect();
   }, []);
 
   useEffect(() => {
@@ -324,7 +331,7 @@ export default function SurferLab() {
       <p className="mt-2 font-mono text-[0.68rem] leading-relaxed text-ink/45">
         {reduced
           ? "exact stationary distribution shown; the live surfer respects your reduced-motion setting."
-          : "teal bars: exact eigenvector. dark bars: where the surfer has actually been. red arcs are teleports. note E holding at (1−α)/6: nothing links to it."}
+          : `${dark ? "orange" : "teal"} bars: exact eigenvector. ${dark ? "light" : "dark"} bars: where the surfer has actually been. red arcs are teleports. note E holding at (1−α)/6: nothing links to it.`}
       </p>
     </div>
   );

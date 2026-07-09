@@ -257,6 +257,7 @@ export default function Genesis() {
   const [paused, setPaused] = useState(false);
   const [params, setParams] = useState<Params>(DEFAULTS);
   const [panelOpen, setPanelOpen] = useState(true);
+  const [summonOpen, setSummonOpen] = useState(true);
   const [advanced, setAdvanced] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -1512,93 +1513,133 @@ export default function Genesis() {
 
       {/* M4 — summon (CLIP scoring) */}
       {status === "ready" && (
-        <div style={{ ...summonCard, opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
-          <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
-            summon · clip
-          </div>
-          <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(247,245,240,0.62)", margin: "5px 0 9px" }}>
-            Describe a behavior. Genesis grows it, then lets you disturb it.
-          </p>
-          <div style={{ display: "flex", gap: 6 }}>
-            <input
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") startSummon(); }}
-              placeholder="a glowing jellyfish"
-              style={textInput}
-            />
+        <div style={{ ...summonCard(summonOpen), opacity: uiVisible ? 1 : 0, pointerEvents: uiVisible ? "auto" : "none", transition: "opacity .6s ease" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: summonOpen ? 5 : 0 }}>
+            <span style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: SAND, fontWeight: 600 }}>
+              summon · clip
+            </span>
             <button
-              style={btn}
-              onClick={() => startSummon()}
-              disabled={visionStatus === "loading" || searching}
+              style={collapseBtn}
+              onClick={() => setSummonOpen((o) => !o)}
+              aria-label={summonOpen ? "Collapse summon panel" : "Expand summon panel"}
             >
-              {visionStatus === "loading" ? "…" : "Summon"}
+              {summonOpen ? "–" : "+"}
             </button>
           </div>
-          {visionMsg && (
-            <div style={{ fontSize: 11, marginTop: 7, color: visionStatus === "error" ? "#D08763" : "rgba(247,245,240,0.55)" }}>
-              {visionMsg}
-            </div>
-          )}
-          {routeNotice && (
-            <div style={{ marginTop: 9, padding: "8px 10px", border: "1px solid rgba(196,168,130,0.35)", background: "rgba(196,168,130,0.08)" }}>
-              <div style={{ fontSize: 11.5, lineHeight: 1.5, color: "rgba(247,245,240,0.78)" }}>
-                Genesis grows behaviors, not portraits. &ldquo;{routeNotice.prompt}&rdquo; is
-                object-shaped: the swarm would give you its texture, never its anatomy. Try one of these instead:
+
+          {summonOpen && (
+            <>
+              <p style={{ fontSize: 12, lineHeight: 1.45, color: "rgba(247,245,240,0.62)", margin: "0 0 10px" }}>
+                Describe a behavior. Genesis grows it, then lets you disturb it.
+              </p>
+
+              <div style={{ display: "flex", gap: 6 }}>
+                <input
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") startSummon(); }}
+                  placeholder="a glowing jellyfish"
+                  style={textInput}
+                />
+                <button
+                  style={btn}
+                  onClick={() => startSummon()}
+                  disabled={visionStatus === "loading" || searching}
+                >
+                  {visionStatus === "loading" ? "…" : "Summon"}
+                </button>
               </div>
-              <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
-                {routeNotice.suggestions.map((sg) => (
-                  <button key={sg} style={{ ...btn, fontSize: 11.5, padding: "5px 9px" }} onClick={() => summonSuggestion(sg)}>
-                    {sg}
-                  </button>
-                ))}
-              </div>
-              <button
-                style={{ background: "none", border: "none", color: "rgba(247,245,240,0.45)", fontSize: 10.5, marginTop: 7, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}
-                onClick={() => startSummon(routeNotice.prompt, true)}
-              >
-                summon it anyway
-              </button>
-            </div>
-          )}
-          {visionStatus === "ready" && score != null && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.7)", marginBottom: 4 }}>
-                <span>resonance</span><span style={{ color: SAND }}>{score.toFixed(3)}</span>
-              </div>
-              <div style={meterTrack}><div style={{ ...meterFill, width: `${resonance(score) * 100}%` }} /></div>
-            </div>
-          )}
-          {telemetry && !searching && (
-            <div style={{ marginTop: 10 }}>
-              {([
-                ["coherence", telemetry.phi],
-                ["dispersal", telemetry.spread],
-              ] as [string, number][]).map(([label, v]) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: 10.5, color: "rgba(247,245,240,0.5)", width: 62 }}>{label}</span>
-                  <div style={{ ...meterTrack, flex: 1 }}><div style={{ ...meterFill, width: `${Math.min(100, v * 100)}%` }} /></div>
-                  <span style={{ fontSize: 10.5, color: SAND, width: 34, textAlign: "right" }}>{v.toFixed(2)}</span>
+
+              {visionMsg && (
+                <div style={{ fontSize: 11, marginTop: 8, color: visionStatus === "error" ? "#D08763" : "rgba(247,245,240,0.55)" }}>
+                  {visionMsg}
                 </div>
-              ))}
-              <div style={{ fontSize: 10, color: "rgba(247,245,240,0.38)", marginTop: 4 }}>
-                live order parameters. poke the swarm and watch it recover.
+              )}
+
+              {routeNotice && (
+                <div style={{ marginTop: 10, padding: "8px 10px", border: "1px solid rgba(196,168,130,0.35)", background: "rgba(196,168,130,0.08)" }}>
+                  <div style={{ fontSize: 11.5, lineHeight: 1.5, color: "rgba(247,245,240,0.78)" }}>
+                    Genesis grows behaviors, not portraits. &ldquo;{routeNotice.prompt}&rdquo; is
+                    object-shaped: the swarm would give you its texture, never its anatomy. Try one of these instead:
+                  </div>
+                  <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
+                    {routeNotice.suggestions.map((sg) => (
+                      <button key={sg} style={{ ...btn, fontSize: 11.5, padding: "5px 9px" }} onClick={() => summonSuggestion(sg)}>
+                        {sg}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    style={{ background: "none", border: "none", color: "rgba(247,245,240,0.45)", fontSize: 10.5, marginTop: 7, cursor: "pointer", padding: 0, textDecoration: "underline", textUnderlineOffset: 3 }}
+                    onClick={() => startSummon(routeNotice.prompt, true)}
+                  >
+                    summon it anyway
+                  </button>
+                </div>
+              )}
+
+              {(visionStatus === "ready" && score != null) || (telemetry && !searching) ? (
+                <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(247,245,240,0.1)" }}>
+                  {visionStatus === "ready" && score != null && (
+                    <div style={{ marginBottom: telemetry && !searching ? 8 : 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "rgba(247,245,240,0.7)", marginBottom: 4 }}>
+                        <span>resonance</span>
+                        <span style={{ color: SAND }}>{score.toFixed(3)}</span>
+                      </div>
+                      <div style={meterTrack}>
+                        <div style={{ ...meterFill, width: `${resonance(score) * 100}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {telemetry && !searching && (
+                    <>
+                      {([
+                        ["coherence", telemetry.phi],
+                        ["dispersal", telemetry.spread],
+                      ] as [string, number][]).map(([label, v]) => (
+                        <div key={label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 5 }}>
+                          <span style={{ fontSize: 10.5, color: "rgba(247,245,240,0.5)", width: 62 }}>{label}</span>
+                          <div style={{ ...meterTrack, flex: 1 }}>
+                            <div style={{ ...meterFill, width: `${Math.min(100, v * 100)}%` }} />
+                          </div>
+                          <span style={{ fontSize: 10.5, color: SAND, width: 34, textAlign: "right" }}>{v.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      <div style={{ fontSize: 10, color: "rgba(247,245,240,0.38)", marginTop: 6 }}>
+                        live order parameters · poke the swarm and watch it recover
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : null}
+
+              <div style={{ marginTop: 12, borderTop: "1px solid rgba(247,245,240,0.1)", paddingTop: 11 }}>
+                {searching ? (
+                  <button style={{ ...btn, width: "100%", justifyContent: "center" }} onClick={() => { searchCancelRef.current = true; }}>
+                    Stop
+                  </button>
+                ) : (
+                  <button style={{ ...btn, width: "100%", justifyContent: "center" }} onClick={() => runSearchRef.current?.("open")}>
+                    Open-ended ↯
+                  </button>
+                )}
+                {searchInfo && (
+                  <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 7 }}>{searchInfo}</div>
+                )}
               </div>
-            </div>
+
+              <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid rgba(196,168,130,0.18)", fontSize: 10.5, lineHeight: 1.55, color: "rgba(247,245,240,0.42)" }}>
+                <div>
+                  <span style={{ color: SAND, fontWeight: 600 }}>Summon</span>
+                  {" "}pulls a trained prior, then breeds toward your words — CMA-ES on 51 genes, scored by CLIP across three moments, so it selects for behavior, not a still.
+                </div>
+                <div style={{ marginTop: 7 }}>
+                  <span style={{ color: SAND, fontWeight: 600 }}>Open-ended</span>
+                  {" "}hunts restless life.
+                </div>
+              </div>
+            </>
           )}
-          <div style={{ display: "flex", gap: 6, marginTop: 11 }}>
-            {searching ? (
-              <button style={btn} onClick={() => { searchCancelRef.current = true; }}>Stop</button>
-            ) : (
-              <button style={btn} onClick={() => runSearchRef.current?.("open")}>Open-ended ↯</button>
-            )}
-          </div>
-          {searchInfo && (
-            <div style={{ fontSize: 11, color: "rgba(247,245,240,0.62)", marginTop: 6 }}>{searchInfo}</div>
-          )}
-          <div style={{ fontSize: 10.5, color: "rgba(247,245,240,0.42)", marginTop: 9, lineHeight: 1.45 }}>
-            <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Summon</b> retrieves a trained prior for your words, then breeds toward them (CMA-ES on a 51-gene genome, scored by contrastive CLIP across three moments in time, so it selects for behavior, not a still). <b style={{ color: "rgba(247,245,240,0.6)", fontWeight: 600 }}>Open-ended</b> hunts restless life.
-          </div>
         </div>
       )}
 
@@ -1793,19 +1834,33 @@ function Block({ kicker, children }: { kicker: string; children: React.ReactNode
 }
 
 const btn: CSSProperties = {
-  background: "rgba(247,245,240,0.10)", color: "#F7F5F0",
-  border: "1px solid rgba(247,245,240,0.25)", borderRadius: 8,
-  padding: "8px 14px", fontSize: 13, cursor: "pointer", backdropFilter: "blur(6px)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "rgba(247,245,240,0.10)",
+  color: "#F7F5F0",
+  border: "1px solid rgba(247,245,240,0.25)",
+  borderRadius: 8,
+  padding: "8px 14px",
+  fontSize: 13,
+  cursor: "pointer",
+  backdropFilter: "blur(6px)",
 };
 
-const summonCard: CSSProperties = {
-  position: "absolute", top: 22, right: 22, width: 290,
+const summonCard = (open: boolean): CSSProperties => ({
+  position: "absolute",
+  top: 22,
+  right: 22,
+  width: open ? 290 : "auto",
   background: "linear-gradient(135deg, rgba(20,20,18,0.72), rgba(20,20,18,0.52))",
-  backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)",
-  border: "1px solid rgba(196,168,130,0.28)", borderRadius: 14,
-  padding: "14px 16px", boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
+  backdropFilter: "blur(10px)",
+  WebkitBackdropFilter: "blur(10px)",
+  border: "1px solid rgba(196,168,130,0.28)",
+  borderRadius: 14,
+  padding: open ? "14px 16px" : "10px 12px",
+  boxShadow: "0 10px 40px rgba(0,0,0,0.35)",
   fontFamily: 'var(--font-mono), "JetBrains Mono", ui-monospace, monospace',
-};
+});
 const textInput: CSSProperties = {
   flex: 1, minWidth: 0, background: "rgba(247,245,240,0.06)", color: "#F7F5F0",
   border: "1px solid rgba(247,245,240,0.22)", borderRadius: 8, padding: "8px 10px",
