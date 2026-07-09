@@ -27,8 +27,9 @@ const PAGES: { id: string; path: string; blurb: string; aliases: string[] }[] = 
   { id: "playground", path: "/playground", blurb: "live GPU demos", aliases: ["demos", "lab"] },
   { id: "catchment", path: "/catchment", blurb: "neural earth engine — flagship i", aliases: [] },
   { id: "genesis", path: "/genesis", blurb: "artificial-life lab — flagship ii", aliases: [] },
-  { id: "pretraining", path: "/pretraining", blurb: "LLM pretraining under fixed compute — the report", aliases: ["report", "paper", "research"] },
-  { id: "canopy", path: "/canopy", blurb: "canopy cover from orbit — the day job, deep-dive", aliases: ["arbormeta", "forest", "lidar"] },
+  { id: "pretraining", path: "/pretraining", blurb: "LLM pretraining under fixed compute, the report", aliases: ["report", "paper", "research"] },
+  { id: "canopy", path: "/canopy", blurb: "canopy cover from orbit, the day job deep-dive", aliases: ["arbormeta", "forest", "lidar"] },
+  { id: "pagerank", path: "/pagerank", blurb: "web navigation as a stochastic process", aliases: ["surf", "markov", "monash", "fit3139"] },
   { id: "about", path: "/about", blurb: "who's building this", aliases: ["bio"] },
   { id: "experience", path: "/experience", blurb: "the timeline", aliases: ["timeline"] },
   { id: "skills", path: "/skills", blurb: "the toolbox", aliases: ["stack"] },
@@ -40,7 +41,19 @@ const SIM_GROUPS = new Set(["rain", "storm", "erosion", "wind", "relief", "sun",
 
 const BOOT: Line[] = [
   { kind: "block", text: "[ok] shell    hjh/os — site command line" },
-  { kind: "dim", text: "tip: `ls` lists pages · `open catchment` · or just say it: “make it storm”", cmd: "ls" },
+  { kind: "dim", text: "tip: `ls` · `open genesis` · `resume`", cmd: "ls" },
+];
+
+/** Short discoverable commands — rotate while the prompt is empty. */
+const PLACEHOLDERS = [
+  "open pagerank",
+  "open canopy",
+  "open pretraining",
+  "open genesis",
+  "open catchment",
+  "resume",
+  "whoami",
+  "ls",
 ];
 
 const HELP: Line[] = [
@@ -52,8 +65,8 @@ const HELP: Line[] = [
 ];
 
 const SUGGESTIONS = [
-  "open catchment", "open genesis", "open work", "ls", "resume", "email",
-  "github", "linkedin", "theme dark", "theme light", "whoami", "help",
+  "open catchment", "open genesis", "open pagerank", "open canopy", "open pretraining",
+  "open work", "ls", "resume", "email", "github", "linkedin", "theme dark", "whoami", "help",
   "make it storm",
 ];
 
@@ -83,8 +96,16 @@ button.st-line:hover::after{content:"  ↵";color:rgba(143,174,131,0.7);}
 .st-inputrow{display:flex;align-items:center;gap:8px;padding:8px 12px 10px;}
 .st-inputrow.has-border{border-top:1px solid rgba(216,211,200,0.14);}
 .st-prompt{color:#8FAE83;font-size:0.72rem;flex:none;}
-.st-input{flex:1;min-width:0;font-family:inherit;font-size:0.7rem;line-height:1.4;background:transparent;border:none;padding:0;color:#F7F5F0;caret-color:#8FAE83;outline:none;}
-.st-input::placeholder{color:rgba(247,245,240,0.26);}
+.st-input{flex:1;min-width:0;font-family:inherit;font-size:0.7rem;line-height:1.4;letter-spacing:0.02em;background:transparent;border:none;padding:0;color:#F7F5F0;caret-color:#8FAE83;outline:none;}
+.st-input::placeholder{color:rgba(143,174,131,0.42);text-shadow:0 0 10px rgba(143,174,131,0.22);transition:opacity .55s ease,color .55s ease,text-shadow .55s ease;}
+.st-input.st-ph-fade::placeholder{opacity:0;}
+@keyframes st-ph-glow{
+  0%,100%{color:rgba(143,174,131,0.36);text-shadow:0 0 6px rgba(143,174,131,0.12);}
+  50%{color:rgba(169,196,155,0.58);text-shadow:0 0 14px rgba(143,174,131,0.38);}
+}
+@media (prefers-reduced-motion:no-preference){
+  .st-input:placeholder-shown::placeholder{animation:st-ph-glow 3.6s ease-in-out infinite;}
+}
 .st-key{flex:none;font-size:0.54rem;letter-spacing:0.1em;color:rgba(247,245,240,0.3);border:1px solid rgba(247,245,240,0.16);padding:1px 5px;user-select:none;}
 `;
 
@@ -94,11 +115,14 @@ export default function SiteTerminal() {
   const [visible, setVisible] = useState(false);
   const [lines, setLines] = useState<Line[]>(BOOT);
   const [input, setInput] = useState("");
+  const [placeholder, setPlaceholder] = useState(PLACEHOLDERS[0]);
+  const [phFade, setPhFade] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const history = useRef<string[]>([]);
   const histIdx = useRef(-1);
   const draft = useRef("");
+  const phIdx = useRef(0);
 
   const classify = useMemo(() => createLazyClassifier("/catchment/intent.json"), []);
 
@@ -254,6 +278,20 @@ export default function SiteTerminal() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [lines, visible]);
 
+  // Soft-rotate empty-prompt hints every 12s — only while idle.
+  useEffect(() => {
+    if (!visible || input.length > 0) return;
+    const id = window.setInterval(() => {
+      setPhFade(true);
+      window.setTimeout(() => {
+        phIdx.current = (phIdx.current + 1) % PLACEHOLDERS.length;
+        setPlaceholder(PLACEHOLDERS[phIdx.current]);
+        setPhFade(false);
+      }, 280);
+    }, 12000);
+    return () => window.clearInterval(id);
+  }, [visible, input]);
+
   if (suppressed || !visible) return null;
 
   return (
@@ -285,9 +323,9 @@ export default function SiteTerminal() {
         <span className="st-prompt">❯</span>
         <input
           ref={inputRef}
-          className="st-input"
+          className={`st-input${phFade ? " st-ph-fade" : ""}`}
           value={input}
-          placeholder="open catchment · resume · “make it storm”"
+          placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
           aria-label="Site command input"

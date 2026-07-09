@@ -30,9 +30,9 @@ export const caseStudies: CaseStudy[] = [
     summary:
       "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:
-      "Carbon and ecology data was scattered across field surveys and raw LiDAR. None of it sat in one place a policymaker could actually look at — and none of it answered the question that matters: how much carbon, and is it growing?",
+      "Carbon and ecology data was scattered across field surveys and raw LiDAR. None of it sat in one place a policymaker could actually look at, and none of it answered the question that matters: how much carbon, and is it growing?",
     approach: [
-      "Canopy-height and above-ground-carbon models from paired LiDAR captures — growth quantified between flights, parcel by parcel",
+      "Canopy-height and above-ground-carbon models from paired LiDAR captures, with growth quantified between flights parcel by parcel",
       "Live fire-spread and ember mapping driven by wind fields",
       "A multi-LOD PMTiles pipeline that keeps continental-scale datasets fast at every zoom level",
       "A PostGIS spatial backend, with parsers that pull Fulcrum field surveys straight into the platform",
@@ -40,7 +40,7 @@ export const caseStudies: CaseStudy[] = [
     ],
     outcome: [
       "Used to advise federal and state government on carbon credit rules",
-      "Canopy growth and carbon change measured between repeat LiDAR captures — the numbers under the policy",
+      "Canopy growth and carbon change measured between repeat LiDAR captures, the numbers under the policy",
       "Field data from four countries, readable in one live interface",
     ],
     stack: [
@@ -170,9 +170,9 @@ export interface Paper {
 export const papers: Paper[] = [
   {
     title: "Adapting frontier LLM-pretraining techniques under fixed compute",
-    context: "Maincode — Mainrun assessment · 2026",
+    context: "Maincode · Mainrun assessment · 2026",
     summary:
-      "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18. Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections, each argued from first principles.",
+      "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18 via Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections. Each change argued from first principles.",
     links: [
       { label: "Read the report", href: "/pretraining" },
       { label: "PDF", href: "/papers/mainrun-report.pdf" },
@@ -180,10 +180,11 @@ export const papers: Paper[] = [
   },
   {
     title: "Web-page navigation as a stochastic process",
-    context: "Monash FIT3139 — Computational Modelling & Simulation",
+    context: "Monash FIT3139 · Computational Modelling & Simulation",
     summary:
-      "Extends Google's PageRank beyond linear algebra: Gillespie stochastic simulation, chain-binomial Markov analysis solved by eigendecomposition, and simulated-annealing parameter fitting via Metropolis–Hastings; recovering true teleportation parameter from realistic navigation data.",
+      "Google's PageRank taken past linear algebra: Gillespie click-time simulation, an exact six-page Markov chain by eigendecomposition, and simulated annealing that recovers a hidden damping factor to three decimals.",
     links: [
+      { label: "Read the paper", href: "/pagerank" },
       {
         label: "GitHub",
         href: "https://github.com/harveyhoulahan/Web-Page-Navigation-Model-with-AI-ML-Extensions",

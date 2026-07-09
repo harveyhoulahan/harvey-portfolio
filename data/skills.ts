@@ -126,3 +126,76 @@ export const skillsData = [
     ],
   },
 ];
+
+// Skills with receipts: each cluster of the stack is anchored by a real
+// artifact on this site. The cards on /skills render from here.
+export const skillProofs = [
+  {
+    href: "/pretraining",
+    kicker: "Deep learning · LLMs",
+    title: "Pretraining under fixed compute",
+    stat: "1.7533 → 1.1754",
+    proof:
+      "A 40M-parameter transformer taken 33% down in validation loss on a frozen seven-epoch budget. Muon, WSD scheduling, RoPE, ReLU² and value residuals, with every experiment and every failure in the ledger.",
+    cta: "Read the report",
+    skills: [
+      "Muon optimizer",
+      "WSD scheduling",
+      "RoPE",
+      "ReLU² activations",
+      "Ablation-driven tuning",
+      "PyTorch",
+    ],
+    motif: "pretraining",
+  },
+  {
+    href: "/canopy",
+    kicker: "Geospatial ML",
+    title: "Canopy cover from orbit",
+    stat: "0.5 m",
+    proof:
+      "A wavelength-aware Swin-UNet that measures forest canopy from satellite imagery, trained on airborne-LiDAR labels and self-calibrated per station, and the production geospatial platform built around it.",
+    cta: "Read the deep dive",
+    skills: [
+      "ALS / LiDAR processing",
+      "Earth observation data",
+      "PostGIS",
+      "MapLibre GL JS",
+      "Model deployment",
+    ],
+    motif: "basin",
+  },
+  {
+    href: "/catchment",
+    kicker: "Simulation · GPU",
+    title: "A neural Earth engine",
+    stat: "60 fps",
+    proof:
+      "Shallow-water hydrology, erosion and wildfire in hand-written WGSL compute passes, with a convolutional neural operator trained on the solver and raced against it live in your browser.",
+    cta: "Run it live",
+    skills: [
+      "WebGPU / WGSL",
+      "Numerical simulation",
+      "Neural operators",
+      "Profiling & benchmarking",
+    ],
+    motif: "channels",
+  },
+  {
+    href: "/pagerank",
+    kicker: "Modelling & Optimization",
+    title: "PageRank as a stochastic process",
+    stat: "α 0.730 / 0.730",
+    proof:
+      "Google's random surfer taken past linear algebra: Gillespie click-time simulation, an exact Markov chain solved by eigendecomposition, and simulated annealing that recovers a hidden damping factor to three decimals. With a live surfer you can drive.",
+    cta: "Read the paper",
+    skills: [
+      "Markov chains",
+      "Gillespie SSA",
+      "Metropolis–Hastings",
+      "Eigenvector / spectral methods",
+      "Simulated annealing",
+    ],
+    motif: "surfer",
+  },
+] as const;

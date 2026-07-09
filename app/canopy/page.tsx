@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import FinetuneChart from "@/components/canopy/FinetuneChart";
+import ProductionLog from "@/components/canopy/ProductionLog";
 
 export const metadata: Metadata = {
-  title: "Canopy cover from orbit — satellite × LiDAR fusion | Harvey Houlahan",
+  title: "Canopy cover from orbit | satellite × LiDAR fusion | Harvey Houlahan",
   description:
-    "How ArborMeta measures forest canopy at 0.5 m from satellite imagery: a wavelength-aware Swin-UNet trained on airborne-LiDAR canopy-cover labels, self-calibrated per station on its own ALS data — plus the geospatial platform built around it.",
+    "How ArborMeta measures forest canopy at 0.5 m from satellite imagery: a wavelength-aware Swin-UNet trained on airborne-LiDAR canopy-cover labels, self-calibrated per station on its own ALS data, plus the geospatial platform built around it.",
   alternates: { canonical: "https://hjhportfolio.com/canopy" },
 };
 
@@ -21,24 +22,12 @@ const STATS = [
 ] as const;
 
 const PLATFORM: [string, string][] = [
-  ["The map", "MapLibre workspace over every domain — ALS, TLS, satellite, carbon-project boundaries — as filterable vector-tile layers with AOI drawing, zonal statistics and QGIS export."],
-  ["The 3D globe", "A token-free Three.js globe that streams terrestrial-LiDAR point clouds of individual trees in one WebGL context — eye-dome lighting, classification filters, rescan-vs-parent growth comparison."],
+  ["The map", "MapLibre workspace over every domain (ALS, TLS, satellite, carbon-project boundaries) as filterable vector-tile layers with AOI drawing, zonal statistics and QGIS export."],
+  ["The 3D globe", "A token-free Three.js globe that streams terrestrial-LiDAR point clouds of individual trees in one WebGL context: eye-dome lighting, classification filters, rescan-vs-parent growth comparison."],
   ["Per-tree science", "DBH, height, volume, biomass and QSM model uncertainty for every reconstructed stem; colour any plot by any metric."],
   ["Pipeline operations", "Ingestion timeline, processing queue, throughput and backlog, storage health, data-quality checks, and an admin audit log."],
   ["Collaboration", "Typed, shareable workspaces, threaded comments, snapshot messaging, and real-time notifications over Postgres LISTEN/NOTIFY → Server-Sent Events."],
-  ["FieldLink", "An air-gap-friendly delivery channel for field crews: X25519 + Ed25519, sign-then-encrypt, replay protection, per-device sealed packages — the transport only ever sees ciphertext."],
-];
-
-const LOG_LINES: { kind: "cmd" | "ok" | "dim" | "run"; text: string }[] = [
-  { kind: "cmd", text: "$ python predict_11layer.py --delivery <station>_jilin_50cm" },
-  { kind: "dim", text: "[finetune] epoch 2870 · 256/256 · 6.49 it/s · val_loss 0.01334 → checkpoint saved" },
-  { kind: "dim", text: "[finetune] epoch 2974 · 256/256 · 6.49 it/s · val_loss 0.01069 → checkpoint saved" },
-  { kind: "ok", text: "[finetune] epoch 3060 · 256/240 · 6.49 it/s · val_loss 0.00955 → checkpoint saved" },
-  { kind: "dim", text: "[finetune] Trainer.fit stopped: max_steps reached · restoring best checkpoint" },
-  { kind: "run", text: "[predict]  Predicting ━━━━━━━━━━━━━━━━ 975/975 · 0:07:24 · 7.99 it/s" },
-  { kind: "dim", text: "[merge]    building VRT · merging 2,252 prediction tiles" },
-  { kind: "ok", text: "[merge]    station-scale cover raster written · ZSTD · thumbnails to level 16" },
-  { kind: "ok", text: "[done]     prediction completed. all resources cleaned up." },
+  ["FieldLink", "An air-gap-friendly delivery channel for field crews: X25519 + Ed25519, sign-then-encrypt, replay protection, per-device sealed packages. The transport only ever sees ciphertext."],
 ];
 
 function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
@@ -113,13 +102,13 @@ export default function CanopyPage() {
           Canopy cover from orbit
         </h1>
         <p className="mt-4 max-w-prose text-base leading-prose text-ink/75">
-          Airborne LiDAR measures forest structure honestly but only over thin
-          flightlines; satellites cover whole stations but can&apos;t see in 3D.
-          The pipeline below learns the mapping between them: a wavelength-aware
+          Airborne LiDAR measures forest structure honestly, but only over thin
+          flightlines. Satellites cover whole stations but cannot see in 3D.
+          This pipeline learns the mapping between them: a wavelength-aware
           transformer trained on LiDAR-derived canopy-cover labels, self-calibrated
           on each station&apos;s own flightlines, then run across the entire
           property from satellite alone. Client and site identifiers are stripped;
-          every number is from a real production run.
+          every number below is from a real production run.
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -145,10 +134,10 @@ export default function CanopyPage() {
           <Block kicker="The two instruments">
             The label side starts as raw airborne-LiDAR point clouds, becomes a
             smoothed canopy-height model, and is rasterised into eleven
-            cover-fraction layers — the fraction of ground covered by vegetation
-            taller than 1.0 m, 1.1 m, … 2.0 m. The imagery side is Jilin-1: a
+            cover-fraction layers: the fraction of ground covered by vegetation
+            taller than 1.0 m, 1.1 m, … 2.0 m. The imagery side is Jilin-1, a
             panchromatic band plus four multispectral bands at 0.5 m. Nothing is
-            fed to the model as raw pixels — per-band calibration gain and bias
+            fed to the model as raw pixels. Per-band calibration gain and bias
             from the scene metadata convert digital numbers to radiance, and each
             band travels with its centre wavelength, bandwidth, and the sun and
             satellite geometry at capture.
@@ -170,7 +159,7 @@ export default function CanopyPage() {
           <h2 className="font-display text-xl">Self-calibration, per station</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
             Before predicting a station, the base model fine-tunes on that
-            station&apos;s own LiDAR chips — every dot is a saved checkpoint from
+            station&apos;s own LiDAR chips. Every dot is a saved checkpoint from
             one production run. Hover for the numbers.
           </p>
           <FinetuneChart />
@@ -178,10 +167,10 @@ export default function CanopyPage() {
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The last mile">
-            Prediction tiles the scene with a single-grid sampler — 768-pixel
-            patches with 128 pixels of overlap so tile edges can be cropped away —
-            runs each tile under mixed precision, georeferences the output, and
-            merges thousands of tiles through a GDAL VRT into one ZSTD-compressed,
+            Prediction tiles the scene with a single-grid sampler: 768-pixel
+            patches with 128 pixels of overlap so tile edges can be cropped away.
+            Each tile runs under mixed precision, the output is georeferenced, and
+            thousands of tiles merge through a GDAL VRT into one ZSTD-compressed,
             station-scale cover raster. One model run&apos;s outputs for one
             delivery: 18 rasters, 119.6 GB.
           </Block>
@@ -193,34 +182,18 @@ export default function CanopyPage() {
           <p className="mb-4 mt-1 text-sm text-ink/60">
             The production log, trimmed to its skeleton.
           </p>
-          <div className="border border-contour bg-[#1a1a18] px-4 py-4 font-mono text-[11px] leading-relaxed">
-            {LOG_LINES.map((l, i) => (
-              <div
-                key={i}
-                className="whitespace-pre-wrap break-words"
-                style={{
-                  color:
-                    l.kind === "cmd" ? "#F7F5F0"
-                    : l.kind === "ok" ? "#A9C49B"
-                    : l.kind === "run" ? "#C4A882"
-                    : "rgba(247,245,240,0.42)",
-                }}
-              >
-                {l.text}
-              </div>
-            ))}
-          </div>
+          <ProductionLog />
         </div>
 
         {/* the platform */}
         <div className="mt-14">
           <h2 className="font-display text-xl">The platform around it</h2>
           <p className="mt-2 max-w-prose text-base leading-prose text-ink/80">
-            The pipeline feeds a full geospatial platform — a single-handed
+            The pipeline feeds a full geospatial platform: a single-handed
             build used by the team, government stakeholders and visiting
-            researchers: a FastAPI + PostGIS backend (~35 route modules, ~40
-            tables) under a React 18 + TypeScript frontend (14 pages), serving
-            vector tiles, cloud-optimised point clouds and rasters from
+            researchers. A FastAPI + PostGIS backend (~35 route modules, ~40
+            tables) sits under a React 18 + TypeScript frontend (14 pages),
+            serving vector tiles, cloud-optimised point clouds and rasters from
             terabyte-scale archives.
           </p>
           <div className="mt-6 grid gap-x-10 gap-y-5 md:grid-cols-2">
@@ -235,7 +208,7 @@ export default function CanopyPage() {
 
         <div className="mx-auto max-w-prose">
           <Block kicker="Why it matters">
-            These rasters are not decorative — canopy growth measured between
+            These rasters are not decorative. Canopy growth measured between
             repeat LiDAR captures, extended across whole stations by satellite,
             is the evidence base under Australian carbon-credit policy advice.
             The same discipline as the demos on this site, pointed at country.

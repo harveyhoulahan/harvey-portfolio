@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import ExperimentLedger from "@/components/pretraining/ExperimentLedger";
+import { PretrainingHighlightProvider } from "@/components/pretraining/HighlightContext";
 import LossChart from "@/components/pretraining/LossChart";
-import { BASELINE_LOSS, EXPERIMENTS, FINAL_LOSS } from "@/components/pretraining/experiments";
 
 export const metadata: Metadata = {
-  title: "LLM pretraining under fixed compute — 1.75 → 1.18 | Harvey Houlahan",
+  title: "LLM pretraining under fixed compute | 1.75 → 1.18 | Harvey Houlahan",
   description:
-    "A ~40M-parameter transformer pretraining study under a fixed seven-epoch budget: validation loss 1.7533 → 1.1754 (−33.0%) via Muon, WSD scheduling, RoPE, ReLU² and value residuals — every experiment in the ledger, including the failures.",
+    "A ~40M-parameter transformer pretraining study under a fixed seven-epoch budget: validation loss 1.7533 → 1.1754 (−33.0%) via Muon, WSD scheduling, RoPE, ReLU² and value residuals. Every experiment in the ledger, including the failures.",
   alternates: { canonical: "https://hjhportfolio.com/pretraining" },
 };
 
@@ -23,9 +24,9 @@ const STATS = [
 
 const FINAL_CONFIG: [string, string][] = [
   ["Architecture", "16 layers · d_model 416 · 4 heads (head_dim 104) · block_size 128"],
-  ["Parameters", "≈40.0M — ~47% more than the 27.2M baseline, spent on depth"],
+  ["Parameters", "≈40.0M (~47% more than the 27.2M baseline, spent on depth)"],
   ["Optimiser", "Muon (lr 0.007, momentum 0.95, 5-step Newton–Schulz) on 2D hidden matrices; AdamW (lr 1e-3) on embeddings, head, norms, mixing scalars"],
-  ["Schedule", "WSD — 6% linear warmup → stable peak → (1−√t) cooldown from 0.65"],
+  ["Schedule", "WSD: 6% linear warmup → stable peak → (1−√t) cooldown from 0.65"],
   ["Positions", "RoPE, applied to q/k inside attention"],
   ["MLP", "Squared-ReLU (ReLU²) activation, 4× expansion"],
   ["Attention", "PyTorch SDPA, causal, dropout 0.05 · value-residual: learnable per-layer mix to first-layer values"],
@@ -33,12 +34,12 @@ const FINAL_CONFIG: [string, string][] = [
 ];
 
 const ABLATIONS: [string, string][] = [
-  ["Gradient accumulation", "+0.0412 — halved optimiser updates from 938 to 469 inside the fixed budget; a larger effective batch couldn't buy it back."],
-  ["Weight decay > 0", "negligible either way — confirmed regularisation was not the operative constraint."],
-  ["Muon at default lr 0.02", "plateaued at 1.3285 — hyperparameters calibrated for 124M-param runs; re-tuned 4× lower to recover."],
-  ["QK-norm, no learnable scale", "+0.0193 — capped attention's dynamic range without the per-head gain needed to recover it."],
-  ["8L/512 width", "worse than 8L/416 at the same step budget — capacity wasn't the bottleneck, optimiser steps were."],
-  ["Overshoot brackets (7b, 11c, 16c)", "deliberate runs past each optimum, confirming every minimum was located empirically rather than assumed."],
+  ["Gradient accumulation", "+0.0412. Halved optimiser updates from 938 to 469 inside the fixed budget; a larger effective batch could not buy it back."],
+  ["Weight decay > 0", "Negligible either way. Confirmed regularisation was not the operative constraint."],
+  ["Muon at default lr 0.02", "Plateaued at 1.3285. Hyperparameters calibrated for 124M-param runs; re-tuned 4× lower to recover."],
+  ["QK-norm, no learnable scale", "+0.0193. Capped attention's dynamic range without the per-head gain needed to recover it."],
+  ["8L/512 width", "Worse than 8L/416 at the same step budget. Capacity was not the bottleneck; optimiser steps were."],
+  ["Overshoot brackets (7b, 11c, 16c)", "Deliberate runs past each optimum, confirming every minimum was located empirically rather than assumed."],
 ];
 
 function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
@@ -61,11 +62,11 @@ export default function PretrainingPage() {
           Adapting frontier LLM-pretraining techniques under fixed compute
         </h1>
         <p className="mt-4 max-w-prose text-base leading-prose text-ink/75">
-          Seven epochs, one seed, an untouchable <code>evaluate()</code> — and a
-          GPT-2-style baseline stuck at 1.7533. Twenty-eight single-variable
-          experiments later, the same budget lands at 1.1754. The ledger below
-          keeps every run, including the failures: the overshoots and regressions
-          are the evidence that each optimum was found, not assumed.
+          Seven epochs, one seed, and a fixed <code>evaluate()</code> of a
+          GPT-2-style baseline 1.7533. Twenty-eight single-variable
+          experiments later, the baseline lands at 1.1754. The ledger below
+          docs every run, including failures. The overshoots and regressions
+          are evidence of optimums found empirically.
         </p>
 
         {/* stat tiles */}
@@ -78,28 +79,29 @@ export default function PretrainingPage() {
           ))}
         </div>
 
-        {/* the ladder */}
+        {/* the ladder + ledger — shared hover highlight */}
+        <PretrainingHighlightProvider>
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The experiment ladder</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
             Final validation loss per run, chronological. Hover a column for the
-            run&apos;s single change.
+            run&apos;s single change, or find it in the ledger below.
           </p>
           <LossChart />
         </div>
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The diagnosis">
-            The baseline underfits — training loss stays high (9.77 → 8.18) while
+            Baseline underfits; Training loss stays high (9.77 → 8.18) while
             validation plateaus after step 352, and warmup, weight-decay and
             dropout tuning all move the fourth decimal. A model unresponsive to
-            regularisation isn&apos;t overfitting; the operative constraint is
-            learning per step. That single hypothesis drove every decision after it.
+            regularisation is not overfitting; the operative constraint is
+            learning per step. This notion reinforces general directionality.
           </Block>
 
           <Block kicker="The big lever">
             Swapping SGD for AdamW (lr 3e-4, β 0.9/0.95) collapsed validation loss
-            from 1.7533 to 1.3400 — roughly 73% of the total improvement in one
+            from 1.7533 to 1.3400, roughly 73% of the total improvement in one
             move. Transformers carry heterogeneous gradient scales across attention
             and MLP weights; per-parameter adaptive rates address what uniform SGD
             updates cannot. Everything else in the ledger stands on this.
@@ -107,7 +109,7 @@ export default function PretrainingPage() {
 
           <Block kicker="Frontier methods, re-tuned to fit">
             Muon (from the nanoGPT-speedrun literature) orthogonalises 2D weight
-            updates via Newton–Schulz iteration — but at its published lr of 0.02,
+            updates via Newton–Schulz iteration. At its published lr of 0.02,
             calibrated for 124M-parameter GPU runs, it plateaued <em>above</em> the
             AdamW line. Re-tuned 4× lower it took the lead; warmup–stable–decay
             then removed the late-training rise cosine left behind, RoPE was worth
@@ -117,12 +119,12 @@ export default function PretrainingPage() {
           </Block>
 
           <Block kicker="Depth over width">
-            Extra width (8L/512) made things worse — more parameters per layer than
-            938 optimiser steps can train. Extra depth compounded: 8 layers beat 6,
+            Extra width (8L/512) made things worse: more parameters per layer than
+            938 optimiser steps can train. Extra depth compounded. Eight layers beat 6,
             and once Muon, residual scaling, ReLU² and value residuals had made a
             deeper stack trainable, 16 layers took the submission to 1.1754 at
             ~40M parameters and 9.1 minutes. Twenty layers bought 0.0009 more for
-            double the runtime — measured, and declined.
+            double the runtime. Measured, and declined.
           </Block>
         </div>
 
@@ -130,45 +132,12 @@ export default function PretrainingPage() {
         <div className="mt-14">
           <h2 className="font-display text-xl">The complete ledger</h2>
           <p className="mb-4 mt-1 max-w-prose text-sm text-ink/60">
-            Every experiment, kept — the bracketing overshoots and regressions
+            Every experiment, kept. The bracketing overshoots and regressions
             included. Single-variable protocol against the current best.
           </p>
-          <div className="overflow-x-auto border border-contour">
-            <table className="w-full min-w-[640px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-contour bg-terrace text-left font-mono text-[10px] uppercase tracking-[0.14em] text-ink/50">
-                  <th className="px-3 py-2 font-medium">#</th>
-                  <th className="px-3 py-2 font-medium">Experiment</th>
-                  <th className="px-3 py-2 font-medium">Key change</th>
-                  <th className="px-3 py-2 text-right font-medium">Val loss</th>
-                  <th className="px-3 py-2 text-right font-medium">Δ base</th>
-                </tr>
-              </thead>
-              <tbody>
-                {EXPERIMENTS.map((e) => (
-                  <tr
-                    key={e.id}
-                    className={`border-b border-contour/60 last:border-b-0 ${
-                      e.status === "submitted" ? "bg-sage/10 font-medium" : e.status === "bracket" ? "bg-sand/[0.07]" : ""
-                    }`}
-                  >
-                    <td className="px-3 py-1.5 font-mono text-xs text-ink/50">{e.id}</td>
-                    <td className="px-3 py-1.5 text-ink/85">
-                      {e.name}
-                      {e.status === "bracket" && <span className="ml-1.5 font-mono text-[10px] text-sand">▾ bracket</span>}
-                      {e.status === "submitted" && <span className="ml-1.5 font-mono text-[10px] text-sage">▸ submitted</span>}
-                    </td>
-                    <td className="px-3 py-1.5 text-ink/65">{e.change}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs text-ink/85 [font-variant-numeric:tabular-nums]">{e.loss.toFixed(4)}</td>
-                    <td className="px-3 py-1.5 text-right font-mono text-xs text-ink/55 [font-variant-numeric:tabular-nums]">
-                      {e.status === "baseline" ? "—" : (e.loss - BASELINE_LOSS).toFixed(4)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ExperimentLedger />
         </div>
+        </PretrainingHighlightProvider>
 
         {/* final config + kept ablations */}
         <div className="mt-14 grid gap-10 md:grid-cols-2">
@@ -198,14 +167,14 @@ export default function PretrainingPage() {
 
         <div className="mx-auto max-w-prose">
           <Block kicker="Honest limits">
-            One seed (1337, fixed by the rules) — differences under ~0.005 sit
+            One seed (1337, fixed by the rules). Differences under ~0.005 sit
             inside run-to-run noise and were never treated as signal. The
             submission optimises the compute budget, not parameter count: a
             parameter-constrained variant would keep the 8-layer stack and give
             back 0.012. QK-norm with a learnable scale, vocabulary sweeps and bf16
             were deprioritised once the remaining reductions fell to the fourth
-            decimal. The response surface hadn&apos;t flattened at submission —
-            this was built alongside full-time work.
+            decimal. The response surface had not flattened at submission. This
+            was built alongside full-time work.
           </Block>
         </div>
 
