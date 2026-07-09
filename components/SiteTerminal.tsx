@@ -72,7 +72,7 @@ const SUGGESTIONS = [
 ];
 
 const CSS = `
-.st-root{position:fixed;bottom:0;left:0;margin:20px;z-index:60;width:min(400px,calc(100vw - 40px));font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;background:rgba(26,26,24,0.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(216,211,200,0.22);border-left:2px solid #4A6741;box-shadow:0 12px 44px rgba(0,0,0,0.35);}
+.st-root{position:fixed;bottom:0;left:0;margin:20px;z-index:60;width:min(400px,calc(100vw - 40px));font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;background:rgba(23,26,23,0.97);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border:1px solid rgba(216,211,200,0.32);border-left:3px solid #4A6741;box-shadow:0 12px 44px rgba(0,0,0,0.38);}
 .st-head{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 8px;border-bottom:1px solid rgba(216,211,200,0.14);}
 .st-title{font-size:0.62rem;letter-spacing:0.16em;color:rgba(247,245,240,0.85);}
 .st-close{width:20px;height:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(216,211,200,0.25);background:transparent;color:rgba(247,245,240,0.6);font-size:0.8rem;line-height:1;cursor:pointer;transition:background .15s,color .15s;}

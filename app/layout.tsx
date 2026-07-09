@@ -35,7 +35,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://hjhportfolio.com"),
   title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
   description:
-    "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation. Available for contract work. Byron Bay, remote.",
+    "ML engineer who ships: satellite and LiDAR pipelines measuring forest carbon in production, a 40M-parameter pretraining study, and GPU physics engines that run in the browser. Open for contract work. Byron Bay, remote.",
   keywords: [
     "ML Systems Engineer",
     "AI Integration",
@@ -60,7 +60,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
     description:
-      "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation, proven in climate, carbon and spatial data. Available for contract work. Byron Bay, remote.",
+      "ML engineer who ships: satellite and LiDAR pipelines measuring forest carbon in production, a 40M-parameter pretraining study, and GPU physics engines that run in the browser. Open for contract work. Byron Bay, remote.",
     url: "https://hjhportfolio.com",
     siteName: "Harvey Houlahan",
     type: "website",
@@ -71,7 +71,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Harvey Houlahan — ML Systems · Simulation · Spatial Engineer",
     description:
-      "Applied ML and AI systems engineer building RAG pipelines, fine-tuned open-source models and GPU simulation, proven in climate, carbon and spatial data. Available for contract work. Byron Bay, remote.",
+      "ML engineer who ships: satellite and LiDAR pipelines measuring forest carbon in production, a 40M-parameter pretraining study, and GPU physics engines that run in the browser. Open for contract work. Byron Bay, remote.",
   },
 };
 
