@@ -185,7 +185,7 @@ export default function SiteTerminal() {
         window.open(profile.resume, "_blank", "noopener");
         return [{ kind: "ok", text: "resume opened — pdf, one tab over." }];
       case "email": case "mail":
-        window.location.href = profile.bookCall;
+        window.location.href = `mailto:${profile.email}`;
         return [{ kind: "ok", text: `drafting mail to ${profile.email}…` }];
       case "github": case "gh":
         window.open(profile.social.github, "_blank", "noopener");

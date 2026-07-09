@@ -101,10 +101,6 @@ export default function Contact() {
               </li>
             </ul>
           </div>
-
-          <a href={profile.bookCall} className="btn-primary">
-            Book an intro call
-          </a>
         </div>
 
         {/* Minimal message form */}

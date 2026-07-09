@@ -5,7 +5,7 @@ export const profile = {
   name: "Harvey Houlahan",
   title: "ML Systems · Simulation · Spatial Engineer",
   descriptor:
-    "ML that ships. Day job: satellite and LiDAR for forest carbon. Nights: GPU physics and pretraining studies, live here.",
+    "ML that delivers. Day job: satellite and LiDAR for forest carbon. Nights: GPU physics and pretraining studies, live here.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",
@@ -22,12 +22,8 @@ export const profile = {
   // Resume — served from /public/resume/
   resume: "/resume/HJH-cv.pdf",
   resumeFilename: "Harvey-Houlahan-CV.pdf",
-  // Booking CTA — used on About and Contact
-  bookCall:
-    "mailto:harveyhoulahan@outlook.com?subject=Intro%20call&body=Hi%20Harvey%20%E2%80%94%20found%20you%20via%20hjhportfolio.com.%20Keen%20to%20chat%20about%3A%20",
-  // Primary hero CTA — a scoped project inquiry, not a job application.
-  startProject:
-    "mailto:harveyhoulahan@outlook.com?subject=Project%20inquiry&body=Hi%20Harvey%2C%20found%20you%20via%20hjhportfolio.com.%20We%27re%20looking%20at%3A%20",
+  // Primary CTA — contact page (form + direct channels).
+  startProject: "/contact",
   social: {
     linkedin: "https://www.linkedin.com/in/harveyhoulahan",
     linkedinHandle: "@harveyhoulahan",
@@ -97,7 +93,7 @@ export const about = {
     "Right now I'm building the systems that connect field data to carbon policy.",
   paragraphs: [
     "At ArborMeta I connect field surveys and satellite data to Australian carbon policy: canopy-height and above-ground-carbon models from paired LiDAR captures, fire-spread mapping, and the pipelines that decide how land is measured and what reaches the registry.",
-    "I grew up on a cotton farm in Queensland. At Monash I set out to become a doctor; six months in I was writing more code than medical notes, so I switched to computer science.",
+    "I grew up on a cotton farm in Queensland. Initially I set out to become a doctor; three months in I found myself programming more than studying medicine, so I switched to computer science.",
     "The playground here is the same discipline off the clock: solvers on your GPU, neural operators trained to emulate them, racing in a tab.",
     "Open to contract work in climate tech and applied ML: carbon MRV, spatial pipelines, fine-tuning, vector search, deployment that does not live on one API.",
   ],

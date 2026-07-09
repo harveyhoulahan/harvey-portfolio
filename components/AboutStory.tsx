@@ -9,6 +9,7 @@
  */
 
 import { useRef } from "react";
+import Link from "next/link";
 import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 import ContourMotif from "@/components/ContourMotif";
 import Reveal from "@/components/Reveal";
@@ -84,9 +85,9 @@ export default function AboutStory() {
               {profile.availability}
             </p>
             <div className="mt-6 flex flex-wrap gap-4">
-              <a href={profile.bookCall} className="btn-primary">
-                Book an intro call
-              </a>
+              <Link href={profile.startProject} className="btn-primary">
+                Start a project
+              </Link>
               <a href={`mailto:${profile.email}`} className="btn-secondary">
                 Email me
               </a>

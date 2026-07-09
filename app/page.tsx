@@ -41,20 +41,20 @@ export default function Home() {
     <>
       <Hero />
 
-      {/* Positioning line */}
-      <section className="graticule-grid border-y border-contour bg-terrace">
-        <div className="mx-auto max-w-prose px-6 py-10 md:py-12">
-          <p className="font-display text-2xl leading-snug md:text-3xl">
-            {about.paragraphs[1]}
-          </p>
-        </div>
-      </section>
-
       {/* Proof strip — stats with receipts; every line is a live artifact */}
       <section className="mx-auto max-w-work px-6 py-16">
         <span className="mono-label">Proof of work</span>
         <div className="mt-6">
           <ProofStrip />
+        </div>
+      </section>
+
+      {/* Bio line — quiet context after the receipts */}
+      <section className="border-y border-contour bg-terrace/60">
+        <div className="mx-auto max-w-prose px-6 py-6 md:py-8">
+          <p className="text-base leading-relaxed text-ink/65 md:text-[1.05rem]">
+            {about.paragraphs[1]}
+          </p>
         </div>
       </section>
 
@@ -97,9 +97,9 @@ export default function Home() {
             <div className="mt-5">
               <TimezoneBand />
             </div>
-            <a href={profile.startProject} className="btn-primary mt-8 inline-flex">
+            <Link href={profile.startProject} className="btn-primary mt-8 inline-flex">
               Start a project <ArrowRight size={16} />
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -167,9 +167,9 @@ export default function Home() {
           </span>
           <h2 className="mt-4 font-display">Let&apos;s build something.</h2>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-            <a href={profile.startProject} className="btn-primary">
+            <Link href={profile.startProject} className="btn-primary">
               Start a project <ArrowRight size={15} />
-            </a>
+            </Link>
             <Link href="/playground" className="btn-secondary">
               Live demos
             </Link>
