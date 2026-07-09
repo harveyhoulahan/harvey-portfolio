@@ -9,10 +9,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://hjhportfolio.com/pagerank" },
 };
 
-/* The web edition of the FIT3139 final project (assessed 87/100). Same graph,
- * same algorithms, same numbers as the submission; the framing incorporates
- * the marker's feedback, so the questions are stated once and stated
- * explicitly, and the damping factor gets a proper introduction. */
+/* The web edition of the FIT3139 final project. Same graph, same algorithms,
+ * same numbers as the submission; questions stated once, damping factor
+ * introduced properly. */
 
 const STATS = [
   { label: "The web", value: "6 pages · 11 weighted links" },
@@ -160,17 +159,6 @@ export default function PageRankPage() {
             as 1/K in chain length, measured across K from 10³ to 2×10⁵,
             landing at 2.6×10⁻⁷. The live tally above is running that
             experiment in front of you.
-          </Block>
-
-          <Block kicker="Honest limits">
-            The assessed version of this report (87/100, including a one-day
-            late penalty) stated its first modelling question two different
-            ways, once about short-horizon variability, once about
-            convergence; the marker caught it. This edition states each
-            question once, names its technique, and answers both readings of
-            Q1 in the same block. The web is six pages because six is small
-            enough to solve exactly. Every stochastic estimate in the project
-            has a closed-form answer to check against.
           </Block>
         </div>
 
