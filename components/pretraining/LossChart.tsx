@@ -26,7 +26,7 @@ const LABELLED: Record<string, { dy: number; text?: string }> = {
 const VIZ_CSS = `
 .pt-chart{--viz-good:#0A8A66;--viz-bad:#B23A18;}
 html.dark .pt-chart{--viz-good:#2FA183;--viz-bad:#D96F45;}
-.pt-tip{position:absolute;pointer-events:none;z-index:5;max-width:240px;padding:8px 10px;background:var(--paper);border:1px solid var(--contour);box-shadow:0 4px 18px rgba(0,0,0,0.14);font-size:11px;line-height:1.45;opacity:0;transform:translateY(4px);transition:opacity .18s ease,transform .18s ease;}
+.pt-tip{position:absolute;pointer-events:none;z-index:5;width:max-content;min-width:11rem;max-width:min(18rem,calc(100vw - 2rem));padding:8px 10px;background:var(--paper);border:1px solid var(--contour);box-shadow:0 4px 18px rgba(0,0,0,0.14);font-size:11px;line-height:1.45;white-space:normal;opacity:0;transform:translateY(4px);transition:opacity .18s ease,transform .18s ease;}
 .pt-tip.is-visible{opacity:1;transform:translateY(0);}
 `;
 
