@@ -21,6 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
+import { SITE_TERMINAL_VISIBILITY_EVENT } from "@/components/SiteTerminal";
 
 const PROFILE =
   "M0 96 L60 90 C 120 82 150 58 200 34 C 228 21 258 26 288 44 " +
@@ -179,6 +180,8 @@ export default function ElevationProfile() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const g = useRef<G | null>(null);
   const rafRef = useRef(0);
+  const terminalOpenRef = useRef(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [mode, setMode] = useState<Mode>("idle");
   const [inView, setInView] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -248,6 +251,27 @@ export default function ElevationProfile() {
     cancelAnimationFrame(rafRef.current);
   }, []);
 
+  // Footer runner yields to the site shell — space is for typing, not jumping.
+  useEffect(() => {
+    const onVis = (e: Event) => {
+      const open = (e as CustomEvent<{ open: boolean }>).detail.open;
+      terminalOpenRef.current = open;
+      setTerminalOpen(open);
+      if (open) {
+        exitGame();
+        setShowHint(false);
+      }
+    };
+    window.addEventListener(SITE_TERMINAL_VISIBILITY_EVENT, onVis);
+    return () => window.removeEventListener(SITE_TERMINAL_VISIBILITY_EVENT, onVis);
+  }, [exitGame]);
+
+  const gameInputBlocked = useCallback((e?: { target?: EventTarget | null }) => {
+    if (terminalOpenRef.current) return true;
+    const t = e?.target as HTMLElement | null;
+    return !!(t?.closest(".st-root") || t?.closest("input, textarea, [contenteditable='true']"));
+  }, []);
+
   // in-view gate for the space hint + start
   useEffect(() => {
     const el = containerRef.current;
@@ -261,18 +285,18 @@ export default function ElevationProfile() {
   }, []);
 
   useEffect(() => {
-    if (!inView || mode !== "idle" || reduceMotion) {
+    if (!inView || mode !== "idle" || reduceMotion || terminalOpen) {
       setShowHint(false);
       return;
     }
     const t = window.setTimeout(() => setShowHint(true), 900);
     return () => window.clearTimeout(t);
-  }, [inView, mode, reduceMotion]);
+  }, [inView, mode, reduceMotion, terminalOpen]);
 
   // keyboard
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
-      if (reduceMotion) return;
+      if (reduceMotion || gameInputBlocked(e)) return;
       if (e.code === "Escape" && mode !== "idle") {
         e.preventDefault();
         exitGame();
@@ -300,6 +324,7 @@ export default function ElevationProfile() {
       }
     };
     const onUp = (e: KeyboardEvent) => {
+      if (gameInputBlocked(e)) return;
       if (e.code === "Space" || e.code === "ArrowUp" || e.code === "KeyW") releaseJump();
     };
     window.addEventListener("keydown", onDown);
@@ -308,7 +333,7 @@ export default function ElevationProfile() {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
     };
-  }, [inView, mode, startGame, pressJump, releaseJump, exitGame, reduceMotion]);
+  }, [inView, mode, startGame, pressJump, releaseJump, exitGame, reduceMotion, gameInputBlocked]);
 
   // game loop
   useEffect(() => {
@@ -658,7 +683,7 @@ export default function ElevationProfile() {
 
   // pointer: press = jump (hold for height), release = cut
   const onPointerDown = useCallback(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || terminalOpenRef.current) return;
     if (mode === "idle" && inView) startGame();
     else if (mode === "playing") pressJump();
     else if (mode === "over") startGame();

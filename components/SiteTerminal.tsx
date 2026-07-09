@@ -18,6 +18,7 @@ import { setTheme } from "@/lib/theme";
 import { profile } from "@/data/metadata";
 
 export const CATCHMENT_HANDOFF_KEY = "catchment:handoff";
+export const SITE_TERMINAL_VISIBILITY_EVENT = "site-terminal:visibility";
 
 type Line = { kind: "in" | "ok" | "err" | "dim" | "block"; text: string; cmd?: string };
 
@@ -123,6 +124,7 @@ export default function SiteTerminal() {
   const histIdx = useRef(-1);
   const draft = useRef("");
   const phIdx = useRef(0);
+  const prevPath = useRef(pathname);
 
   const classify = useMemo(() => createLazyClassifier("/catchment/intent.json"), []);
 
@@ -135,6 +137,7 @@ export default function SiteTerminal() {
 
   const goto = useCallback((page: (typeof PAGES)[number]): Line[] => {
     if (page.path === pathname) return [{ kind: "dim", text: `already here: ${page.path}` }];
+    setVisible(false);
     router.push(page.path);
     return [{ kind: "ok", text: `→ ${page.path} — ${page.blurb}` }];
   }, [router, pathname]);
@@ -151,6 +154,7 @@ export default function SiteTerminal() {
 
   const handoff = useCallback((cmd: string): Line[] => {
     try { sessionStorage.setItem(CATCHMENT_HANDOFF_KEY, cmd); } catch { /* private mode */ }
+    setVisible(false);
     router.push("/catchment");
     return [
       { kind: "ok", text: "that's a job for the earth engine — heading to /catchment." },
@@ -171,7 +175,7 @@ export default function SiteTerminal() {
       case "clear": case "cls": setLines([]); return [];
       case "ls": case "pages": case "sitemap": return pageLines();
       case "pwd": return [{ kind: "block", text: pathname }];
-      case "back": router.back(); return [{ kind: "ok", text: "← back" }];
+      case "back": setVisible(false); router.back(); return [{ kind: "ok", text: "← back" }];
       case "open": case "goto": case "cd": case "go": {
         const page = findPage(args[0]);
         if (!page) return [{ kind: "err", text: `no page '${args[0] ?? ""}'.` }, ...pageLines()];
@@ -227,6 +231,23 @@ export default function SiteTerminal() {
     }
     return [{ kind: "err", text: "no parse. `help` lists the shell — or try “make it storm”." }];
   }, [classify, goto, handoff, pageLines, pathname, router]);
+
+  // Close when navigation lands — layout keeps the shell mounted across routes.
+  useEffect(() => {
+    if (prevPath.current !== pathname) {
+      setVisible(false);
+      prevPath.current = pathname;
+    }
+  }, [pathname]);
+
+  // Let other UI (footer runner, etc.) stand down while the shell is open.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(SITE_TERMINAL_VISIBILITY_EVENT, {
+        detail: { open: visible && !suppressed },
+      }),
+    );
+  }, [visible, suppressed]);
 
   const submit = useCallback(async (raw: string) => {
     const text = raw.trim();
