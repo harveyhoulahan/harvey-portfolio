@@ -28,18 +28,20 @@ const LINES: ProofLine[] = [
   { marker: "..", name: "intent model", detail: "26k params · 83 kb · parsing this site's terminal", dest: "press /", shell: true },
 ];
 
+/* Fully token-driven: the plate is printed on terrace paper in light mode and
+ * flips with the theme — no fixed-dark terminal fighting a white page. */
 const STRIP_CSS = `
-.ps-plate{background:#171A17;border:1px solid rgba(216,211,200,0.3);border-left:3px solid #4A6741;box-shadow:0 10px 36px rgba(22,31,27,0.16);font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;}
-.ps-cmd{color:rgba(247,245,240,0.5);font-size:0.68rem;padding:14px 18px 4px;}
+.ps-plate{background:var(--terrace);border:1px solid var(--contour);border-left:3px solid var(--flow);font-family:var(--font-mono),"JetBrains Mono",ui-monospace,monospace;}
+.ps-cmd{color:var(--ink);opacity:0.45;font-size:0.68rem;padding:14px 18px 4px;}
 .ps-row{display:flex;align-items:baseline;gap:14px;width:100%;padding:7px 18px;text-align:left;background:none;border:none;cursor:pointer;font-family:inherit;text-decoration:none;transition:background .15s;}
-.ps-row:hover{background:rgba(247,245,240,0.05);}
+.ps-row:hover{background:color-mix(in srgb, var(--ink) 5%, transparent);}
 .ps-row:last-of-type{padding-bottom:16px;}
-.ps-mark{flex:none;font-size:0.68rem;color:#8FAE83;}
-.ps-mark.pending{color:#C4A882;}
-.ps-name{flex:none;width:8.5rem;font-size:0.72rem;color:rgba(247,245,240,0.92);}
-.ps-detail{flex:1;min-width:0;font-size:0.68rem;color:rgba(247,245,240,0.58);transition:color .15s;}
-.ps-row:hover .ps-detail{color:rgba(247,245,240,0.85);}
-.ps-dest{flex:none;font-size:0.66rem;color:#9FC291;opacity:0.9;transition:opacity .15s,transform .2s;}
+.ps-mark{flex:none;font-size:0.68rem;color:var(--flow);}
+.ps-mark.pending{color:var(--infra);}
+.ps-name{flex:none;width:8.5rem;font-size:0.72rem;color:var(--ink);opacity:0.92;}
+.ps-detail{flex:1;min-width:0;font-size:0.68rem;color:var(--ink);opacity:0.55;transition:opacity .15s;}
+.ps-row:hover .ps-detail{opacity:0.85;}
+.ps-dest{flex:none;font-size:0.66rem;color:var(--flow);opacity:0.85;transition:opacity .15s,transform .2s;}
 .ps-row:hover .ps-dest{opacity:1;transform:translateX(2px);}
 @media (max-width: 640px){
   .ps-row{flex-wrap:wrap;row-gap:2px;}
