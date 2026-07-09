@@ -13,7 +13,6 @@ import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 import ContourMotif from "@/components/ContourMotif";
 import Reveal from "@/components/Reveal";
 import LocalClock from "@/components/LocalClock";
-import SplatPortrait from "@/components/SplatPortrait";
 import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 import { about, profile } from "@/data/metadata";
 
@@ -48,12 +47,9 @@ export default function AboutStory() {
         </p>
       </div>
 
-      {/* The traverse — STA 00 is the surveyor himself (renders only once a
-          trained portrait.splat ships; see ml/splat/README.md), then one
-          numbered station per paragraph */}
+      {/* The traverse — one numbered station per paragraph */}
       <div className="mx-auto max-w-prose px-6">
         <div className="relative mt-14 space-y-12 border-l border-dashed border-contour pl-8 md:pl-10">
-          <SplatPortrait />
           {about.paragraphs.map((para, i) => (
             <Reveal key={i} delay={0.05 * i}>
               <div className="group relative">
