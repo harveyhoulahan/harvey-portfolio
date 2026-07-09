@@ -27,6 +27,8 @@ const PAGES: { id: string; path: string; blurb: string; aliases: string[] }[] = 
   { id: "playground", path: "/playground", blurb: "live GPU demos", aliases: ["demos", "lab"] },
   { id: "catchment", path: "/catchment", blurb: "neural earth engine — flagship i", aliases: [] },
   { id: "genesis", path: "/genesis", blurb: "artificial-life lab — flagship ii", aliases: [] },
+  { id: "pretraining", path: "/pretraining", blurb: "LLM pretraining under fixed compute — the report", aliases: ["report", "paper", "research"] },
+  { id: "canopy", path: "/canopy", blurb: "canopy cover from orbit — the day job, deep-dive", aliases: ["arbormeta", "forest", "lidar"] },
   { id: "about", path: "/about", blurb: "who's building this", aliases: ["bio"] },
   { id: "experience", path: "/experience", blurb: "the timeline", aliases: ["timeline"] },
   { id: "skills", path: "/skills", blurb: "the toolbox", aliases: ["stack"] },

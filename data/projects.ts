@@ -26,6 +26,7 @@ export const caseStudies: CaseStudy[] = [
     company: "ArborMeta",
     role: "Machine Learning Engineer",
     period: "Byron Bay, NSW · 2025 – present",
+    link: "/canopy",
     summary:
       "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:
@@ -173,7 +174,8 @@ export const papers: Paper[] = [
     summary:
       "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18. Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections, each argued from first principles.",
     links: [
-      { label: "Read the report (PDF)", href: "/papers/mainrun-report.pdf" },
+      { label: "Read the report", href: "/pretraining" },
+      { label: "PDF", href: "/papers/mainrun-report.pdf" },
     ],
   },
   {
