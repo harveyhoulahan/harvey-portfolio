@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import SiteTerminal from "@/components/SiteTerminal";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { themeInitScript } from "@/lib/theme";
 
 // Display: Bricolage Grotesque — hand-cut terminals and wonky details that
@@ -97,6 +98,7 @@ export default function RootLayout({
         </div>
         <SiteTerminal />
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
