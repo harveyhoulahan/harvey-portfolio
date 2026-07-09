@@ -5,7 +5,8 @@
  * data/metadata.ts, untouched) become numbered stations down a dashed
  * traverse line — diamond benchmarks at each station, the unused about.intro
  * line as a teal display lede, cursor-proximity type on the heading, and a
- * "Currently" legend card with a live Byron Bay clock.
+ * "Currently" legend card with a live Byron Bay clock. The stack lives
+ * here too: evidence cards + the condensed ledger, merged in from /skills.
  */
 
 import { useRef } from "react";
@@ -14,8 +15,10 @@ import TextCursorProximity from "@/components/ui/text-cursor-proximity";
 import ContourMotif from "@/components/ContourMotif";
 import Reveal from "@/components/Reveal";
 import LocalClock from "@/components/LocalClock";
+import SkillsReceipts from "@/components/SkillsReceipts";
 import { useProximityHeadingStyles } from "@/hooks/use-proximity-heading-colors";
 import { about, profile } from "@/data/metadata";
+import { skillsData } from "@/data/skills";
 
 export default function AboutStory() {
   const headerRef = useRef<HTMLDivElement>(null);
@@ -68,7 +71,19 @@ export default function AboutStory() {
             </Reveal>
           ))}
         </div>
+      </div>
 
+      {/* The stack, with receipts — merged in from the old /skills page */}
+      <div id="stack" className="col-shell mt-20 max-w-work scroll-mt-24">
+        <span className="mono-label">The stack · with receipts</span>
+        <p className="mt-3 max-w-prose text-ink/70">
+          Tool lists are easy. The four clusters that matter most come with
+          receipts; the ledger below has everything else.
+        </p>
+      </div>
+      <SkillsReceipts groups={skillsData} />
+
+      <div className="mx-auto max-w-prose px-6">
         {/* Currently — the legend card */}
         <Reveal delay={0.1}>
           <div className="survey-corners relative mt-16 border border-contour bg-terrace/50 p-7">

@@ -32,8 +32,8 @@ const PAGES: { id: string; path: string; blurb: string; aliases: string[] }[] = 
   { id: "canopy", path: "/canopy", blurb: "canopy from orbit, day job", aliases: ["arbormeta", "forest", "lidar"] },
   { id: "pagerank", path: "/pagerank", blurb: "pagerank as a stochastic process", aliases: ["surf", "markov", "monash", "fit3139"] },
   { id: "about", path: "/about", blurb: "who's building this", aliases: ["bio"] },
-  { id: "experience", path: "/experience", blurb: "the timeline", aliases: ["timeline"] },
-  { id: "skills", path: "/skills", blurb: "the toolbox", aliases: ["stack"] },
+  { id: "experience", path: "/projects#timeline", blurb: "the timeline", aliases: ["timeline"] },
+  { id: "skills", path: "/about#stack", blurb: "the toolbox", aliases: ["stack"] },
   { id: "contact", path: "/contact", blurb: "start a conversation", aliases: ["hire", "talk"] },
 ];
 

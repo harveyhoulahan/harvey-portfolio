@@ -182,15 +182,18 @@ export const Timeline = ({ data }: { data: TimelineEntry[] }) => {
             ref={(el) => {
               rowRefs.current[index] = el;
             }}
-            className="flex justify-start pt-10 md:gap-10 md:pt-32"
+            className={`flex justify-start md:gap-8 ${
+              index === 0 ? "pt-6 md:pt-10" : "pt-10 md:pt-20"
+            }`}
           >
-            <div className="sticky top-32 z-10 flex max-w-xs flex-col self-start md:w-full md:flex-row lg:max-w-sm">
-              <h3 className="hidden font-display text-3xl text-ink md:block md:pl-14 md:text-5xl">
+            {/* period column hugs the traverse so the content gets the width */}
+            <div className="sticky top-32 z-10 hidden shrink-0 self-start md:block md:w-44 lg:w-52">
+              <h3 className="font-display text-3xl leading-tight text-ink md:pl-12 lg:text-4xl">
                 {item.title}
               </h3>
             </div>
 
-            <div className="relative w-full pl-16 pr-2 md:pl-4">
+            <div className="relative w-full min-w-0 pl-16 pr-2 md:pl-0 md:pr-0">
               <h3 className="mb-4 block text-left font-display text-2xl text-ink md:hidden">
                 {item.title}
               </h3>

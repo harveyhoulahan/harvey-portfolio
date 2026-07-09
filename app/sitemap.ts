@@ -11,8 +11,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/catchment", priority: 0.8 },
     { path: "/genesis", priority: 0.8 },
     { path: "/about", priority: 0.7 },
-    { path: "/skills", priority: 0.6 },
-    { path: "/experience", priority: 0.6 },
     { path: "/contact", priority: 0.6 },
   ];
   return [

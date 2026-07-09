@@ -4,16 +4,20 @@ import Reveal from "@/components/Reveal";
 
 // Full-width horizontal case-study block with a contour hairline and a survey
 // benchmark at datum. Problem → Approach → Outcome. Rises in on scroll.
-export default function CaseStudyBlock({ study }: { study: CaseStudy }) {
+// showPeriod=false when the block sits beside a timeline that already
+// carries the dates.
+export default function CaseStudyBlock({ study, showPeriod = true }: { study: CaseStudy; showPeriod?: boolean }) {
   return (
     <Reveal>
-      <article id={study.id} className="case-block scroll-mt-24 py-10">
+      <article id={study.id} className="case-block scroll-mt-24 py-6 md:py-8">
         <header>
           <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
             <h3 className="font-display text-2xl md:text-3xl">{study.company}</h3>
-            <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink/50">
-              {study.period}
-            </span>
+            {showPeriod && (
+              <span className="font-mono text-xs uppercase tracking-[0.12em] text-ink/50">
+                {study.period}
+              </span>
+            )}
           </div>
           <p className="mt-1 font-mono text-sm text-flow">{study.role}</p>
           {study.link && (

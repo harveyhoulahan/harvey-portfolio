@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { ArrowUpRight } from "lucide-react";
-import CaseStudyBlock from "@/components/CaseStudyBlock";
+import WorkTimeline from "@/components/WorkTimeline";
 import WorkshopHero from "@/components/WorkshopHero";
-import { caseStudies, papers, personalProjects } from "@/data/projects";
+import { papers, personalProjects } from "@/data/projects";
 
 export const metadata: Metadata = {
   title: "Work — Harvey Houlahan",
@@ -15,18 +15,17 @@ export default function Projects() {
     <>
       <WorkshopHero />
 
-      <div className="mx-auto max-w-work px-6 py-20 md:py-28">
-        <span className="mono-label">Case studies</span>
-        <h2 className="mt-5 font-display">Systems people actually use</h2>
-        <p className="mt-6 max-w-prose text-lg leading-relaxed text-ink/80">
+      <div id="timeline" className="mx-auto max-w-work scroll-mt-24 px-6 pb-16 pt-10 md:pb-20 md:pt-12">
+        <span className="mono-label">Case studies · the timeline</span>
+        <h2 className="mt-3 font-display">Systems people actually use</h2>
+        <p className="mt-3 max-w-3xl text-base leading-relaxed text-ink/75 md:text-lg">
           Production work across climate, energy, e-commerce, and supply chain.
-          Real systems with real users, not proof-of-concept demos.
+          Real systems with real users, not proof-of-concept demos. The whole
+          route, in order, including the chapters before the case studies.
         </p>
 
-        <div className="mt-10 divide-y divide-contour">
-          {caseStudies.map((study) => (
-            <CaseStudyBlock key={study.id} study={study} />
-          ))}
+        <div className="mt-8 md:mt-10">
+          <WorkTimeline />
         </div>
       </div>
 
