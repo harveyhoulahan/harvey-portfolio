@@ -5,7 +5,7 @@ export const profile = {
   name: "Harvey Houlahan",
   title: "ML Systems · Simulation · Spatial Engineer",
   descriptor:
-    "I build applied ML and AI systems, from RAG pipelines and fine-tuned open-source models to GPU simulation, proven in climate, carbon and spatial data.",
+    "I build ML that ships. By day, satellite and LiDAR pipelines measuring forest carbon underneath Australian policy. By night, GPU physics engines and pretraining studies that run live on this site. If it needs gradients, geodata or a GPU, we should talk.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",
@@ -16,7 +16,7 @@ export const profile = {
   coordinates: { lat: -28.6431, lng: 153.6122, label: "28.6431° S, 153.6122° E" },
 
   // Availability
-  availability: "Available for contract work",
+  availability: "Open for contract work · currently booking",
 
   // Contact
   email: "harveyhoulahan@outlook.com",
@@ -26,6 +26,9 @@ export const profile = {
   // Booking CTA — used on About and Contact
   bookCall:
     "mailto:harveyhoulahan@outlook.com?subject=Intro%20call&body=Hi%20Harvey%20%E2%80%94%20found%20you%20via%20hjhportfolio.com.%20Keen%20to%20chat%20about%3A%20",
+  // Primary hero CTA — a scoped project inquiry, not a job application.
+  startProject:
+    "mailto:harveyhoulahan@outlook.com?subject=Project%20inquiry&body=Hi%20Harvey%2C%20found%20you%20via%20hjhportfolio.com.%20We%27re%20looking%20at%3A%20",
   social: {
     linkedin: "https://www.linkedin.com/in/harveyhoulahan",
     linkedinHandle: "@harveyhoulahan",
@@ -33,6 +36,45 @@ export const profile = {
     githubHandle: "harveyhoulahan",
     portfolio: "https://hjhportfolio.com",
   },
+} as const;
+
+// The contract offer — two lanes of work, three ways to engage.
+// Rendered on the homepage; keep it concrete, keep it priced-in-reality.
+export const services = {
+  lanes: [
+    {
+      name: "Climate & spatial ML",
+      pitch: "The lane I work in every day.",
+      items: [
+        "Carbon MRV and canopy modelling from LiDAR + satellite",
+        "Spatial data pipelines that stay fast at continental scale",
+        "Biodiversity monitoring and precision-agriculture models",
+      ],
+    },
+    {
+      name: "Applied ML & AI systems",
+      pitch: "The lane where most teams need a finisher.",
+      items: [
+        "Model training and fine-tuning on your data, on your budget",
+        "Search and retrieval that understands what users mean",
+        "Deployment that doesn't marry you to one API vendor",
+      ],
+    },
+  ],
+  models: [
+    {
+      name: "Monthly retainer",
+      detail: "A standing lane of engineering. This is how Step One runs today: features, maintenance, momentum.",
+    },
+    {
+      name: "Fixed-scope build",
+      detail: "A pipeline, a model, an app. Scoped in a call, priced up front, shipped with a handover you can run without me.",
+    },
+    {
+      name: "Advisory",
+      detail: "Architecture reviews, model audits, a second opinion before you commit a quarter to something.",
+    },
+  ],
 } as const;
 
 // A small, honest set of figures drawn from the real work in data/*.ts.

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Download } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Download } from "lucide-react";
 import ByronMap from "@/components/ByronMapLazy";
 import ContourField from "@/components/ContourField";
 import GridReadout from "@/components/GridReadout";
@@ -38,18 +38,18 @@ export default function Hero() {
               </span>
             </div>
 
-            {/* CTA */}
+            {/* CTA — a buyer's path first, the CV second */}
             <div className="mt-6 flex flex-wrap items-center gap-4">
+              <a href={profile.startProject} className="btn-primary">
+                Start a project <ArrowRight size={16} />
+              </a>
               <a
                 href={profile.resume}
                 download={profile.resumeFilename}
-                className="btn-primary"
+                className="btn-secondary"
               >
-                <Download size={16} />
-                Download resume
-              </a>
-              <a href={`mailto:${profile.email}`} className="btn-secondary">
-                Email me
+                <Download size={15} />
+                Resume
               </a>
             </div>
 
