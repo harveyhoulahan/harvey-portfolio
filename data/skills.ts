@@ -136,7 +136,7 @@ export const skillProofs = [
     title: "Pretraining under fixed compute",
     stat: "1.7533 → 1.1754",
     proof:
-      "A 40M-parameter transformer taken 33% down in validation loss on a frozen seven-epoch budget. Muon, WSD scheduling, RoPE, ReLU² and value residuals, with every experiment and every failure in the ledger.",
+      "40M parameters, seven epochs, one seed. Validation loss down 33%. Muon, WSD, RoPE, ReLU², value residuals. Full ledger, failures included.",
     cta: "Read the report",
     skills: [
       "Muon optimizer",
@@ -154,7 +154,7 @@ export const skillProofs = [
     title: "Canopy cover from orbit",
     stat: "0.5 m",
     proof:
-      "A wavelength-aware Swin-UNet that measures forest canopy from satellite imagery, trained on airborne-LiDAR labels and self-calibrated per station, and the production geospatial platform built around it.",
+      "Wavelength-aware Swin-UNet on satellite imagery, LiDAR labels, self-calibrated per station. The platform underneath is production.",
     cta: "Read the deep dive",
     skills: [
       "ALS / LiDAR processing",
@@ -171,7 +171,7 @@ export const skillProofs = [
     title: "A neural Earth engine",
     stat: "60 fps",
     proof:
-      "Shallow-water hydrology, erosion and wildfire in hand-written WGSL compute passes, with a convolutional neural operator trained on the solver and raced against it live in your browser.",
+      "Shallow-water hydrology, erosion, wildfire in hand-written WGSL. A neural operator trained on the solver, raced live in your browser.",
     cta: "Run it live",
     skills: [
       "WebGPU / WGSL",
@@ -187,7 +187,7 @@ export const skillProofs = [
     title: "PageRank as a stochastic process",
     stat: "α 0.730 / 0.730",
     proof:
-      "Google's random surfer taken past linear algebra: Gillespie click-time simulation, an exact Markov chain solved by eigendecomposition, and simulated annealing that recovers a hidden damping factor to three decimals. With a live surfer you can drive.",
+      "Random surfer past linear algebra: Gillespie simulation, exact Markov chain, simulated annealing to recover α. Live surfer included.",
     cta: "Read the paper",
     skills: [
       "Markov chains",

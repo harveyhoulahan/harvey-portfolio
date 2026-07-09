@@ -32,6 +32,7 @@ import { decodeSurrogate } from "@/lib/catchment/surrogate";
 import { useIdleUI } from "@/lib/useIdleUI";
 
 const BASE_Y = -0.16; // pedestal base height (world units)
+const DEFAULT_MAP_ID = "caldera";
 
 const HALF = 1.0;
 const HSCALE = 80.0; // bedrock height units (matches the validated reference)
@@ -174,7 +175,7 @@ export default function Catchment() {
   const uiVisible = everInteracted && !idle;
   type MapInfo = { id: string; file: string; name: string; tagline: string; rain?: number; wind?: number; secret?: boolean; props?: PropsConfig };
   const [maps, setMaps] = useState<MapInfo[]>([]);
-  const [mapId, setMapId] = useState("hinterland");
+  const [mapId, setMapId] = useState(DEFAULT_MAP_ID);
   const [secretUnlocked, setSecretUnlocked] = useState(false);
   const activeMap = maps.find((m) => m.id === mapId);
   const mapFile = activeMap ? `/catchment/${activeMap.file}` : "/catchment/dem.json";
@@ -520,7 +521,7 @@ export default function Catchment() {
       // world's designed prop config. They stand on the LIVE bed buffer, so
       // erosion, craters and the fire front all reach them.
       const propsCfg: PropsConfig = activeMap?.props ?? { trees: 0.5, shrubs: 0.55 };
-      const propGeo = buildPropGeometry(dem, fuelInit, beachStrength, propsCfg, activeMap?.id ?? "hinterland", { half: HALF, hscale: HSCALE });
+      const propGeo = buildPropGeometry(dem, fuelInit, beachStrength, propsCfg, activeMap?.id ?? DEFAULT_MAP_ID, { half: HALF, hscale: HSCALE });
       const propCount = propGeo.length / 10;
       const propsVB = propCount
         ? device.createBuffer({ size: propGeo.byteLength, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST })

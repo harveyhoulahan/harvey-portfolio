@@ -5,18 +5,17 @@ export const profile = {
   name: "Harvey Houlahan",
   title: "ML Systems · Simulation · Spatial Engineer",
   descriptor:
-    "I build ML that ships. By day, satellite and LiDAR pipelines measuring forest carbon underneath Australian policy. By night, GPU physics engines and pretraining studies that run live on this site. If it needs gradients, geodata or a GPU, we should talk.",
+    "ML that ships. Day job: satellite and LiDAR for forest carbon. Nights: GPU physics and pretraining studies, live here.",
 
   // Location & relocation
   locationNow: "Byron Bay, NSW",
   locationNext: "open to EU / US",
   timezone: "AEST",
-  footerSubtitle:
-    "ML systems, simulation & spatial engineering · Byron Bay · remote · open to relocate",
+  footerSubtitle: "ML systems · open to relocate",
   coordinates: { lat: -28.6431, lng: 153.6122, label: "28.6431° S, 153.6122° E" },
 
   // Availability
-  availability: "Open for contract work · currently booking",
+  availability: "Open for contract work",
 
   // Contact
   email: "harveyhoulahan@outlook.com",
@@ -44,35 +43,35 @@ export const services = {
   lanes: [
     {
       name: "Climate & spatial ML",
-      pitch: "The lane I work in every day.",
+      pitch: "What I do every day.",
       items: [
         "Carbon MRV and canopy modelling from LiDAR + satellite",
-        "Spatial data pipelines that stay fast at continental scale",
-        "Biodiversity monitoring and precision-agriculture models",
+        "Spatial pipelines that stay fast at continental scale",
+        "Biodiversity monitoring and precision-ag models",
       ],
     },
     {
       name: "Applied ML & AI systems",
-      pitch: "The lane where most teams need a finisher.",
+      pitch: "Fine-tuning, search, deployment.",
       items: [
-        "Model training and fine-tuning on your data, on your budget",
-        "Search and retrieval that understands what users mean",
-        "Deployment that doesn't marry you to one API vendor",
+        "Training and fine-tuning on your data, on your budget",
+        "Search that understands what users mean",
+        "Deployment without marrying you to one API vendor",
       ],
     },
   ],
   models: [
     {
       name: "Monthly retainer",
-      detail: "A standing lane of engineering. This is how Step One runs today: features, maintenance, momentum.",
+      detail: "Ongoing engineering capacity, month to month.",
     },
     {
       name: "Fixed-scope build",
-      detail: "A pipeline, a model, an app. Scoped in a call, priced up front, shipped with a handover you can run without me.",
+      detail: "A pipeline, a model, an app. Scoped on a call, priced up front, handed over runnable.",
     },
     {
       name: "Advisory",
-      detail: "Architecture reviews, model audits, a second opinion before you commit a quarter to something.",
+      detail: "Architecture reviews, model audits, a second opinion before you commit a quarter.",
     },
   ],
 } as const;
@@ -97,9 +96,9 @@ export const about = {
   intro:
     "Right now I'm building the systems that connect field data to carbon policy.",
   paragraphs: [
-    "At ArborMeta I build the infrastructure connecting ecological field surveys and satellite data to Australian carbon policy: canopy-height and above-ground-carbon models from paired LiDAR captures, live fire-spread mapping, and the pipelines that determine how land is measured, what gets logged, and what makes it into the registry.",
+    "At ArborMeta I connect field surveys and satellite data to Australian carbon policy: canopy-height and above-ground-carbon models from paired LiDAR captures, fire-spread mapping, and the pipelines that decide how land is measured and what reaches the registry.",
     "I grew up on a cotton farm in Queensland. At Monash I set out to become a doctor; six months in I was writing more code than medical notes, so I switched to computer science.",
-    "The playground on this site is the same discipline, off the clock: real solvers running on your GPU, and neural operators trained to emulate them — physics as the teacher, the network as the student, racing side-by-side in a browser tab.",
-    "Open to contract work in two lanes: climate tech — carbon MRV, biodiversity monitoring, spatial data pipelines, precision agriculture — and applied ML/AI systems: RAG pipelines, fine-tuning open-source models (Llama, Mistral), vector search, and cost-effective model deployment without full reliance on a single API provider.",
+    "The playground here is the same discipline off the clock: solvers on your GPU, neural operators trained to emulate them, racing in a tab.",
+    "Open to contract work in climate tech and applied ML: carbon MRV, spatial pipelines, fine-tuning, vector search, deployment that does not live on one API.",
   ],
 } as const;
