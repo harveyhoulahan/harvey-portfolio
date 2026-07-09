@@ -26,6 +26,7 @@ export const caseStudies: CaseStudy[] = [
     company: "ArborMeta",
     role: "Machine Learning Engineer",
     period: "Byron Bay, NSW · 2025 – present",
+    link: "/canopy",
     summary:
       "The geospatial ML platform behind Australian carbon-credit policy advice.",
     problem:

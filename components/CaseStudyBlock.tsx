@@ -16,6 +16,14 @@ export default function CaseStudyBlock({ study }: { study: CaseStudy }) {
             </span>
           </div>
           <p className="mt-1 font-mono text-sm text-flow">{study.role}</p>
+          {study.link && (
+            <a
+              href={study.link}
+              className="mt-2 inline-block font-mono text-xs uppercase tracking-[0.12em] text-ink/55 underline decoration-contour underline-offset-4 transition-colors hover:text-flow"
+            >
+              Read the deep-dive →
+            </a>
+          )}
         </header>
 
         <div className="mt-7 grid grid-cols-1 gap-7 md:grid-cols-3">
