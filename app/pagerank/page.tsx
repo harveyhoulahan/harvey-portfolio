@@ -5,7 +5,7 @@ import SurferLab from "@/components/pagerank/SurferLab";
 export const metadata: Metadata = {
   title: "Web navigation as a stochastic process | PageRank three ways | Harvey Houlahan",
   description:
-    "Google's random surfer, taken past linear algebra: Gillespie stochastic simulation of click-time dynamics, an exact 6-page Markov chain solved by eigendecomposition, and simulated annealing that recovers a hidden damping factor to three decimal places. With a live surfer you can drive.",
+    "PageRank past linear algebra: Gillespie click-time simulation, exact six-page Markov chain, simulated annealing to recover α. Live surfer included.",
   alternates: { canonical: "https://hjhportfolio.com/pagerank" },
 };
 
@@ -25,26 +25,26 @@ const QUESTIONS = [
     id: "Q1 · stochasticity",
     tech: "Gillespie SSA",
     question:
-      "When click times are random events rather than synchronous updates, does the surfer still converge to the deterministic PageRank, and how fast?",
+      "With random click times instead of synchronous updates, does the surfer still converge to deterministic PageRank, and how fast?",
     answer:
-      "Yes. Time-weighted occupancy over 400 runs matches the eigenvector by T = 500. At T = 5 the estimates scatter widely, which is exactly the variability the deterministic model hides.",
+      "Yes. Time-weighted occupancy over 400 runs matches the eigenvector by T = 500. At T = 5 the estimates scatter. The deterministic model hides that.",
   },
   {
     id: "Q2 · calibration",
     tech: "Simulated annealing",
     question:
-      "Given only an observed stationary distribution, can the damping factor that produced it be recovered?",
+      "Given only an observed stationary distribution, can the damping factor be recovered?",
     answer:
-      "Yes. With a Metropolis acceptance rule and geometric cooling, the search lands on α = 0.730 against a hidden true value of 0.73, final loss 1.35e-8, in ~3,400 evaluations over a 991-point grid.",
+      "Yes. Metropolis acceptance, geometric cooling. Lands on α = 0.730 against a hidden 0.73, loss 1.35e-8, ~3,400 evals.",
   },
 ] as const;
 
 const ALGORITHMS: [string, string][] = [
-  ["Weighted PageRank", "Power iteration with dangling-page handling. The deterministic baseline every extension is measured against."],
-  ["Gillespie SSA", "Continuous-time surfer with exponential waiting times between clicks. Stationary distribution estimated by time-weighted occupancy across runs."],
-  ["Chain-binomial DTMC", "The exact 6-page transition matrix P = αW + (1−α)/N, solved by left eigendecomposition for the stationary distribution."],
-  ["Monte Carlo estimation", "Long-run visit frequencies against the exact eigenvector, with the expected 1/K error decay measured across chain lengths."],
-  ["Simulated annealing", "Metropolis–Hastings acceptance exp(−ΔL/T) with T ← 0.95T, minimising squared stationary-distribution error over α."],
+  ["Weighted PageRank", "Power iteration with dangling-page handling. The baseline everything else is measured against."],
+  ["Gillespie SSA", "Continuous-time surfer, exponential waits between clicks. Stationary distribution by time-weighted occupancy."],
+  ["Chain-binomial DTMC", "Exact 6-page P = αW + (1−α)/N, solved by left eigendecomposition."],
+  ["Monte Carlo estimation", "Visit frequencies against the exact eigenvector; 1/K error decay measured across chain lengths."],
+  ["Simulated annealing", "Metropolis acceptance exp(−ΔL/T), geometric cooling, minimising stationary-distribution error over α."],
 ];
 
 function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
@@ -68,14 +68,12 @@ export default function PageRankPage() {
             Web navigation as a stochastic process
           </h1>
           <p className="text-base leading-prose text-ink/75 md:text-[1.02rem] lg:col-span-7 lg:col-start-6 lg:row-start-2 lg:self-end lg:max-w-[58ch]">
-            Google&apos;s PageRank imagines a surfer who follows links at random
-            and occasionally jumps to a page out of nowhere. The damping factor
-            α is the probability of following a link; with probability 1&minus;α
-            the surfer teleports uniformly. That trick makes the chain
-            irreducible, aperiodic, and possessed of exactly one equilibrium.
-            The textbook treatment stops at the linear algebra. This project
-            keeps going: it makes the clicks genuinely random in time, solves a
-            small web exactly, and then recovers α from observed behaviour alone.
+            PageRank imagines a surfer who follows links at random and
+            sometimes teleports. α is the link probability; 1&minus;α is uniform
+            jump. That makes the chain irreducible and gives one equilibrium.
+            The textbook stops at linear algebra. This keeps going: random
+            click times, an exact six-page web, then recovering α from behaviour
+            alone.
           </p>
         </header>
 
@@ -110,55 +108,39 @@ export default function PageRankPage() {
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The surfer, live</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            The submission&apos;s exact six-page web. Teal squares scale with
-            the exact stationary rank; the surfer&apos;s tally accumulates
-            against it below. Drag α and watch the equilibrium reshape.
+            The exact six-page web from the submission. Squares scale with rank;
+            the tally below tracks the surfer. Drag α.
           </p>
           <SurferLab />
         </div>
 
         <div className="mx-auto max-w-prose">
-          <Block kicker="The base model, properly introduced">
-            A surfer at page i follows one of its weighted out-links with
-            probability α, choosing among them in proportion to weight, or
-            teleports to any of the N pages uniformly with probability
-            1&minus;α. The transition matrix is P = αW + (1&minus;α)/N, and
-            the ranking is its stationary distribution: the left eigenvector
-            for eigenvalue one. Every page receives at least (1&minus;α)/N
-            from anywhere, so no subgraph can trap the surfer and no cycle can
-            trap the chain. Page E in the graph above is the degenerate case
-            made visible: nothing links to it, so its entire rank is the
-            teleportation floor, exactly (1&minus;α)/6.
+          <Block kicker="The base model">
+            At page i the surfer follows a weighted out-link with probability α
+            or teleports uniformly with 1&minus;α. P = αW + (1&minus;α)/N; the
+            rank is its left eigenvector. Every page gets at least
+            (1&minus;α)/N, so nothing traps the chain. Page E above is the
+            degenerate case: no in-links, rank equals the teleport floor exactly
+            (1&minus;α)/6.
           </Block>
 
-          <Block kicker="Question one, answered">
-            The Gillespie algorithm replaces synchronous steps with exponential
-            waiting times, so each click is an event in continuous time.
-            Estimating the stationary distribution by time-weighted occupancy,
-            400 runs at horizon T = 500 reproduce the deterministic PageRank.
-            At T = 5 the estimates scatter widely around it. Stochastic click
-            timing changes the journey, not the destination. The short horizon
-            is where real analytics actually live.
+          <Block kicker="Question one">
+            Gillespie replaces synchronous steps with exponential waits. 400 runs
+            at T = 500 match deterministic PageRank; at T = 5 they scatter.
+            Stochastic timing changes the journey, not the destination.
           </Block>
 
-          <Block kicker="Question two, answered">
-            Calibration inverts the model. Hide a true α of 0.73, observe only
-            the stationary distribution it produces, and search for the damping
-            factor that explains it: propose a candidate, compute its
-            equilibrium by eigendecomposition, accept or reject by the
-            Metropolis rule exp(&minus;ΔL/T), cool geometrically. The search
-            walks the loss landscape down eight orders of magnitude and stops
-            at 0.730. The same machinery generalises to fitting link weights
-            against real clickstream data.
+          <Block kicker="Question two">
+            Hide α = 0.73, observe only the stationary distribution, search for
+            the damping factor that explains it. Metropolis acceptance,
+            geometric cooling. Stops at 0.730. Same machinery fits link weights
+            to real clickstreams.
           </Block>
 
-          <Block kicker="The Monte Carlo backbone">
-            Everything empirical in the project is checked against the exact
-            eigenvector, and the error behaves exactly as theory says it
-            should: mean-squared error of the visit-frequency estimate decays
-            as 1/K in chain length, measured across K from 10³ to 2×10⁵,
-            landing at 2.6×10⁻⁷. The live tally above is running that
-            experiment in front of you.
+          <Block kicker="Monte Carlo backbone">
+            Every empirical estimate checked against the exact eigenvector. MSE
+            decays as 1/K; measured from 10³ to 2×10⁵, landing at 2.6×10⁻⁷.
+            The live tally above is that experiment running.
           </Block>
         </div>
 

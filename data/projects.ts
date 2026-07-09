@@ -172,7 +172,7 @@ export const papers: Paper[] = [
     title: "Adapting frontier LLM-pretraining techniques under fixed compute",
     context: "Maincode · Mainrun assessment · 2026",
     summary:
-      "A ~40M-parameter transformer pretraining assessment under a fixed seven-epoch budget. Validation loss from 1.75 to 1.18 via Muon, rotary embeddings, warmup-stable-decay scheduling, ReLU² activations, and value-residual connections. Each change argued from first principles.",
+      "40M parameters, seven epochs, one seed. Validation loss 1.75 → 1.18. Muon, RoPE, WSD, ReLU², value residuals.",
     links: [
       { label: "Read the report", href: "/pretraining" },
       { label: "PDF", href: "/papers/mainrun-report.pdf" },
@@ -182,7 +182,7 @@ export const papers: Paper[] = [
     title: "Web-page navigation as a stochastic process",
     context: "Monash FIT3139 · Computational Modelling & Simulation",
     summary:
-      "Google's PageRank taken past linear algebra: Gillespie click-time simulation, an exact six-page Markov chain by eigendecomposition, and simulated annealing that recovers a hidden damping factor to three decimals.",
+      "PageRank past linear algebra: Gillespie simulation, exact Markov chain, simulated annealing to recover α.",
     links: [
       { label: "Read the paper", href: "/pagerank" },
       {

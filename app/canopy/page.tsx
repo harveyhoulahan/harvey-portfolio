@@ -6,7 +6,7 @@ import ProductionLog from "@/components/canopy/ProductionLog";
 export const metadata: Metadata = {
   title: "Canopy cover from orbit | satellite × LiDAR fusion | Harvey Houlahan",
   description:
-    "How ArborMeta measures forest canopy at 0.5 m from satellite imagery: a wavelength-aware Swin-UNet trained on airborne-LiDAR canopy-cover labels, self-calibrated per station on its own ALS data, plus the geospatial platform built around it.",
+    "Forest canopy at 0.5 m from satellite imagery: wavelength-aware Swin-UNet on LiDAR labels, self-calibrated per station. The platform around it is production.",
   alternates: { canonical: "https://hjhportfolio.com/canopy" },
 };
 
@@ -102,13 +102,11 @@ export default function CanopyPage() {
           Canopy cover from orbit
         </h1>
         <p className="mt-4 max-w-prose text-base leading-prose text-ink/75">
-          Airborne LiDAR measures forest structure honestly, but only over thin
-          flightlines. Satellites cover whole stations but cannot see in 3D.
-          This pipeline learns the mapping between them: a wavelength-aware
-          transformer trained on LiDAR-derived canopy-cover labels, self-calibrated
-          on each station&apos;s own flightlines, then run across the entire
-          property from satellite alone. Client and site identifiers are stripped;
-          every number below is from a real production run.
+          LiDAR measures structure honestly, but only over flightlines. Satellites
+          cover whole stations but cannot see in 3D. This learns the mapping:
+          canopy-cover labels from LiDAR, self-calibrated per station, then run
+          across the property from satellite alone. Identifiers stripped; numbers
+          from a real production run.
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -123,35 +121,27 @@ export default function CanopyPage() {
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The pipeline</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            Two instruments, one model. Labels flow from the LiDAR lane; imagery
-            flows from the satellite lane; they meet in a wavelength-conditioned
-            encoder.
+            Two instruments, one model. Labels from LiDAR; imagery from satellite;
+            they meet in a wavelength-conditioned encoder.
           </p>
           <PipelineDiagram />
         </div>
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The two instruments">
-            The label side starts as raw airborne-LiDAR point clouds, becomes a
-            smoothed canopy-height model, and is rasterised into eleven
-            cover-fraction layers: the fraction of ground covered by vegetation
-            taller than 1.0 m, 1.1 m, … 2.0 m. The imagery side is Jilin-1, a
-            panchromatic band plus four multispectral bands at 0.5 m. Nothing is
-            fed to the model as raw pixels. Per-band calibration gain and bias
-            from the scene metadata convert digital numbers to radiance, and each
-            band travels with its centre wavelength, bandwidth, and the sun and
-            satellite geometry at capture.
+            Labels: airborne LiDAR → smoothed canopy-height model → eleven
+            cover-fraction rasters (vegetation taller than 1.0–2.0 m). Imagery:
+            Jilin-1 PAN + four multispectral bands at 0.5 m. Nothing enters as
+            raw pixels — per-band gain and bias from scene metadata, each band
+            with wavelength, bandwidth, sun and satellite geometry.
           </Block>
 
           <Block kicker="A wavelength-aware model">
-            The encoder is a Swin-UNet with a DOFA-style dynamic patch embedding:
-            a hypernetwork generates the input-layer weights from the band
-            wavelengths themselves, so the network is conditioned on what its
-            channels physically <em>are</em> rather than hard-wired to one sensor.
-            Acquisition angles, location, and a capture-to-prediction date delta
-            enter as learned embeddings with fallback tokens when metadata is
-            missing. The same weights serve imagery from different constellations
-            with different band counts.
+            Swin-UNet with DOFA-style dynamic patch embedding: a hypernetwork
+            generates input-layer weights from band wavelengths, so the network
+            is conditioned on what its channels physically are. Angles, location,
+            and capture-to-prediction date delta enter as learned embeddings.
+            Same weights, different constellations, different band counts.
           </Block>
         </div>
 
@@ -167,12 +157,9 @@ export default function CanopyPage() {
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The last mile">
-            Prediction tiles the scene with a single-grid sampler: 768-pixel
-            patches with 128 pixels of overlap so tile edges can be cropped away.
-            Each tile runs under mixed precision, the output is georeferenced, and
-            thousands of tiles merge through a GDAL VRT into one ZSTD-compressed,
-            station-scale cover raster. One model run&apos;s outputs for one
-            delivery: 18 rasters, 119.6 GB.
+            768-pixel tiles, 128 px overlap, mixed precision, georeferenced
+            outputs. Thousands of tiles merge through GDAL VRT into one
+            ZSTD-compressed station raster. One delivery: 18 rasters, 119.6 GB.
           </Block>
         </div>
 
@@ -189,12 +176,11 @@ export default function CanopyPage() {
         <div className="mt-14">
           <h2 className="font-display text-xl">The platform around it</h2>
           <p className="mt-2 max-w-prose text-base leading-prose text-ink/80">
-            The pipeline feeds a full geospatial platform: a single-handed
-            build used by the team, government stakeholders and visiting
-            researchers. A FastAPI + PostGIS backend (~35 route modules, ~40
-            tables) sits under a React 18 + TypeScript frontend (14 pages),
-            serving vector tiles, cloud-optimised point clouds and rasters from
-            terabyte-scale archives.
+            The pipeline feeds a geospatial platform: single-handed build used by
+            the team, government stakeholders and visiting researchers. FastAPI +
+            PostGIS (~35 route modules, ~40 tables) under React 18 + TypeScript
+            (14 pages), serving vector tiles and cloud-optimised point clouds and
+            rasters from terabyte-scale archives.
           </p>
           <div className="mt-6 grid gap-x-10 gap-y-5 md:grid-cols-2">
             {PLATFORM.map(([k, v]) => (
@@ -208,10 +194,10 @@ export default function CanopyPage() {
 
         <div className="mx-auto max-w-prose">
           <Block kicker="Why it matters">
-            These rasters are not decorative. Canopy growth measured between
-            repeat LiDAR captures, extended across whole stations by satellite,
-            is the evidence base under Australian carbon-credit policy advice.
-            The same discipline as the demos on this site, pointed at country.
+            These rasters sit under Australian carbon-credit policy advice:
+            canopy growth measured between repeat LiDAR captures, extended
+            across whole stations by satellite. Same discipline as the demos
+            here, pointed at country.
           </Block>
         </div>
 

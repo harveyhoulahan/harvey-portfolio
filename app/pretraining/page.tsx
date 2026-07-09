@@ -7,7 +7,7 @@ import LossChart from "@/components/pretraining/LossChart";
 export const metadata: Metadata = {
   title: "LLM pretraining under fixed compute | 1.75 → 1.18 | Harvey Houlahan",
   description:
-    "A ~40M-parameter transformer pretraining study under a fixed seven-epoch budget: validation loss 1.7533 → 1.1754 (−33.0%) via Muon, WSD scheduling, RoPE, ReLU² and value residuals. Every experiment in the ledger, including the failures.",
+    "40M parameters, seven epochs, one seed. Validation loss 1.7533 → 1.1754 (−33%). Muon, WSD, RoPE, ReLU², value residuals. Full ledger.",
   alternates: { canonical: "https://hjhportfolio.com/pretraining" },
 };
 
@@ -62,11 +62,9 @@ export default function PretrainingPage() {
           Adapting frontier LLM-pretraining techniques under fixed compute
         </h1>
         <p className="mt-4 max-w-prose text-base leading-prose text-ink/75">
-          Seven epochs, one seed, and a fixed <code>evaluate()</code> of a
-          GPT-2-style baseline 1.7533. Twenty-eight single-variable
-          experiments later, the baseline lands at 1.1754. The ledger below
-          docs every run, including failures. The overshoots and regressions
-          are evidence of optimums found empirically.
+          Seven epochs, one seed, baseline at 1.7533. Twenty-eight single-variable
+          runs later: 1.1754. The ledger records every one, failures included.
+          The overshoots are how you know the minimums were found, not assumed.
         </p>
 
         {/* stat tiles */}
@@ -84,47 +82,38 @@ export default function PretrainingPage() {
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The experiment ladder</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            Final validation loss per run, chronological. Hover a column for the
-            run&apos;s single change, or find it in the ledger below.
+            Final validation loss per run. Hover a column for the change, or
+            find it in the ledger.
           </p>
           <LossChart />
         </div>
 
         <div className="mx-auto max-w-prose">
           <Block kicker="The diagnosis">
-            Baseline underfits; Training loss stays high (9.77 → 8.18) while
-            validation plateaus after step 352, and warmup, weight-decay and
-            dropout tuning all move the fourth decimal. A model unresponsive to
-            regularisation is not overfitting; the operative constraint is
-            learning per step. This notion reinforces general directionality.
+            Baseline underfits. Training loss falls; validation plateaus after
+            step 352. Warmup, weight decay, dropout move the fourth decimal.
+            Regularisation is not the constraint. Learning per step is.
           </Block>
 
           <Block kicker="The big lever">
-            Swapping SGD for AdamW (lr 3e-4, β 0.9/0.95) collapsed validation loss
-            from 1.7533 to 1.3400, roughly 73% of the total improvement in one
-            move. Transformers carry heterogeneous gradient scales across attention
-            and MLP weights; per-parameter adaptive rates address what uniform SGD
-            updates cannot. Everything else in the ledger stands on this.
+            AdamW (lr 3e-4) took validation from 1.7533 to 1.3400 — roughly
+            73% of the total gain in one swap. Heterogeneous gradient scales
+            across attention and MLP; everything else in the ledger stands on
+            this.
           </Block>
 
-          <Block kicker="Frontier methods, re-tuned to fit">
-            Muon (from the nanoGPT-speedrun literature) orthogonalises 2D weight
-            updates via Newton–Schulz iteration. At its published lr of 0.02,
-            calibrated for 124M-parameter GPU runs, it plateaued <em>above</em> the
-            AdamW line. Re-tuned 4× lower it took the lead; warmup–stable–decay
-            then removed the late-training rise cosine left behind, RoPE was worth
-            a further 0.0214, and ReLU² and value-residual connections stacked the
-            last thousandths. The recurring lesson: frontier methods transfer in
-            direction, not magnitude.
+          <Block kicker="Frontier methods, re-tuned">
+            Muon orthogonalises 2D updates via Newton–Schulz. At its published
+            lr (0.02, tuned for 124M-param runs) it plateaued above AdamW.
+            Four times lower it took the lead. WSD removed the late rise cosine
+            left behind; RoPE, ReLU² and value residuals stacked the rest.
+            Frontier methods transfer in direction, not magnitude.
           </Block>
 
           <Block kicker="Depth over width">
-            Extra width (8L/512) made things worse: more parameters per layer than
-            938 optimiser steps can train. Extra depth compounded. Eight layers beat 6,
-            and once Muon, residual scaling, ReLU² and value residuals had made a
-            deeper stack trainable, 16 layers took the submission to 1.1754 at
-            ~40M parameters and 9.1 minutes. Twenty layers bought 0.0009 more for
-            double the runtime. Measured, and declined.
+            Extra width (8L/512) made things worse at the same step budget.
+            Extra depth compounded: 16 layers landed at 1.1754 (~40M params, 9.1
+            min). Twenty layers bought 0.0009 for double the runtime. Declined.
           </Block>
         </div>
 
@@ -132,8 +121,7 @@ export default function PretrainingPage() {
         <div className="mt-14">
           <h2 className="font-display text-xl">The complete ledger</h2>
           <p className="mb-4 mt-1 max-w-prose text-sm text-ink/60">
-            Every experiment, kept. The bracketing overshoots and regressions
-            included. Single-variable protocol against the current best.
+            Every experiment, kept. Overshoots and regressions included.
           </p>
           <ExperimentLedger />
         </div>
@@ -168,13 +156,9 @@ export default function PretrainingPage() {
         <div className="mx-auto max-w-prose">
           <Block kicker="Honest limits">
             One seed (1337, fixed by the rules). Differences under ~0.005 sit
-            inside run-to-run noise and were never treated as signal. The
-            submission optimises the compute budget, not parameter count: a
-            parameter-constrained variant would keep the 8-layer stack and give
-            back 0.012. QK-norm with a learnable scale, vocabulary sweeps and bf16
-            were deprioritised once the remaining reductions fell to the fourth
-            decimal. The response surface had not flattened at submission. This
-            was built alongside full-time work.
+            in run-to-run noise. The submission optimises compute, not parameter
+            count; a parameter cap would keep 8 layers and give back 0.012. Built
+            alongside full-time work. The surface had not flattened at submission.
           </Block>
         </div>
 

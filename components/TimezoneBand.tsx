@@ -145,10 +145,10 @@ export default function TimezoneBand() {
           <p className="mt-3 max-w-prose text-sm leading-relaxed text-ink/70">
             Right now it&apos;s {view.yourClock} for you and {view.myClock} for me.{" "}
             {view.overlap >= 360
-              ? "We share most of a working day — this is effectively local collaboration."
+              ? "Most of a working day overlaps. Feels local."
               : view.overlap > 0
-                ? `That's ${(view.overlap / 60).toFixed(view.overlap % 60 === 0 ? 0 : 1)} hour${view.overlap === 60 ? "" : "s"} of live overlap on a normal day — and the rest lands async, so you wake up to finished work.`
-                : "Our standard days don't cross — which means a full day's work lands in your inbox every morning, and I keep evenings open for calls."}
+                ? `${(view.overlap / 60).toFixed(view.overlap % 60 === 0 ? 0 : 1)} hour${view.overlap === 60 ? "" : "s"} of live overlap on a normal day. The rest lands async.`
+                : "Standard days do not cross. Work lands in your inbox overnight; evenings stay open for calls."}
           </p>
         </>
       ) : (
