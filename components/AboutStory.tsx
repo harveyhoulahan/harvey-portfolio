@@ -73,12 +73,11 @@ export default function AboutStory() {
         </div>
       </div>
 
-      {/* The stack, with receipts — merged in from the old /skills page */}
       <div id="stack" className="col-shell mt-20 max-w-work scroll-mt-24">
-        <span className="mono-label">The stack · with receipts</span>
+        <span className="mono-label">The stack</span>
         <p className="mt-3 max-w-prose text-ink/70">
-          Tool lists are easy. The five clusters that matter most come with
-          receipts; the ledger below has everything else.
+          Five clusters that matter. Each one points at something real on this
+          site. The full list is below.
         </p>
       </div>
       <SkillsReceipts groups={skillsData} />

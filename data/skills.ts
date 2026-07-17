@@ -136,7 +136,7 @@ export const skillProofs = [
     title: "Compute-optimal scaling, byte level",
     stat: "N_opt ∝ C^1.04",
     proof:
-      "A Chinchilla sweep on one GPU: 43 byte-level runs, 0.1M → 113M params, six budgets — and the four runs the recipe couldn't hold.",
+      "Chinchilla on one GPU. 43 byte-level runs, 0.1M to 113M params, six budgets. Frontier b = 1.04.",
     cta: "Read the study",
     skills: [
       "Scaling-law fitting",
@@ -145,7 +145,7 @@ export const skillProofs = [
       "Divergence diagnosis",
       "PyTorch",
     ],
-    motif: "rings",
+    motif: "galah",
   },
   {
     href: "/pretraining",

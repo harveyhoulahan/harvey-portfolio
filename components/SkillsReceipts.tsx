@@ -12,6 +12,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import ContourMotif, { type MotifVariant } from "@/components/ContourMotif";
+import GalahMotif from "@/components/GalahMotif";
 import PretrainingMotif from "@/components/PretrainingMotif";
 import SurferMotif from "@/components/SurferMotif";
 import { skillProofs } from "@/data/skills";
@@ -49,6 +50,8 @@ export default function SkillsReceipts({ groups }: { groups: SkillGroup[] }) {
                 <SurferMotif />
               ) : p.motif === "pretraining" ? (
                 <PretrainingMotif />
+              ) : p.motif === "galah" ? (
+                <GalahMotif />
               ) : (
                 <ContourMotif variant={p.motif as MotifVariant} />
               )}

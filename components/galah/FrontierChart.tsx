@@ -179,7 +179,7 @@ export default function FrontierChart() {
             </div>
             <div className="mt-0.5 text-ink/70">
               {hover.edgePinned
-                ? "vertex pinned at the ladder edge — treated with suspicion"
+                ? "vertex pinned at the ladder edge, treated with suspicion"
                 : `${hover.points} runs on the profile · L_opt ${hover.lOpt.toFixed(3)} bpb`}
             </div>
           </>

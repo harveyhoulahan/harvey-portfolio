@@ -37,7 +37,7 @@ interface RungSpec {
 const RUNGS: RungSpec[] = [
   {
     id: "1.5m", tab: "1.5M · C=3e16", steps: 12017,
-    note: "Two seeds diverge at ×1.0. The ×0.5 run holds — but lands at 1.79 bpb where the trend says ≈1.55.",
+    note: "Two seeds diverge at ×1.0. The ×0.5 run holds, but lands at 1.79 bpb where the trend says ≈1.55.",
     series: [
       { key: "d1p5-full", label: "×1.0 · seed 1337", color: "var(--viz-bad)" },
       { key: "d1p5-seed", label: "×1.0 · seed 1338", color: "var(--viz-bad)", dash: "5 4" },
@@ -62,7 +62,7 @@ const RUNGS: RungSpec[] = [
   },
   {
     id: "10m", tab: "10M · C=3e17", steps: 25307,
-    note: "×1.0 and ×0.5 share seed 1337 — identical batch order — and the raw loss leaves its floor at step 5,550 in both (the smoothed curves register it a beat apart). Halving the LR delayed nothing: the trigger sits in the data order.",
+    note: "×1.0 and ×0.5 share seed 1337 and identical batch order. Raw loss leaves its floor at step 5,550 in both (smoothed curves register it a beat apart). Halving the LR delayed nothing: the trigger sits in the data order.",
     series: [
       { key: "d10-full", label: "×1.0", color: "var(--viz-bad)" },
       { key: "d10-half", label: "×0.5", color: "var(--viz-good)" },
