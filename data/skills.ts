@@ -131,6 +131,23 @@ export const skillsData = [
 // artifact on this site. The cards on /skills render from here.
 export const skillProofs = [
   {
+    href: "/galah",
+    kicker: "Scaling laws · Research",
+    title: "Compute-optimal scaling, byte level",
+    stat: "N_opt ∝ C^1.04",
+    proof:
+      "A Chinchilla sweep on one GPU: 43 byte-level runs, 0.1M → 113M params, six budgets — and the four runs the recipe couldn't hold.",
+    cta: "Read the study",
+    skills: [
+      "Scaling-law fitting",
+      "IsoFLOP sweeps",
+      "AdamW / cosine schedules",
+      "Divergence diagnosis",
+      "PyTorch",
+    ],
+    motif: "rings",
+  },
+  {
     href: "/pretraining",
     kicker: "Deep learning · LLMs",
     title: "Pretraining under fixed compute",

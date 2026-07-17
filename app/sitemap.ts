@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/playground", priority: 0.9 },
     { path: "/catchment", priority: 0.8 },
     { path: "/genesis", priority: 0.8 },
+    { path: "/galah", priority: 0.7 },
     { path: "/about", priority: 0.7 },
     { path: "/contact", priority: 0.6 },
   ];

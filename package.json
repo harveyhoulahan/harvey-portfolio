@@ -11,6 +11,8 @@
     "catchment:train": "python3 scripts/catchment/train-surrogate.py",
     "catchment:intent": "python ml/train_intent.py",
     "catchment:intent-verify": "node scripts/verify-intent-parity.mjs",
+    "site:intent": "python ml/train_site_intent_v2.py",
+    "site:intent-verify": "node scripts/verify-intent-v2-parity.mjs",
     "genesis:prior": "python ml/genesis/train_summon_prior.py",
     "splat:test-asset": "node scripts/splat/make-test-splat.mjs"
   },

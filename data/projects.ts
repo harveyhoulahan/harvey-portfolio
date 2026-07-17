@@ -169,6 +169,20 @@ export interface Paper {
 // Research, write-ups and technical reports.
 export const papers: Paper[] = [
   {
+    title: "Galah: compute-optimal scaling, remeasured at byte level",
+    context: "Independent · Scaling-law study · 2026",
+    summary:
+      "A Chinchilla sweep on one GPU: 43 byte-level runs, 0.1M → 113M params, six budgets. Frontier b = 1.04 — and the four runs the recipe couldn't hold.",
+    links: [
+      { label: "Read the study", href: "/galah" },
+      {
+        label: "GitHub",
+        href: "https://github.com/harveyhoulahan/galah",
+        external: true,
+      },
+    ],
+  },
+  {
     title: "Adapting frontier LLM-pretraining techniques under fixed compute",
     context: "Maincode · Mainrun assessment · 2026",
     summary:

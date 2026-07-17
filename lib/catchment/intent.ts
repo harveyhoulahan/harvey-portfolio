@@ -1,8 +1,10 @@
 /*
  * Catchment terminal — natural-language intent engine (inference side).
  *
- * A hashed bag-of-features MLP, trained offline by ml/train_intent.py on
- * synthetic command phrasings and shipped as a ~100 KB integer-quantised JSON.
+ * A hashed bag-of-features MLP, trained offline by ml/train_intent.py (v1,
+ * Catchment commands) or ml/train_site_intent_v2.py (v2, the whole site shell:
+ * nav/faq/chat/eggs + sim) and shipped as an integer-quantised JSON — v1 as
+ * plain arrays (~100 KB), v2 as base64-packed int8 (~200 KB for 4x the params).
  * Inference is one sparse matvec + one tiny dense matvec — dependency-free,
  * sub-millisecond, fully local. The featuriser here mirrors the trainer
  * byte-for-byte (FNV-1a-hashed word / char-trigram / word-bigram features,
@@ -123,10 +125,29 @@ type RawModel = {
   hidden?: number;
   intents?: string[];
   w1?: number[]; b1?: number[]; w2?: number[]; b2?: number[];
+  /** v2: weights packed as base64 little-endian int8/int16 instead of JSON arrays. */
+  w1b64?: string; w2b64?: string; wbits?: number;
   s1?: number; s2?: number;
   threshold?: number;
   parity?: { text: string; intent: string; conf: number }[];
 };
+
+/** base64 little-endian int8/int16 → dequantised Float64Array, or null on bad input. */
+function dequantizeB64(b64: string, bits: number, scale: number, count: number): Float64Array | null {
+  let bin: string;
+  try { bin = atob(b64); } catch { return null; }
+  if (bin.length !== count * (bits / 8)) return null;
+  const out = new Float64Array(count);
+  if (bits === 8) {
+    for (let i = 0; i < count; i++) out[i] = ((bin.charCodeAt(i) << 24) >> 24) * scale;
+  } else {
+    for (let i = 0; i < count; i++) {
+      const lo = bin.charCodeAt(2 * i), hi = bin.charCodeAt(2 * i + 1);
+      out[i] = (((hi << 8) | lo) << 16 >> 16) * scale;
+    }
+  }
+  return out;
+}
 
 /**
  * Validate + dequantise the trained artefact. Returns null (never throws) on
@@ -135,22 +156,38 @@ type RawModel = {
  */
 export function decodeIntentModel(json: unknown): IntentModel | null {
   const raw = json as RawModel;
-  if (!raw || raw.kind !== "catchment-intent-v1" || raw.version !== 1) return null;
-  const { buckets, hidden, intents, w1, b1, w2, b2, s1, s2 } = raw;
-  if (!buckets || !hidden || !intents?.length || !w1 || !b1 || !w2 || !b2 || !s1 || !s2) return null;
+  if (!raw) return null;
+  const isV1 = raw.kind === "catchment-intent-v1" && raw.version === 1;
+  const isV2 = raw.kind === "site-intent-v2" && raw.version === 2;
+  if (!isV1 && !isV2) return null;
+  const { buckets, hidden, intents, b1, b2, s1, s2 } = raw;
+  if (!buckets || !hidden || !intents?.length || !b1 || !b2 || !s1 || !s2) return null;
   const C = intents.length;
-  if (w1.length !== buckets * hidden || b1.length !== hidden) return null;
-  if (w2.length !== hidden * C || b2.length !== C) return null;
+  if (b1.length !== hidden || b2.length !== C) return null;
 
-  const deq = (q: number[], s: number) => {
-    const out = new Float64Array(q.length);
-    for (let i = 0; i < q.length; i++) out[i] = q[i] * s;
-    return out;
-  };
+  let w1: Float64Array | null = null;
+  let w2: Float64Array | null = null;
+  if (isV1) {
+    if (raw.w1?.length !== buckets * hidden || raw.w2?.length !== hidden * C) return null;
+    const deq = (q: number[], s: number) => {
+      const out = new Float64Array(q.length);
+      for (let i = 0; i < q.length; i++) out[i] = q[i] * s;
+      return out;
+    };
+    w1 = deq(raw.w1, s1);
+    w2 = deq(raw.w2, s2);
+  } else {
+    const bits = raw.wbits ?? 8;
+    if ((bits !== 8 && bits !== 16) || !raw.w1b64 || !raw.w2b64) return null;
+    w1 = dequantizeB64(raw.w1b64, bits, s1, buckets * hidden);
+    w2 = dequantizeB64(raw.w2b64, bits, s2, hidden * C);
+  }
+  if (!w1 || !w2) return null;
+
   const model: IntentModel = {
     buckets, hidden, intents,
-    w1: deq(w1, s1), b1: Float64Array.from(b1),
-    w2: deq(w2, s2), b2: Float64Array.from(b2),
+    w1, b1: Float64Array.from(b1),
+    w2, b2: Float64Array.from(b2),
     threshold: raw.threshold ?? 0.5,
   };
 

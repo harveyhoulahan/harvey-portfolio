@@ -23,6 +23,7 @@ type ProofLine = {
 const LINES: ProofLine[] = [
   { marker: "ok", name: "canopy model", detail: "0.5 m from orbit · val 0.0096 · in production", dest: "/canopy", href: "/canopy" },
   { marker: "ok", name: "pretraining", detail: "1.75 → 1.18 · fixed compute · full ledger", dest: "/pretraining", href: "/pretraining" },
+  { marker: "ok", name: "galah sweep", detail: "43 runs · 0.1M–113M params · b = 1.04", dest: "/galah", href: "/galah" },
   { marker: "ok", name: "earth engine", detail: "60 fps · hand-written wgsl · physics vs neural", dest: "/catchment", href: "/catchment" },
   { marker: "ok", name: "life lab", detail: "2,400 agents · clip-scored evolution", dest: "/genesis", href: "/genesis" },
   { marker: "..", name: "intent model", detail: "26k params · 83 kb · runs this terminal", dest: "press /", shell: true },

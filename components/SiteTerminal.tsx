@@ -5,10 +5,13 @@
  *
  * Press `/` anywhere (except inside Catchment, which runs its own) and a small
  * dark terminal slides up: `open genesis`, `resume`, `theme dark`, `email`.
- * Plain english works too — it rides the same 83 KB intent model that drives
- * the Catchment terminal, and anything that reads as a *simulation* command
+ * Plain english works too — a ~200 KB intent model (intent-v2, trained in
+ * ml/train_site_intent_v2.py) covers navigation, Harvey FAQ, small talk,
+ * jokes and easter eggs, and anything that reads as a *simulation* command
  * ("make it storm", "chuck a meteor") is handed off: the shell navigates to
- * /catchment and the sim terminal runs it on arrival. One model, whole site.
+ * /catchment and the sim terminal runs it on arrival. Ultra-rare eggs
+ * (xyzzy, sudo…) match exactly, before the model; reply copy lives in
+ * data/terminal-replies.ts, not here.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -16,6 +19,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { createLazyClassifier } from "@/lib/catchment/intent";
 import { setTheme } from "@/lib/theme";
 import { profile } from "@/data/metadata";
+import {
+  CHAT_REPLIES, DAD_JOKES, EGG_REPLIES, EXACT_EGGS, FAQ_REPLIES,
+  HIRE_AVAILABILITY_REPLY, JOKES, NONE_REPLIES, SUDO_REPLY, pickReply,
+} from "@/data/terminal-replies";
 
 export const CATCHMENT_HANDOFF_KEY = "catchment:handoff";
 export const SITE_TERMINAL_VISIBILITY_EVENT = "site-terminal:visibility";
@@ -38,7 +45,18 @@ const PAGES: { id: string; path: string; blurb: string; aliases: string[] }[] = 
 ];
 
 /** Intent groups that belong to the simulation — hand these off to /catchment. */
-const SIM_GROUPS = new Set(["rain", "storm", "erosion", "wind", "relief", "sun", "mode", "scene", "neural", "map"]);
+const SIM_GROUPS = new Set(["rain", "storm", "erosion", "wind", "relief", "sun", "mode", "scene", "neural", "map", "sim"]);
+
+/** Model pages for nav.* intents. */
+const NAV_PAGE: Record<string, string> = {
+  "nav.home": "home", "nav.work": "work", "nav.playground": "playground",
+  "nav.catchment": "catchment", "nav.genesis": "genesis", "nav.pretraining": "pretraining",
+  "nav.canopy": "canopy", "nav.pagerank": "pagerank", "nav.about": "about",
+  "nav.experience": "experience", "nav.skills": "skills", "nav.contact": "contact",
+};
+
+/** Easter eggs only fire above this — stricter than the model's own threshold. */
+const EGG_THRESHOLD = 0.7;
 
 const BOOT: Line[] = [
   { kind: "block", text: "[ok] shell    hjh/os — site command line" },
@@ -53,6 +71,8 @@ const PLACEHOLDERS = [
   "open genesis",
   "open catchment",
   "resume",
+  "who are you",
+  "tell me a joke",
   "whoami",
   "ls",
 ];
@@ -61,14 +81,15 @@ const HELP: Line[] = [
   { kind: "block", text: "go       open <page> · ls · pwd · back" },
   { kind: "block", text: "harvey   resume · email · github · linkedin · whoami" },
   { kind: "block", text: "site     theme dark|light · clear · help" },
-  { kind: "dim", text: "…and anything the catchment understands runs there:", cmd: undefined },
+  { kind: "dim", text: "…or just ask — the shell reads plain english:", cmd: undefined },
+  { kind: "dim", text: "  ↳ who are you", cmd: "who are you" },
   { kind: "dim", text: "  ↳ chuck a meteor at it", cmd: "chuck a meteor at it" },
 ];
 
 const SUGGESTIONS = [
   "open catchment", "open genesis", "open pagerank", "open canopy", "open pretraining",
   "open work", "ls", "resume", "email", "github", "linkedin", "theme dark", "whoami", "help",
-  "make it storm",
+  "make it storm", "tell me a joke", "who are you", "hire harvey",
 ];
 
 const CSS = `
@@ -108,6 +129,8 @@ button.st-line:hover::after{content:"  ↵";color:rgba(143,174,131,0.7);}
   .st-input:placeholder-shown::placeholder{animation:st-ph-glow 3.6s ease-in-out infinite;}
 }
 .st-key{flex:none;font-size:0.54rem;letter-spacing:0.1em;color:rgba(247,245,240,0.3);border:1px solid rgba(247,245,240,0.16);padding:1px 5px;user-select:none;}
+@keyframes st-roll{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.st-root.st-rolling{animation:st-roll .9s cubic-bezier(.36,.07,.19,.97);}
 `;
 
 export default function SiteTerminal() {
@@ -126,7 +149,8 @@ export default function SiteTerminal() {
   const phIdx = useRef(0);
   const prevPath = useRef(pathname);
 
-  const classify = useMemo(() => createLazyClassifier("/catchment/intent.json"), []);
+  const classify = useMemo(() => createLazyClassifier("/catchment/intent-v2.json"), []);
+  const [rolling, setRolling] = useState(false);
 
   // Catchment runs its own terminal on `/` — the shell stands down there.
   const suppressed = pathname === "/catchment";
@@ -207,29 +231,80 @@ export default function SiteTerminal() {
         ];
       case "hire": case "contract": case "contact":
         return goto(PAGES.find((p) => p.id === "contact")!);
+      case "exit": case "quit":
+        setVisible(false);
+        return [];
     }
 
     // Bare page names: `catchment`, `genesis`, `work`…
     const bare = findPage(head);
     if (bare && args.length === 0) return goto(bare);
 
+    // Exact-phrase easter eggs — string equality beats any classifier here.
+    const norm = raw.toLowerCase().trim().replace(/\s+/g, " ");
+    for (const egg of EXACT_EGGS) {
+      if (egg.keys.includes(norm)) return egg.reply;
+    }
+    if (norm === "sudo" || norm.startsWith("sudo ")) return SUDO_REPLY;
+
     // Site-flavoured phrases the model shouldn't have to guess at.
     const t = " " + raw.toLowerCase() + " ";
     if (/\b(resume|cv)\b/.test(t)) { window.open(profile.resume, "_blank", "noopener"); return [{ kind: "ok", text: "resume opened." }]; }
-    if (/\b(email|get in touch|reach out|hire|contract|work with)\b/.test(t)) return goto(PAGES.find((p) => p.id === "contact")!);
-    if (/\b(github|source|code)\b/.test(t)) { window.open(profile.social.github, "_blank", "noopener"); return [{ kind: "ok", text: "github opened." }]; }
     if (/\b(dark|light)\s*(mode|theme)\b/.test(t)) { const m = t.includes("dark") ? "dark" : "light"; setTheme(m); return [{ kind: "ok", text: `theme → ${m}` }]; }
-    if (/\b(demo|demos|play|simulation|simulations)\b/.test(t)) return goto(PAGES.find((p) => p.id === "playground")!);
 
-    // Natural language → the shared intent model. Sim intents hand off.
+    // Natural language → the intent model (v2: nav/faq/chat/eggs + sim).
     const pred = await classify(raw);
     if (pred && pred.intent !== "none") {
-      const group = pred.intent.split(".")[0];
+      const intent = pred.intent;
+      const group = intent.split(".")[0];
+
+      // Simulation talk runs on the terrain, not here.
       if (SIM_GROUPS.has(group)) return handoff(raw);
-      if (pred.intent === "help") return HELP;
-      if (pred.intent === "status") return [{ kind: "block", text: pathname }, ...pageLines()];
+
+      // Navigation.
+      if (intent === "nav.back") { setVisible(false); router.back(); return [{ kind: "ok", text: "← back" }]; }
+      if (intent === "nav.list") return pageLines();
+      const navId = NAV_PAGE[intent];
+      if (navId) return goto(PAGES.find((p) => p.id === navId)!);
+
+      // Harvey actions.
+      if (intent === "harvey.resume") { window.open(profile.resume, "_blank", "noopener"); return [{ kind: "ok", text: "resume opened — pdf, one tab over." }]; }
+      if (intent === "harvey.email") { window.location.href = `mailto:${profile.email}`; return [{ kind: "ok", text: `drafting mail to ${profile.email}…` }]; }
+      if (intent === "harvey.github") { window.open(profile.social.github, "_blank", "noopener"); return [{ kind: "ok", text: "github opened — the source of all of this is public." }]; }
+      if (intent === "harvey.linkedin") { window.open(profile.social.linkedin, "_blank", "noopener"); return [{ kind: "ok", text: "linkedin opened." }]; }
+
+      // Site controls.
+      if (intent === "site.theme_dark") { setTheme("dark"); return [{ kind: "ok", text: "theme → dark" }]; }
+      if (intent === "site.theme_light") { setTheme("light"); return [{ kind: "ok", text: "theme → light" }]; }
+      if (intent === "site.theme_toggle") {
+        const want = document.documentElement.classList.contains("dark") ? "light" : "dark";
+        setTheme(want);
+        return [{ kind: "ok", text: `theme → ${want}` }];
+      }
+      if (intent === "site.help") return HELP;
+      if (intent === "site.clear") { setLines([]); return []; }
+      if (intent === "site.status") return [{ kind: "block", text: pathname }, ...pageLines()];
+
+      // Hiring.
+      if (intent === "hire.contact") return goto(PAGES.find((p) => p.id === "contact")!);
+      if (intent === "hire.availability") return HIRE_AVAILABILITY_REPLY;
+
+      // FAQ, small talk, jokes — copy lives in data/terminal-replies.ts.
+      if (FAQ_REPLIES[intent]) return FAQ_REPLIES[intent];
+      if (CHAT_REPLIES[intent]) return pickReply(intent, CHAT_REPLIES[intent]);
+      if (intent === "joke.tell") return pickReply(intent, JOKES);
+      if (intent === "joke.dad") return pickReply(intent, DAD_JOKES);
+
+      // Easter eggs demand more conviction than ordinary commands.
+      if (group === "egg" && pred.confidence >= EGG_THRESHOLD && EGG_REPLIES[intent]) {
+        if (intent === "egg.barrel_roll") {
+          setRolling(true);
+          window.setTimeout(() => setRolling(false), 950);
+        }
+        return pickReply(intent, EGG_REPLIES[intent]);
+      }
     }
-    return [{ kind: "err", text: "no parse. `help` lists the shell — or try “make it storm”." }];
+    return pickReply("none", NONE_REPLIES);
   }, [classify, goto, handoff, pageLines, pathname, router]);
 
   // Close when navigation lands — layout keeps the shell mounted across routes.
@@ -316,7 +391,7 @@ export default function SiteTerminal() {
   if (suppressed || !visible) return null;
 
   return (
-    <div className="st-root" role="dialog" aria-label="Site command line">
+    <div className={`st-root${rolling ? " st-rolling" : ""}`} role="dialog" aria-label="Site command line">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="st-head">
         <span className="st-title">hjh/os · shell</span>

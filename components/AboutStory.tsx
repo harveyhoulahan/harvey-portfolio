@@ -77,7 +77,7 @@ export default function AboutStory() {
       <div id="stack" className="col-shell mt-20 max-w-work scroll-mt-24">
         <span className="mono-label">The stack · with receipts</span>
         <p className="mt-3 max-w-prose text-ink/70">
-          Tool lists are easy. The four clusters that matter most come with
+          Tool lists are easy. The five clusters that matter most come with
           receipts; the ledger below has everything else.
         </p>
       </div>
