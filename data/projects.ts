@@ -170,9 +170,9 @@ export interface Paper {
 export const papers: Paper[] = [
   {
     title: "Galah: compute-optimal scaling at byte level",
-    context: "Independent · Scaling-law study · 2026",
+    context: "Independent · Scaling-law study · Ongoing · 2026",
     summary:
-      "Chinchilla on one GPU. 43 byte-level runs, 0.1M to 113M params, six budgets. Frontier b = 1.04.",
+      "A Chinchilla-style sweep on one GPU: 39 byte-level runs, 0.1M to 113M params, six budgets. Frontier b = 1.04, with four runs that diverged on the longest schedules. Ongoing.",
     links: [
       { label: "Read the study", href: "/galah" },
       {

@@ -7,7 +7,7 @@ import IsoflopExplorer from "@/components/galah/IsoflopExplorer";
 export const metadata: Metadata = {
   title: "Galah: compute-optimal scaling at byte level | Harvey Houlahan",
   description:
-    "Chinchilla on one GPU. 43 byte-level GPT runs, 0.1M to 113M params, six budgets. Frontier b = 1.04.",
+    "An ongoing Chinchilla-style study on a single GPU: byte-level GPT runs from 0.1M to 113M parameters across six iso-FLOP budgets. Measured frontier exponent b = 1.04.",
   alternates: { canonical: "https://hjhportfolio.com/galah" },
 };
 
@@ -20,13 +20,13 @@ const STATS = [
   { label: "Frontier", value: "N_opt ∝ C^1.04" },
 ] as const;
 
-const RECIPE: [string, string][] = [
-  ["Objective", "Next-byte prediction. Vocab 256. No tokenizer between the data and the exponent."],
-  ["Corpus", "11.9GB of bytes on local disk. Every run is sub-epoch, so repetition never confounds the fits."],
-  ["Recipe, fixed", "AdamW (0.9, 0.95) · wd 0.1 · cosine to 10% · 2% warmup · grad clip 1.0 · bf16"],
-  ["LR rule", "Base LR ∝ 1/√d_model. Width-aware, duration-blind. That blindness becomes the annex."],
-  ["Ladder", "11 widths × 6 iso-FLOP budgets, filled where size and budget make sense. Seed 1337 everywhere."],
-  ["Hardware", "One shared 96GB GPU. The whole sweep fits a quiet night."],
+const CONFIG: [string, string][] = [
+  ["Objective", "Next-byte prediction, vocabulary 256. No tokenizer intervenes between the data and the measured exponent."],
+  ["Corpus", "11.9GB of bytes on local disk. Every run is sub-epoch, so data repetition does not confound the fits."],
+  ["Configuration, fixed", "AdamW (0.9, 0.95) · weight decay 0.1 · cosine to 10% · 2% warmup · gradient clip 1.0 · bf16."],
+  ["Learning rate", "Base LR ∝ 1/√d_model: width-aware but duration-blind. That property is the subject of the stability annex."],
+  ["Ladder", "11 widths × 6 iso-FLOP budgets, populated where size and budget are compatible. Seed 1337 throughout."],
+  ["Hardware", "A single shared 96GB GPU. The complete sweep runs in one overnight session."],
 ];
 
 function Block({ kicker, children }: { kicker: string; children: ReactNode }) {
@@ -43,16 +43,21 @@ export default function GalahPage() {
     <section className="bg-concrete text-ink">
       <div className="mx-auto max-w-work px-6 py-16 md:py-24">
         <p className="mb-4 font-mono text-xs uppercase tracking-[0.22em] text-sage">
-          Research · Independent · 2026
+          Research · Independent · Ongoing · 2026
         </p>
         <h1 className="max-w-[720px] font-display text-3xl leading-tight md:text-[2.6rem]">
           Galah: compute-optimal scaling at byte level
         </h1>
         <p className="mt-4 max-w-prose text-base leading-prose text-ink/75">
-          Given C FLOPs, how big should the model be? Asked where one GPU can
-          answer: byte-level GPTs, 0.1M to 113M params, six budgets, one fixed
-          recipe. The frontier came out steep. The recipe broke on the longest
-          schedules. Both are on this page.
+          Given a compute budget C, what model size minimises loss? The
+          question is posed on a single GPU: byte-level GPTs from 0.1M to 113M
+          parameters, six iso-FLOP budgets, one fixed training configuration.
+          The measured frontier is steep, and training destabilised on the
+          longest schedules. Both observations are documented below.
+        </p>
+        <p className="mt-4 inline-flex items-center gap-2 border border-infra/40 bg-infra/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-infra">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-infra" aria-hidden />
+          Active study · LR ×0.25 annex in progress · figures update as runs complete
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -67,60 +72,98 @@ export default function GalahPage() {
         <div className="mx-auto max-w-prose">
           <Block kicker="The setup">
             Hoffmann et al. fitted scaling laws with tokenizers, TPU pods and
-            400 runs. This strips it down: bytes in, bytes out, a ladder of
-            GPTs small enough that a full iso-FLOP sweep fits on a shared 96GB
-            card overnight. The recipe is frozen. Only N and C move. Whatever
-            the fits say, nothing about training changed under them.
+            roughly 400 runs. This study reduces the apparatus to essentials:
+            bytes in, bytes out, and a ladder of GPTs small enough that a full
+            iso-FLOP sweep completes overnight on a single card. The
+            configuration is held fixed; only N and C vary. Any structure in
+            the fits therefore reflects scale, not changes to the training
+            procedure.
           </Block>
         </div>
 
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">IsoFLOP profiles</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            All 39 sweep runs, one profile per budget. Pick a budget to light
-            its curve; the rest stay dim. Each minimum is a compute-optimal
-            size. Hollow red points diverged and stay out of every fit. The
-            113M run is the right edge of the 3e17 profile.
+            All 39 sweep runs, one profile per budget. Select a budget to
+            highlight its curve; the others are dimmed. Each minimum marks a
+            compute-optimal size. Hollow red points diverged and are excluded
+            from every fit. The 113M run is the rightmost point of the 3e17
+            profile.
           </p>
           <IsoflopExplorer />
         </div>
 
         <div className="mx-auto max-w-prose">
-          <Block kicker="The frontier">
-            Chinchilla says b ≈ 0.5: double the compute, grow the model by √2.
-            This ladder measures b = 1.04. In the byte-level 0.1M to 113M regime,
-            nearly every marginal FLOP wants to be a parameter. Optimal data
-            barely moves (0.46GB at 1e15, 1.06GB at 3e17) while N_opt moves
-            360×. The parametric surface agrees in direction, not magnitude
-            (implied b = 0.85). With six budgets and a steep data term
-            (β = 0.87 vs α = 0.16), that gap is the honest error bar. Kaplan
-            saw steep exponents at small scale too. This is that regime, on
-            bytes, with diverged runs screened out rather than averaged in.
+          <Block kicker="Reading the minima">
+            The clearest single result is at the largest budget. At C = 3e17
+            the 38M model reaches 1.249 bpb — the lowest validation loss in the
+            study — while the 113M model, three times larger at the same
+            budget, reaches only 1.330. The profile is bracketed on both sides:
+            18M (1.280) and 69M (1.281) sit just above the 38M minimum, and
+            113M sits higher again. The fitted optimum is N_opt = 35M, so at
+            this budget 113M is demonstrably oversized and 38M is close to
+            ideal. Compute-optimal training also grows steadily more
+            parameter-heavy: the optimal bytes-per-parameter ratio falls from
+            215 at 1e16 to 30 at 3e17.
+          </Block>
+
+          <Block kicker="The exponent">
+            Chinchilla reports b ≈ 0.5, so that doubling compute grows the
+            optimal model by √2. Fitting all six budgets here returns b = 1.04,
+            but that value is inflated by the two smallest budgets, whose
+            minima are not bracketed — the 1e15 profile extrapolates to a
+            negative loss at its vertex, which is unphysical. Restricting the
+            fit to the four budgets bracketed on both sides gives b = 0.85, and
+            the parametric surface below independently implies b = 0.85 from
+            its own exponents. Two methods converging on 0.85 is the defensible
+            reading; the headline 1.04 is what the naive six-budget fit
+            returns. Both sit well above 0.5: in this byte-level regime the
+            marginal FLOP is spent on parameters, not data. Kaplan et al.
+            reported similarly steep exponents at small scale.
           </Block>
         </div>
 
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The frontier</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            N_opt against C, log-log. Reference slopes anchored at the largest
-            budget. The hollow point sits at the ladder&apos;s edge and is
-            treated that way.
+            N_opt against C, log-log, with reference slopes anchored at the
+            largest budget. The parametric surface is
+            L(N, D) = 0.60 + 8.0·N⁻⁰·¹⁶ + 8.6e6·D⁻⁰·⁸⁷ (Huber residual 0.0015
+            over 35 runs); its N and D exponents imply b = 0.85. The hollow
+            point marks an unbracketed edge budget and is flagged accordingly.
           </p>
           <FrontierChart />
         </div>
 
         <div className="mx-auto max-w-prose">
-          <Block kicker="Where the recipe broke">
-            Every rung&apos;s longest run diverged: 1.5M at 12k steps, 2.7M at
-            25k, 5.5M at 41k, 10M at 25k. Every clean run finished under 15k.
-            Size is not the pattern; duration is. The LR rule knows width and
-            nothing about horizon, and the critical learning rate falls as
-            schedules stretch. A seed repeat diverged earlier than the
-            original, so luck is out. Loss does not explode once and die: it
-            leaves its floor mid-schedule, recovers, leaves again, and each
-            recovery buys less. The last plot is the oddest fact in the study.
-            At 10M, full LR and half LR share a seed, see identical batches,
-            and leave the floor at the same step.
+          <Block kicker="Where training destabilised">
+            Four runs diverged, and each is the longest schedule at its width:
+            1.5M at 12k steps, 2.7M at 25k, 5.5M at 41k, 10M at 25k. Duration
+            is the controlling variable, and the cleanest evidence is a
+            controlled pair: at a fixed base learning rate of 2.1e-3, the 5.5M
+            model trained cleanly for 13,858 steps (C = 1e17) but diverged at
+            41,576 steps (C = 3e17), with onset at step 24,400 — beyond the
+            point where the shorter run had already finished. It is not a
+            simple step threshold, though: the shortest diverged run (12,017
+            steps) is shorter than the longest clean one (14,925 steps). The
+            separating variable is learning rate, which scales as 1/√d_model,
+            so the smaller, hotter models are exactly the ones that fail — and
+            only on their longest schedules. The instability is an interaction
+            of high learning rate with long horizon, not either alone.
+          </Block>
+
+          <Block kicker="What the trigger is">
+            One run localises the mechanism. At 10M, the ×1.0 and ×0.5 runs
+            share a seed and therefore see an identical batch sequence; both
+            leave their loss floor at the same step (≈5,600) despite a factor
+            of two in learning rate. The onset is set by a specific batch —
+            data order — while the learning rate governs only whether the model
+            recovers. Halving the rate moved 10M&apos;s final loss from 3.63 to
+            2.63 but did not prevent divergence, and a uniform ×0.5 across all
+            four rungs rescued only the 1.5M case (3.22 → 1.79); the 2.7M rung
+            was worse at half rate (1.86 → 3.37). A single smaller constant is
+            therefore not the fix, which is what points toward a
+            horizon-dependent schedule rather than a lower peak.
           </Block>
         </div>
 
@@ -138,7 +181,7 @@ export default function GalahPage() {
           <div>
             <h2 className="font-display text-xl">The apparatus</h2>
             <dl className="mt-4 space-y-3 border-l-2 border-sage pl-4">
-              {RECIPE.map(([k, v]) => (
+              {CONFIG.map(([k, v]) => (
                 <div key={k}>
                   <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">{k}</dt>
                   <dd className="mt-0.5 text-sm leading-relaxed text-ink/80">{v}</dd>
@@ -150,27 +193,30 @@ export default function GalahPage() {
             <h2 className="font-display text-xl">Status</h2>
             <dl className="mt-4 space-y-3 border-l-2 border-sand pl-4">
               <div>
-                <dt className="text-sm font-medium text-ink/85">Done</dt>
+                <dt className="text-sm font-medium text-infra">In progress</dt>
+                <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
+                  All four diverged configurations are being rerun at LR ×0.25,
+                  along with the interrupted 5.5M ×0.5 run. If they stabilise
+                  on trend, the frontier rests on 43 runs; if divergence is
+                  only deferred, the result is that the schedule needs a
+                  horizon-dependent term rather than a smaller peak. This page
+                  updates as runs complete.
+                </dd>
+              </div>
+              <div>
+                <dt className="text-sm font-medium text-ink/85">Completed</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
                   Main sweep (39 runs), divergence screen, frontier and
-                  parametric fits, seed repeat, LR ×0.5 annex on all four
-                  diverged rungs.
+                  parametric fits, seed-repeat control, and the LR ×0.5 annex
+                  across all four diverged rungs.
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-ink/85">Queued</dt>
+                <dt className="text-sm font-medium text-ink/85">Constraints</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
-                  Same configs at LR ×0.25, plus the stopped 5.5M ×0.5 rerun.
-                  If they hold and land on trend, the frontier stands on 43
-                  runs. If divergence is only delayed, the schedule needs a
-                  horizon term, not a smaller constant.
-                </dd>
-              </div>
-              <div>
-                <dt className="text-sm font-medium text-ink/85">Held honestly</dt>
-                <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
-                  One seed almost everywhere. Six budgets. Byte-level only.
-                  The exponents measure this regime. Not a claim about yours.
+                  A single seed at nearly every point, six budgets, byte-level
+                  data only. The reported exponents characterise this regime
+                  specifically and are not extrapolated beyond it.
                 </dd>
               </div>
             </dl>
@@ -187,10 +233,10 @@ export default function GalahPage() {
             Code on GitHub ↗
           </a>
           <a href="/pretraining" className="btn-secondary text-sm">
-            Fixed compute, different question →
+            Pretraining under fixed compute →
           </a>
           <a href="/pagerank" className="btn-secondary text-sm">
-            Stochastic processes, smaller stakes →
+            PageRank as a stochastic process →
           </a>
           <span className="font-mono text-xs text-ink/45">
             Harvey Houlahan · galah · July 2026
