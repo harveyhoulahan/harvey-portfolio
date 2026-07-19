@@ -1,5 +1,5 @@
 // Galah study data - generated from each run's final.json plus runs/fits.json
-// on lychee (2026-07-17). Regenerate via galah's fit.py export; do not hand-edit.
+// on lychee (2026-07-19). Regenerate via galah's fit.py export; do not hand-edit.
 
 export interface Run {
   name: string;
@@ -46,6 +46,10 @@ export const RUNS: Run[] = [
   { name: "galah-10m_C3e16", rung: "10m", annex: false, n: 9830400, c: 3e+16, tokens: 331612160, steps: 2530, lrScale: 1, seed: 1337, val: 1.5073, ema: 1.06085, diverged: false, firstSpike: null },
   { name: "galah-10m_C3e17", rung: "10m", annex: false, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 1, seed: 1337, val: 3.62961, ema: 2.51214, diverged: true, firstSpike: 5650 },
   { name: "galah-113m_C3e17", rung: "113m", annex: false, n: 113246208, c: 3e+17, tokens: 361234432, steps: 2756, lrScale: 1, seed: 1337, val: 1.33021, ema: 0.92708, diverged: false, firstSpike: null },
+  { name: "galah-38m_C1e18", rung: "38m", annex: false, n: 37748736, c: 1e+18, tokens: 3311271936, steps: 25263, lrScale: 1, seed: 1337, val: 1.19383, ema: 0.83012, diverged: false, firstSpike: null },
+  { name: "galah-69m_C1e18", rung: "69m", annex: false, n: 68812800, c: 1e+18, tokens: 1912078336, steps: 14588, lrScale: 1, seed: 1337, val: 1.17341, ema: 0.8134, diverged: false, firstSpike: null },
+  { name: "galah-113m_C1e18", rung: "113m", annex: false, n: 113246208, c: 1e+18, tokens: 1204027392, steps: 9186, lrScale: 1, seed: 1337, val: 1.18182, ema: 0.82143, diverged: false, firstSpike: null },
+  { name: "galah-200m_C1e18", rung: "200m", annex: false, n: 199065600, c: 1e+18, tokens: 710803456, steps: 5423, lrScale: 1, seed: 1337, val: 1.22056, ema: 0.84909, diverged: false, firstSpike: null },
   { name: "galah-18m_C1e16", rung: "18m", annex: false, n: 17694720, c: 1e+16, tokens: 65142784, steps: 497, lrScale: 1, seed: 1337, val: 2.73657, ema: 1.99307, diverged: false, firstSpike: null },
   { name: "galah-18m_C1e17", rung: "18m", annex: false, n: 17694720, c: 1e+17, tokens: 652083200, steps: 4975, lrScale: 1, seed: 1337, val: 1.3391, ema: 0.93338, diverged: false, firstSpike: null },
   { name: "galah-18m_C3e16", rung: "18m", annex: false, n: 17694720, c: 3e+16, tokens: 195559424, steps: 1492, lrScale: 1, seed: 1337, val: 1.60957, ema: 1.12855, diverged: false, firstSpike: null },
@@ -75,6 +79,8 @@ export const RUNS: Run[] = [
   { name: "galah-5.5m_C3e17-lr0.5", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.5, seed: 1337, val: 1.70972, ema: 1.20699, diverged: true, firstSpike: 24650 },
   { name: "galah-5.5m_C3e17-lr0.25", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.25, seed: 1337, val: 2.20531, ema: 1.58253, diverged: true, firstSpike: 12900 },
   { name: "galah-10m_C3e17-lr0.25", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 0.25, seed: 1337, val: 1.42252, ema: 0.99249, diverged: false, firstSpike: null },
+  { name: "galah-2.7m_C1e17-lr0.125", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 0.125, seed: 1337, val: 1.79586, ema: 1.25921, diverged: false, firstSpike: 17300 },
+  { name: "galah-5.5m_C3e17-lr0.125", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.125, seed: 1337, val: 1.53792, ema: 1.07435, diverged: false, firstSpike: 35150 },
 ];
 
 export const OPTIMA: Optimum[] = [
@@ -84,19 +90,20 @@ export const OPTIMA: Optimum[] = [
   { c: 3e+16, nOpt: 5.43661e+06, lOpt: 1.45601, dOpt: 5.50632e+08, points: 5, edgePinned: false },
   { c: 1e+17, nOpt: 1.55825e+07, lOpt: 1.34003, dOpt: 7.30974e+08, points: 5, edgePinned: false },
   { c: 3e+17, nOpt: 3.52852e+07, lOpt: 1.25164, dOpt: 1.05522e+09, points: 4, edgePinned: false },
+  { c: 1e+18, nOpt: 7.32489e+07, lOpt: 1.17302, dOpt: 1.80439e+09, points: 4, edgePinned: false },
 ];
 
-export const FRONTIER = { a: 2.62647e-11, b: 1.04461 } as const;
+export const FRONTIER = { a: 4.36463e-10, b: 0.96750 } as const;
 
 export const PARAMETRIC = {
-  E: 0.600739, A: 8.04202, alpha: 0.156447, B: 8.58692e+06, beta: 0.873588, impliedB: 0.848115,
+  E: 0.697667, A: 8.68909, alpha: 0.168793, B: 1.64013e+07, beta: 0.911527, impliedB: 0.843757,
 } as const;
 
-export const BUDGETS = [1e15, 3e15, 1e16, 3e16, 1e17, 3e17] as const;
+export const BUDGETS = [1e15, 3e15, 1e16, 3e16, 1e17, 3e17, 1e18] as const;
 
 export const BUDGET_LABELS: Record<string, string> = {
   "1e+15": "1e15", "3e+15": "3e15", "1e+16": "1e16",
-  "3e+16": "3e16", "1e+17": "1e17", "3e+17": "3e17",
+  "3e+16": "3e16", "1e+17": "1e17", "3e+17": "3e17", "1e+18": "1e18",
 };
 
 export const fmtN = (n: number): string =>

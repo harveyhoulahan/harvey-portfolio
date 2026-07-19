@@ -12,31 +12,29 @@ import { FRONTIER, OPTIMA, PARAMETRIC, fmtC, fmtGB, fmtN, type Optimum } from ".
 
 const W = 720, H = 340;
 const PAD = { top: 22, right: 200, bottom: 42, left: 52 };
-const LC_MIN = 14.8, LC_MAX = 17.75; // log10 C
-const LN_MIN = 4.7, LN_MAX = 7.9;    // log10 N
+const LC_MIN = 14.8, LC_MAX = 18.25; // log10 C
+const LN_MIN = 4.7, LN_MAX = 8.05;   // log10 N
 
 const VIZ_CSS = `
-.gl-fr{--viz-good:#0A8A66;--viz-bad:#B23A18;}
-html.dark .gl-fr{--viz-good:#2FA183;--viz-bad:#D96F45;}
+.gl-fr{--viz-good:#0A8A66;--viz-bad:#B23A18;--viz-chin:#B23A18;}
+html.dark .gl-fr{--viz-good:#2FA183;--viz-bad:#D96F45;--viz-chin:#E58A66;}
 `;
 
 const x = (lc: number) => PAD.left + ((lc - LC_MIN) / (LC_MAX - LC_MIN)) * (W - PAD.left - PAD.right);
 const y = (ln: number) => PAD.top + ((LN_MAX - ln) / (LN_MAX - LN_MIN)) * (H - PAD.top - PAD.bottom);
 
-/** Line of slope b through (lcAnchor, lnAnchor), clipped to the plot box. */
+/** Line of slope b through (lcAnchor, lnAnchor), clipped to the plot box.
+ *  Every reference slope here is positive, so each y-bound is a single
+ *  intersection: the lower bound clips lo upward, the upper clips hi down. */
 function slopeLine(b: number, lcA: number, lnA: number) {
   const lnAt = (lc: number) => lnA + b * (lc - lcA);
   let lo = LC_MIN + 0.05, hi = LC_MAX - 0.05;
-  // clip vertically
-  for (const bound of [LN_MIN + 0.05, LN_MAX - 0.05]) {
-    const lc = lcA + (bound - lnA) / b;
-    if (lnAt(lo) < LN_MIN || lnAt(lo) > LN_MAX) lo = Math.max(lo, Math.min(lc, hi));
-    if (lnAt(hi) < LN_MIN || lnAt(hi) > LN_MAX) hi = Math.min(hi, Math.max(lc, lo));
-  }
+  lo = Math.max(lo, lcA + (LN_MIN + 0.05 - lnA) / b);
+  hi = Math.min(hi, lcA + (LN_MAX - 0.05 - lnA) / b);
   return { x1: x(lo), y1: y(lnAt(lo)), x2: x(hi), y2: y(lnAt(hi)), lnAt };
 }
 
-const X_TICKS = [15, 16, 17];
+const X_TICKS = [15, 16, 17, 18];
 const Y_TICKS = [
   { ln: 5, label: "0.1M" },
   { ln: 6, label: "1M" },
@@ -59,9 +57,9 @@ export default function FrontierChart() {
   const parametric = slopeLine(PARAMETRIC.impliedB, lcA, lnA);
 
   const lines = [
-    { key: "measured", l: measured, dash: "none", op: 0.85, color: "var(--viz-good)", w: 2, label: `measured · b = ${FRONTIER.b.toFixed(2)}` },
-    { key: "parametric", l: parametric, dash: "2 4", op: 0.6, color: "var(--ink)", w: 1.4, label: `parametric surface · b = ${PARAMETRIC.impliedB.toFixed(2)}` },
-    { key: "chinchilla", l: chinchilla, dash: "6 5", op: 0.5, color: "var(--infra)", w: 1.4, label: "Chinchilla · b ≈ 0.50" },
+    { key: "measured", l: measured, dash: "none", op: 0.85, labelOp: 0.95, color: "var(--viz-good)", w: 2, label: `measured · b = ${FRONTIER.b.toFixed(2)}` },
+    { key: "parametric", l: parametric, dash: "2 4", op: 0.6, labelOp: 0.8, color: "var(--ink)", w: 1.4, label: `parametric surface · b = ${PARAMETRIC.impliedB.toFixed(2)}` },
+    { key: "chinchilla", l: chinchilla, dash: "6 5", op: 0.6, labelOp: 0.95, color: "var(--viz-chin)", w: 1.4, label: "Chinchilla · b ≈ 0.50" },
   ];
 
   // The three lines share an anchor, so their right-hand endpoints cluster:
@@ -128,10 +126,10 @@ export default function FrontierChart() {
             />
             <motion.text
               x={W - PAD.right + 10} y={(labelY.get(s.key) ?? s.l.y2) + 4}
-              fontSize={10.5} fill={s.color} opacity={s.op}
+              fontSize={10.5} fill={s.color} opacity={s.labelOp}
               fontFamily="var(--font-mono), monospace"
               initial={reduceMotion ? false : { opacity: 0 }}
-              animate={play ? { opacity: s.op } : {}}
+              animate={play ? { opacity: s.labelOp } : {}}
               transition={{ duration: 0.4, delay: reduceMotion ? 0 : 1 + i * 0.25 }}
             >
               {s.label}

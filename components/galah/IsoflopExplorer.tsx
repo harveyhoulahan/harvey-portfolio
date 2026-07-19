@@ -12,7 +12,7 @@ import { BUDGETS, OPTIMA, RUNS, fmtC, fmtGB, fmtN, type Run } from "./data";
 
 const W = 720, H = 380;
 const PAD = { top: 20, right: 20, bottom: 42, left: 46 };
-const LX_MIN = 4.85, LX_MAX = 8.2; // log10 N
+const LX_MIN = 4.85, LX_MAX = 8.45; // log10 N
 const Y_MIN = 1.15, Y_MAX = 3.8;   // val bpb
 const Y_TICKS = [1.2, 1.6, 2.0, 2.4, 2.8, 3.2, 3.6];
 const X_TICKS = [

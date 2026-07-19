@@ -2,7 +2,7 @@
 
 /*
  * The stability annex: smoothed train loss for every rung that diverged, at
- * LR ×1.0, ×0.5 and ×0.25, plus the seed repeat. Pick a rung; scrub for
+ * LR ×1.0 down to ×0.125, plus the seed repeat. Pick a rung; scrub for
  * values. The 18M control that survived the same budget is available for
  * contrast.
  */
@@ -41,27 +41,29 @@ const RUNGS: RungSpec[] = [
     note: "Two seeds diverge at ×1.0. Colder rates hold — ×0.5 lands at 1.79 bpb, ×0.25 at 1.69 — but the trend says ≈1.55: stability is bought at a loss tax that shrinks, yet never clears, as LR falls.",
     series: [
       { key: "d1p5-full", label: "×1.0 · seed 1337", color: "var(--viz-bad)" },
-      { key: "d1p5-seed", label: "×1.0 · seed 1338", color: "var(--viz-bad)", dash: "5 4" },
+      { key: "d1p5-seed", label: "×1.0 · seed 1338", color: "var(--viz-alt)", dash: "5 4" },
       { key: "d1p5-half", label: "×0.5", color: "var(--viz-good)" },
       { key: "d1p5-q", label: "×0.25", color: "var(--viz-cold)" },
     ],
   },
   {
     id: "2.7m", tab: "2.7M · C=1e17", steps: 25362,
-    note: "Diverged at every rate tried: 1.86 bpb at ×1.0 (late spike, limped in), 3.37 at ×0.5, 2.13 at ×0.25. A constant reduction does not fix this horizon; the LR ×0.125 probe is running now.",
+    note: "No constant rate clears this horizon: 1.86 bpb at ×1.0, 3.37 at ×0.5, 2.13 at ×0.25. At ×0.125 the spike still fires (step 17.3k) but the run survives it, landing at 1.80 bpb — formally stable, still ≈24% above the ≈1.45 trend. An 8× reduction changes the outcome of the spike, not its existence.",
     series: [
       { key: "d2p7-full", label: "×1.0", color: "var(--viz-bad)" },
       { key: "d2p7-half", label: "×0.5", color: "var(--viz-good)" },
       { key: "d2p7-q", label: "×0.25", color: "var(--viz-cold)" },
+      { key: "d2p7-e", label: "×0.125", color: "var(--viz-cold)", dash: "5 4" },
     ],
   },
   {
     id: "5.5m", tab: "5.5M · C=3e17", steps: 41576,
-    note: "The longest run in the study: 41.6k steps. Every rate diverges — ×1.0 at step 24.4k, ×0.5 at 24.7k, ×0.25 at 12.9k. Onset does not move out as LR falls; the ×0.125 probe is running now.",
+    note: "The longest run in the study: 41.6k steps. ×1.0 diverges at step 24.4k, ×0.5 at 24.7k, ×0.25 at 12.9k — onset does not move out as LR falls. At ×0.125 a late spike (35.2k) is survived and the run lands at 1.54 bpb: the first stable point on this horizon, ≈18% above trend.",
     series: [
       { key: "d5p5-full", label: "×1.0", color: "var(--viz-bad)" },
       { key: "d5p5-half", label: "×0.5", color: "var(--viz-good)" },
       { key: "d5p5-q", label: "×0.25", color: "var(--viz-cold)" },
+      { key: "d5p5-e", label: "×0.125", color: "var(--viz-cold)", dash: "5 4" },
     ],
   },
   {
@@ -77,16 +79,16 @@ const RUNGS: RungSpec[] = [
 
 const CONTROL: SeriesSpec = { key: "ctl18", label: "18M · C=3e17 · survived", color: "var(--ink)" };
 
-const OUTCOMES: [string, string, string, string, string, string][] = [
-  ["1.5M · C3e16", "12,017", "3.22 / 3.16 bpb · diverged", "1.79 bpb · held", "1.69 bpb · held", "rescued · ≈9% off trend"],
-  ["2.7M · C1e17", "25,362", "1.86 bpb · spiked, limped in", "3.37 bpb · diverged", "2.13 bpb · diverged", "unfixed by 4× reduction"],
-  ["5.5M · C3e17", "41,576", "4.17 bpb · diverged", "1.71 bpb · diverged late", "2.21 bpb · diverged", "unfixed by 4× reduction"],
-  ["10M · C3e17", "25,307", "3.63 bpb · diverged", "2.63 bpb · diverged", "1.42 bpb · held", "rescued · ≈10% off trend"],
+const OUTCOMES: [string, string, string, string, string, string, string][] = [
+  ["1.5M · C3e16", "12,017", "3.22 / 3.16 bpb · diverged", "1.79 bpb · held", "1.69 bpb · held", "—", "rescued · ≈9% off trend"],
+  ["2.7M · C1e17", "25,362", "1.86 bpb · spiked, limped in", "3.37 bpb · diverged", "2.13 bpb · diverged", "1.80 bpb · spike survived", "stable only at ×0.125 · ≈24% off trend"],
+  ["5.5M · C3e17", "41,576", "4.17 bpb · diverged", "1.71 bpb · diverged late", "2.21 bpb · diverged", "1.54 bpb · spike survived", "stable only at ×0.125 · ≈18% off trend"],
+  ["10M · C3e17", "25,307", "3.63 bpb · diverged", "2.63 bpb · diverged", "1.42 bpb · held", "—", "rescued · ≈10% off trend"],
 ];
 
 const VIZ_CSS = `
-.gl-lab{--viz-good:#0A8A66;--viz-bad:#B23A18;--viz-cold:#1D6FA8;}
-html.dark .gl-lab{--viz-good:#2FA183;--viz-bad:#D96F45;--viz-cold:#5C9FD4;}
+.gl-lab{--viz-good:#0A8A66;--viz-bad:#B23A18;--viz-cold:#1D6FA8;--viz-alt:#8A56A8;}
+html.dark .gl-lab{--viz-good:#2FA183;--viz-bad:#D96F45;--viz-cold:#5C9FD4;--viz-alt:#BC8FD9;}
 .gl-lab .gl-chip{border:1px solid var(--contour);padding:3px 10px;font-size:11px;line-height:1.4;transition:all .15s ease;cursor:pointer;background:var(--paper);color:var(--ink);opacity:.6;}
 .gl-lab .gl-chip:hover{opacity:.9;}
 .gl-lab .gl-chip.is-on{opacity:1;border-color:var(--ink);}
@@ -313,17 +315,19 @@ export default function InstabilityLab() {
               <th className="py-2 pr-4 font-medium">LR ×1.0</th>
               <th className="py-2 pr-4 font-medium">LR ×0.5</th>
               <th className="py-2 pr-4 font-medium">LR ×0.25</th>
+              <th className="py-2 pr-4 font-medium">LR ×0.125</th>
               <th className="py-2 font-medium">verdict</th>
             </tr>
           </thead>
           <tbody>
-            {OUTCOMES.map(([cfg, steps, full, half, quarter, verdict]) => (
+            {OUTCOMES.map(([cfg, steps, full, half, quarter, eighth, verdict]) => (
               <tr key={cfg} className="border-b border-contour/60 text-sm">
                 <td className="py-2.5 pr-4 font-mono text-[12px] text-ink/85">{cfg}</td>
                 <td className="py-2.5 pr-4 font-mono text-[12px] text-ink/60">{steps}</td>
                 <td className="py-2.5 pr-4 text-ink/70">{full}</td>
                 <td className="py-2.5 pr-4 text-ink/70">{half}</td>
                 <td className="py-2.5 pr-4 text-ink/70">{quarter}</td>
+                <td className="py-2.5 pr-4 text-ink/70">{eighth}</td>
                 <td className="py-2.5 text-ink/85">{verdict}</td>
               </tr>
             ))}
