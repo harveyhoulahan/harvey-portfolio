@@ -70,6 +70,11 @@ export const RUNS: Run[] = [
   { name: "galah-1.5m_C3e16-seed1338", rung: "1.5m", annex: true, n: 1536000, c: 3e+16, tokens: 1575092224, steps: 12017, lrScale: 1, seed: 1338, val: 3.1622, ema: 2.20761, diverged: true, firstSpike: 2700 },
   { name: "galah-10m_C3e17-lr0.5", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 0.5, seed: 1337, val: 2.62843, ema: 1.88087, diverged: true, firstSpike: 5550 },
   { name: "galah-2.7m_C1e17-lr0.5", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 0.5, seed: 1337, val: 3.36941, ema: 2.28112, diverged: true, firstSpike: 4350 },
+  { name: "galah-1.5m_C3e16-lr0.25", rung: "1.5m", annex: true, n: 1536000, c: 3e+16, tokens: 1575092224, steps: 12017, lrScale: 0.25, seed: 1337, val: 1.69469, ema: 1.18442, diverged: false, firstSpike: null },
+  { name: "galah-2.7m_C1e17-lr0.25", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 0.25, seed: 1337, val: 2.12735, ema: 1.48777, diverged: true, firstSpike: 7350 },
+  { name: "galah-5.5m_C3e17-lr0.5", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.5, seed: 1337, val: 1.70972, ema: 1.20699, diverged: true, firstSpike: 24650 },
+  { name: "galah-5.5m_C3e17-lr0.25", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.25, seed: 1337, val: 2.20531, ema: 1.58253, diverged: true, firstSpike: 12900 },
+  { name: "galah-10m_C3e17-lr0.25", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 0.25, seed: 1337, val: 1.42252, ema: 0.99249, diverged: false, firstSpike: null },
 ];
 
 export const OPTIMA: Optimum[] = [

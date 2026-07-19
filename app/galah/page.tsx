@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 // Numbers from each run's final.json and fits.json. See components/galah/data.ts.
 
 const STATS = [
-  { label: "Sweep", value: "39 runs · 4 diverged" },
+  { label: "Sweep", value: "39 runs + 9 annex" },
   { label: "Ladder", value: "0.1M → 113M params" },
   { label: "Budgets", value: "1e15 → 3e17 FLOPs" },
   { label: "Frontier", value: "N_opt ∝ C^1.04" },
@@ -57,7 +57,7 @@ export default function GalahPage() {
         </p>
         <p className="mt-4 inline-flex items-center gap-2 border border-infra/40 bg-infra/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-infra">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-infra" aria-hidden />
-          Active study · LR ×0.25 annex in progress · figures update as runs complete
+          Active study · LR ×0.125 probes + 1e18 budget in progress · figures update as runs complete
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -156,23 +156,26 @@ export default function GalahPage() {
             One run localises the mechanism. At 10M, the ×1.0 and ×0.5 runs
             share a seed and therefore see an identical batch sequence; both
             leave their loss floor at the same step (≈5,600) despite a factor
-            of two in learning rate. The onset is set by a specific batch —
-            data order — while the learning rate governs only whether the model
-            recovers. Halving the rate moved 10M&apos;s final loss from 3.63 to
-            2.63 but did not prevent divergence, and a uniform ×0.5 across all
-            four rungs rescued only the 1.5M case (3.22 → 1.79); the 2.7M rung
-            was worse at half rate (1.86 → 3.37). A single smaller constant is
-            therefore not the fix, which is what points toward a
-            horizon-dependent schedule rather than a lower peak.
+            of two in learning rate. At ×0.25 the same batches pass without
+            incident and the run holds to the end — so the trigger is
+            data-order-dependent, but only fires above a rate threshold. The
+            full LR ladder settles the question of a constant fix: quarter-rate
+            rescued 10M (1.42 bpb) and 1.5M (1.69) but left both ≈10% above
+            the trend the surface predicts for their (N, D), and the 2.7M and
+            5.5M rungs diverged at every rate tried — a 4× reduction buys
+            stability on some horizons, never on-trend loss. That asymmetry is
+            the argument for a horizon-dependent schedule rather than a lower
+            peak: the ×0.125 probes now running close out the constant-LR
+            hypothesis entirely.
           </Block>
         </div>
 
         <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
           <h2 className="font-display text-xl">The stability annex</h2>
           <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
-            Smoothed train loss for each diverged rung, at LR ×1.0 and ×0.5.
-            Dotted verticals mark where each run first left its loss floor.
-            Scrub for values.
+            Smoothed train loss for each diverged rung, at LR ×1.0, ×0.5 and
+            ×0.25. Dotted verticals mark where each run first left its loss
+            floor. Scrub for values.
           </p>
           <InstabilityLab />
         </div>
@@ -195,20 +198,22 @@ export default function GalahPage() {
               <div>
                 <dt className="text-sm font-medium text-infra">In progress</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
-                  All four diverged configurations are being rerun at LR ×0.25,
-                  along with the interrupted 5.5M ×0.5 run. If they stabilise
-                  on trend, the frontier rests on 43 runs; if divergence is
-                  only deferred, the result is that the schedule needs a
-                  horizon-dependent term rather than a smaller peak. This page
-                  updates as runs complete.
+                  A seventh budget, C = 1e18, is running tonight (38M–200M,
+                  including a new 200M rung), which will extend the frontier
+                  fit to four fully bracketed decades. Alongside it, LR ×0.125
+                  probes on the two rungs that diverged at every rate so far.
+                  This page updates as runs complete.
                 </dd>
               </div>
               <div>
                 <dt className="text-sm font-medium text-ink/85">Completed</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
                   Main sweep (39 runs), divergence screen, frontier and
-                  parametric fits, seed-repeat control, and the LR ×0.5 annex
-                  across all four diverged rungs.
+                  parametric fits, seed-repeat control, and the LR ×0.5 and
+                  ×0.25 annexes. The annex verdict: a constant reduction
+                  rescues some horizons at a ≈10% loss tax and fails outright
+                  on others — no annex point is clean enough to enter the
+                  fits, which rest on the 35 stable main-sweep runs.
                 </dd>
               </div>
               <div>
