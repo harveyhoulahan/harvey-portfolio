@@ -58,7 +58,7 @@ export default function GalahPage() {
         </p>
         <p className="mt-4 inline-flex items-center gap-2 border border-infra/40 bg-infra/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-infra">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-infra" aria-hidden />
-          Active study · 1e18 budget + full LR ladder complete · schedule experiment next
+          Active study · intervention pre-registered 20 July · qk-norm vs horizon-LR runs tonight
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -192,6 +192,75 @@ export default function GalahPage() {
           <InstabilityLab />
         </div>
 
+        <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
+          <h2 className="font-display text-xl">The intervention log</h2>
+          <p className="mb-6 mt-1 max-w-prose text-sm text-ink/60">
+            A running record of every deliberate change to the study&apos;s
+            apparatus — what was changed, when, and what was predicted before
+            the results existed. Fits never mix across entries: the 43-run
+            main sweep stands as measured, and every intervention below is an
+            annex against it.
+          </p>
+          <dl className="space-y-5 border-l-2 border-sage pl-4">
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">16–17 July · divergence isolated</dt>
+              <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
+                The four longest-schedule runs fail the smoothed-loss
+                criterion and are excluded from every fit. A seed repeat
+                reproduces the failure — systematic, not seed luck.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">18–19 July · constant-LR ladder closed</dt>
+              <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
+                LR ×0.5, ×0.25 and ×0.125 across the failed configs. Colder
+                rates trade divergence for an off-trend tax that shrinks but
+                never clears; no constant rate produces an on-trend point on
+                any 25k+-step horizon. A uniform rescale is ruled out.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">19 July · frontier extended to 1e18</dt>
+              <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
+                A seventh budget lands fully bracketed (69M optimum, 200M
+                rung). The local exponent falls to 0.61 across the final
+                decade — the bend toward Chinchilla, measured in-study.
+              </dd>
+            </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-infra">20 July · pre-registered tonight — two arms</dt>
+              <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
+                Registered before any run executes.{" "}
+                <strong className="font-medium text-ink">Arm A, qk-norm:</strong>{" "}
+                per-head LayerNorm on q and k, on the four failed configs plus
+                two clean controls, at the full ×1.0 rate.{" "}
+                <a href="https://arxiv.org/abs/2309.14322" target="_blank" rel="noopener noreferrer" className="underline decoration-contour underline-offset-2 hover:decoration-sage">
+                  Wortsman et al. (ICLR 2024)
+                </a>{" "}
+                identify attention-logit growth as the spike mechanism and
+                show this intervention cures it at small scale and high LR —
+                precisely this study&apos;s failing corner. Prediction: no
+                spikes at ×1.0, losses on or near trend, controls unmoved.{" "}
+                <strong className="font-medium text-ink">Arm B, horizon-aware LR:</strong>{" "}
+                peak rate scaled by (T_clean/T_target)^0.5 per rung, model
+                untouched —{" "}
+                <a href="https://arxiv.org/abs/2410.05838" target="_blank" rel="noopener noreferrer" className="underline decoration-contour underline-offset-2 hover:decoration-sage">
+                  recent theory
+                </a>{" "}
+                has the optimal rate decaying ≈1/√κ as the horizon grows κ×,
+                the term the width-only rule is missing. Prediction: stable
+                and nearer trend than any constant scale.{" "}
+                <strong className="font-medium text-ink">Decision rule, fixed now:</strong>{" "}
+                if Arm A lands on trend, the deployment model trains with
+                qk-norm and the paper closes on &ldquo;one normalization
+                changes the measured law.&rdquo; If only Arm B holds, the
+                width-only LR rule was the artifact and the schedule is the
+                fix. Results append here as they land.
+              </dd>
+            </div>
+          </dl>
+        </div>
+
         <div className="mt-14 grid gap-10 md:grid-cols-2">
           <div>
             <h2 className="font-display text-xl">The apparatus</h2>
@@ -210,11 +279,11 @@ export default function GalahPage() {
               <div>
                 <dt className="text-sm font-medium text-infra">Next</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
-                  The constant-LR case is closed, so the schedule experiment
-                  is the decision point: a horizon-aware schedule (or a
-                  stabiliser such as qk-norm) tested against the mapped
-                  boundary, then the deployment-optimal slice of the surface
-                  and a WebGPU build of the winning model.
+                  The two pre-registered arms in the intervention log run
+                  tonight: qk-norm at full rate against the horizon-aware
+                  peak. Whichever holds decides the recipe for the
+                  deployment-optimal slice of the surface and the WebGPU
+                  build of the winning model.
                 </dd>
               </div>
               <div>
