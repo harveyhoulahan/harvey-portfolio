@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 // Numbers from each run's final.json and fits.json. See components/galah/data.ts.
 
 const STATS = [
-  { label: "Sweep", value: "43 runs + 11 annex" },
+  { label: "Sweep", value: "43 runs + 21 annex" },
   { label: "Ladder", value: "0.1M → 200M params" },
   { label: "Budgets", value: "1e15 → 1e18 FLOPs" },
   { label: "Frontier", value: "local b: 0.92 → 0.61" },
@@ -58,7 +58,7 @@ export default function GalahPage() {
         </p>
         <p className="mt-4 inline-flex items-center gap-2 border border-infra/40 bg-infra/5 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] text-infra">
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-infra" aria-hidden />
-          Active study · intervention pre-registered 20 July · qk-norm vs horizon-LR runs tonight
+          Active study · qk-norm resolves the instability (20 July) · deployment slice next
         </p>
 
         <div className="mt-10 grid grid-cols-2 gap-px border border-contour bg-contour md:grid-cols-4">
@@ -113,18 +113,23 @@ export default function GalahPage() {
           <Block kicker="The exponent">
             Chinchilla reports b ≈ 0.5, so that doubling compute grows the
             optimal model by √2. A single power law fitted across all seven
-            budgets here returns b = 0.97 — but the more interesting result is
-            that no single exponent fits. The local slope between consecutive
-            bracketed budgets falls monotonically: 0.92 (1e16→3e16), 0.87,
-            0.74, then 0.61 across the final decade (3e17→1e18). The frontier
-            is not a straight line in log-log; it starts in the steep
-            Kaplan-like regime that small-scale studies report and bends
-            toward Chinchilla&apos;s 0.5 within this study&apos;s own measured
-            range. The parametric surface, which averages over the whole grid,
-            lands between the extremes at an implied b = 0.84. The practical
-            reading: at byte level the marginal FLOP buys parameters early and
-            data late, and any single-exponent summary of this regime is an
-            artifact of where you truncate the sweep.
+            budgets here returns b = 0.97 — but no single exponent fits. The
+            local slope between consecutive bracketed budgets declines from
+            0.92 (1e16→3e16) through 0.87 and 0.74 to 0.61 across the final
+            decade (3e17→1e18): the frontier starts in the steep Kaplan-like
+            regime that small-scale studies report and bends toward
+            Chinchilla&apos;s 0.5 within this study&apos;s own measured range.
+            How much of that survives noise is the fair question, so each
+            budget&apos;s minimum was resampled — bootstrapping the runs within
+            it and refitting — 20,000 times. The verdict is split, and worth
+            stating plainly: the net bend is robust — the top-decade slope is
+            below the bottom-decade slope in 86% of resamples — but a strict
+            step-by-step monotone decline holds in only 9%, because the
+            per-budget slope confidence intervals overlap. The honest claim is
+            therefore the endpoints, not the smooth path: byte-level scaling is
+            steep at small compute and materially shallower by 1e18. The
+            parametric surface, which averages the whole grid, lands between
+            the extremes at implied b = 0.84.
           </Block>
         </div>
 
@@ -228,7 +233,7 @@ export default function GalahPage() {
               </dd>
             </div>
             <div>
-              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-infra">20 July · pre-registered tonight — two arms</dt>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/45">20 July · pre-registered — two arms</dt>
               <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
                 Registered before any run executes.{" "}
                 <strong className="font-medium text-ink">Arm A, qk-norm:</strong>{" "}
@@ -258,7 +263,93 @@ export default function GalahPage() {
                 fix. Results append here as they land.
               </dd>
             </div>
+            <div>
+              <dt className="font-mono text-[10px] uppercase tracking-[0.14em] text-infra">20 July · result — Arm A wins, Arm B falsified</dt>
+              <dd className="mt-1 max-w-prose text-sm leading-relaxed text-ink/80">
+                Ten runs, no crashes, no manual intervention.{" "}
+                <strong className="font-medium text-ink">Arm A confirmed the prediction outright.</strong>{" "}
+                qk-norm at the full ×1.0 rate held every one of the four failed
+                configs flat — no spike in any of them — and each lands on or
+                below its compute-optimal trend: 1.5M 1.493, 2.7M 1.397, 10M
+                1.261, 5.5M 1.296 bpb, all at or under target. The two controls
+                were not merely unmoved but slightly improved (18M 1.280→1.247,
+                5.5M@1e17 1.410→1.349), so the intervention never costs loss on
+                a horizon that was already fine.{" "}
+                <strong className="font-medium text-ink">Arm B was falsified.</strong>{" "}
+                Horizon-aware LR still diverged the 10M run outright (val 2.315,
+                spike at step 6,750) — worse than the best constant scale for
+                that rung — and left the survivors 7–13% off trend. Schedule
+                alone does not fix it; the architectural change does. By the
+                decision rule fixed in advance, qk-norm becomes the recipe for
+                the deployment model, and the study&apos;s closing claim stands:
+                one normalization layer moves where the measured law holds.
+              </dd>
+            </div>
           </dl>
+        </div>
+
+        <div className="mt-12 border border-contour bg-paper p-5 md:p-7">
+          <h2 className="font-display text-xl">Compute-optimal is not deployment-optimal</h2>
+          <p className="mb-5 mt-1 max-w-prose text-sm text-ink/60">
+            The question the whole study is built to ask. Chinchilla minimises
+            loss for a compute budget and is free to pick any model size. A
+            model that ships to a browser is not: a WebGPU int8 runtime caps
+            the parameter count it can hold and run at interactive speed. So
+            the right objective is not minimise L over all N, but minimise L
+            subject to N ≤ N_max. Below, N_max is the deployment cap; the
+            surface L(N, D) is minimised under it and compared to the
+            unconstrained compute-optimal point at the same budget. Values past
+            1e18 are the fitted surface extrapolated beyond the measured grid
+            and are labelled as projections.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[440px] border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-contour text-left font-mono text-[10px] uppercase tracking-[0.12em] text-ink/45">
+                  <th className="py-2 pr-4 font-normal">Budget C</th>
+                  <th className="py-2 pr-4 font-normal">Compute-opt N · L</th>
+                  <th className="py-2 pr-4 font-normal">Ship at ≤ 25M · L</th>
+                  <th className="py-2 font-normal">Deployment tax</th>
+                </tr>
+              </thead>
+              <tbody className="font-mono text-[13px] text-ink/80">
+                <tr className="border-b border-contour/50"><td className="py-2 pr-4">1e17</td><td className="py-2 pr-4">16M · 1.325</td><td className="py-2 pr-4">16M · 1.325</td><td className="py-2 text-ink/45">none (fits)</td></tr>
+                <tr className="border-b border-contour/50"><td className="py-2 pr-4">3e17</td><td className="py-2 pr-4">40M · 1.234</td><td className="py-2 pr-4">25M · 1.242</td><td className="py-2">+0.008</td></tr>
+                <tr className="border-b border-contour/50"><td className="py-2 pr-4">1e18</td><td className="py-2 pr-4">111M · 1.150</td><td className="py-2 pr-4">25M · 1.206</td><td className="py-2">+0.056</td></tr>
+                <tr className="border-b border-contour/50"><td className="py-2 pr-4">3e18 <span className="text-ink/40">proj.</span></td><td className="py-2 pr-4">279M · 1.084</td><td className="py-2 pr-4">25M · 1.194</td><td className="py-2">+0.110</td></tr>
+                <tr><td className="py-2 pr-4">1e19 <span className="text-ink/40">proj.</span></td><td className="py-2 pr-4">398M · 1.033</td><td className="py-2 pr-4">25M · 1.190</td><td className="py-2">+0.157</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div className="mx-auto mt-6 max-w-prose">
+            <Block kicker="What the slice says">
+              For a 25M-parameter deployment cap, the compute-optimal model
+              outgrows the browser at C ≈ 1.7e17. Past that crossover the
+              shippable model is pinned at N_max and every additional FLOP goes
+              into data, not parameters — deliberately overtraining a small
+              model, which is precisely the regime compute-optimal training
+              calls wasteful. The gap between the two columns is the price of
+              the constraint: 0.056 bpb at 1e18, widening as compute grows. The
+              practical consequence inverts the headline. The model this study
+              ships is not its compute-optimal point (69M at the largest
+              measured budget); it is the largest model a browser can run,
+              trained far past its compute-optimal token count with qk-norm
+              keeping the long schedule stable. Compute-optimal sizing answers a
+              question the deployment target never asked.
+            </Block>
+            <Block kicker="Two honest caveats">
+              First, accounting. N counts non-embedding parameters and FLOPs use
+              the 6ND approximation plus the attention term; byte-level keeps
+              embeddings negligible even at the 0.1M rung, which is the reason
+              the ratio is comparable to Chinchilla at all. Second, units. A
+              byte is not a BPE token, so the D/N ≈ 25 measured here and
+              Chinchilla&apos;s ≈ 20 are the same quantity in different
+              alphabets — roughly four to five bytes per English token means the
+              two are close in tokens but not identical, and the comparison is
+              directional, not exact. Both are stated so the ratio is not read
+              as a like-for-like match it cannot be.
+            </Block>
+          </div>
         </div>
 
         <div className="mt-14 grid gap-10 md:grid-cols-2">
@@ -279,11 +370,12 @@ export default function GalahPage() {
               <div>
                 <dt className="text-sm font-medium text-infra">Next</dt>
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
-                  The two pre-registered arms in the intervention log run
-                  tonight: qk-norm at full rate against the horizon-aware
-                  peak. Whichever holds decides the recipe for the
-                  deployment-optimal slice of the surface and the WebGPU
-                  build of the winning model.
+                  The recipe is settled: qk-norm stabilises the long
+                  schedules at full learning rate, so the deployment model
+                  trains with it. Remaining: a couple of seed repeats on the
+                  load-bearing optima to put error bars on the minima, then the
+                  WebGPU int8 build of the largest browser-runnable model,
+                  trained past its compute-optimal token count.
                 </dd>
               </div>
               <div>
@@ -291,10 +383,11 @@ export default function GalahPage() {
                 <dd className="mt-0.5 text-sm leading-relaxed text-ink/65">
                   Main sweep across seven budgets (43 runs, 1e15–1e18, with
                   the 1e18 profile bracketed 38M–200M), divergence screen,
-                  frontier and parametric fits, seed-repeat control, and the
-                  full LR annex ladder ×0.5 → ×0.125. The annex verdict: no
-                  constant rate yields an on-trend point on any 25k+-step
-                  horizon — annex points never enter the fits, which rest on
+                  frontier and parametric fits, seed-repeat control, the full
+                  LR annex ladder ×0.5 → ×0.125, a 20,000-sample bootstrap on
+                  the frontier bend, both pre-registered intervention arms
+                  (qk-norm and horizon-LR, 10 runs), and the deployment-optimal
+                  slice. Every annex point stays out of the fits, which rest on
                   the 39 stable main-sweep runs.
                 </dd>
               </div>

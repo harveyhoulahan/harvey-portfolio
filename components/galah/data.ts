@@ -1,5 +1,5 @@
 // Galah study data - generated from each run's final.json plus runs/fits.json
-// on lychee (2026-07-19). Regenerate via galah's fit.py export; do not hand-edit.
+// on lychee (2026-07-20). Regenerate via galah's fit.py export; do not hand-edit.
 
 export interface Run {
   name: string;
@@ -15,6 +15,7 @@ export interface Run {
   ema: number;      // final smoothed train loss (nats)
   diverged: boolean;
   firstSpike: number | null; // step where smoothed loss first left its floor
+  qkNorm?: boolean; // intervention annex: per-head qk-LayerNorm on
 }
 
 export interface Optimum {
@@ -81,6 +82,18 @@ export const RUNS: Run[] = [
   { name: "galah-10m_C3e17-lr0.25", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 0.25, seed: 1337, val: 1.42252, ema: 0.99249, diverged: false, firstSpike: null },
   { name: "galah-2.7m_C1e17-lr0.125", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 0.125, seed: 1337, val: 1.79586, ema: 1.25921, diverged: false, firstSpike: 17300 },
   { name: "galah-5.5m_C3e17-lr0.125", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.125, seed: 1337, val: 1.53792, ema: 1.07435, diverged: false, firstSpike: 35150 },
+  // Intervention arms, pre-registered 20 Jul. Arm A: qk-norm at full ×1.0 LR.
+  { name: "galah-1.5m_C3e16-qk", rung: "1.5m", annex: true, n: 1536000, c: 3e+16, tokens: 1575092224, steps: 12017, lrScale: 1, seed: 1337, val: 1.49337, ema: 1.04244, diverged: false, firstSpike: null, qkNorm: true },
+  { name: "galah-2.7m_C1e17-qk", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 1, seed: 1337, val: 1.3966, ema: 0.97271, diverged: false, firstSpike: null, qkNorm: true },
+  { name: "galah-5.5m_C3e17-qk", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 1, seed: 1337, val: 1.29622, ema: 0.90253, diverged: false, firstSpike: null, qkNorm: true },
+  { name: "galah-10m_C3e17-qk", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 1, seed: 1337, val: 1.26089, ema: 0.8783, diverged: false, firstSpike: null, qkNorm: true },
+  { name: "galah-5.5m_C1e17-qk", rung: "5.5m", annex: true, n: 5505024, c: 1e+17, tokens: 1816395776, steps: 13858, lrScale: 1, seed: 1337, val: 1.34937, ema: 0.9417, diverged: false, firstSpike: null, qkNorm: true },
+  { name: "galah-18m_C3e17-qk", rung: "18m", annex: true, n: 17694720, c: 3e+17, tokens: 1956249600, steps: 14925, lrScale: 1, seed: 1337, val: 1.24735, ema: 0.86772, diverged: false, firstSpike: null, qkNorm: true },
+  // Arm B: vanilla model, horizon-aware peak LR = (T_clean/T_target)^0.5.
+  { name: "galah-1.5m_C3e16-hlr", rung: "1.5m", annex: true, n: 1536000, c: 3e+16, tokens: 1575092224, steps: 12017, lrScale: 0.577, seed: 1337, val: 1.65477, ema: 1.15661, diverged: false, firstSpike: null },
+  { name: "galah-2.7m_C1e17-hlr", rung: "2.7m", annex: true, n: 2654208, c: 1e+17, tokens: 3324248064, steps: 25362, lrScale: 0.548, seed: 1337, val: 1.63509, ema: 1.14639, diverged: false, firstSpike: null },
+  { name: "galah-5.5m_C3e17-hlr", rung: "5.5m", annex: true, n: 5505024, c: 3e+17, tokens: 5449449472, steps: 41576, lrScale: 0.577, seed: 1337, val: 1.45117, ema: 1.0233, diverged: false, firstSpike: null },
+  { name: "galah-10m_C3e17-hlr", rung: "10m", annex: true, n: 9830400, c: 3e+17, tokens: 3317039104, steps: 25307, lrScale: 0.577, seed: 1337, val: 2.31525, ema: 1.57664, diverged: true, firstSpike: 6750 },
 ];
 
 export const OPTIMA: Optimum[] = [
